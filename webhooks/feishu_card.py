@@ -52,49 +52,64 @@ async def feishu_card_callback(request: Request):
         label = label_map[action]
         await _update_state_step(conversation_id, f"bobby_{action}")
         summary = await _get_state_summary(conversation_id)
+        handled = build_handled_card(summary, label)
+        if message_id:
+            await update_card(message_id, handled)
         return {
             "toast": {"type": "success", "content": label},
-            "card": build_handled_card(summary, label),
+            "card": handled,
         }
 
     if action == "approve_draft":
         draft = action_value.get("draft", "")
         if draft and conversation_id:
-            ok = await front.reply_to_conversation(conversation_id, draft)
+            await front.reply_to_conversation(conversation_id, draft)
             await _update_state_step(conversation_id, "replied_approved")
             summary = await _get_state_summary(conversation_id)
+            handled = build_handled_card(summary, "✅ 已发送 AI 草稿")
+            if message_id:
+                await update_card(message_id, handled)
             return {
                 "toast": {"type": "success", "content": "已发送"},
-                "card": build_handled_card(summary, "✅ 已发送 AI 草稿"),
+                "card": handled,
             }
         return {"code": 0}
 
     if action == "rewrite_draft":
         await _update_state_step(conversation_id, "awaiting_bobby_custom_reply")
         summary = await _get_state_summary(conversation_id)
+        handled = build_handled_card(summary, "✏️ 请在 Front 中直接回复")
+        if message_id:
+            await update_card(message_id, handled)
         return {
             "toast": {"type": "info", "content": "请在 Front 中直接回复"},
-            "card": build_handled_card(summary, "✏️ 请在 Front 中直接回复"),
+            "card": handled,
         }
 
     if action == "confirm_send":
         draft = action_value.get("draft", "")
         if draft and conversation_id:
-            ok = await front.reply_to_conversation(conversation_id, draft)
+            await front.reply_to_conversation(conversation_id, draft)
             await _update_state_step(conversation_id, "replied_confirmed")
             summary = await _get_state_summary(conversation_id)
+            handled = build_handled_card(summary, "✅ 已发送确认回复")
+            if message_id:
+                await update_card(message_id, handled)
             return {
                 "toast": {"type": "success", "content": "✅ 已发送确认回复"},
-                "card": build_handled_card(summary, "✅ 已发送确认回复"),
+                "card": handled,
             }
         return {"code": 0}
 
     if action == "cancel_send":
         await _update_state_step(conversation_id, "send_cancelled")
         summary = await _get_state_summary(conversation_id)
+        handled = build_handled_card(summary, "❌ 已取消发送")
+        if message_id:
+            await update_card(message_id, handled)
         return {
             "toast": {"type": "info", "content": "❌ 已取消发送"},
-            "card": build_handled_card(summary, "❌ 已取消发送"),
+            "card": handled,
         }
 
     if action == "confirm_classification":
@@ -102,19 +117,59 @@ async def feishu_card_callback(request: Request):
         sub_type = action_value.get("sub_type")
         email_summary = action_value.get("email_summary", "")
         if category and conversation_id:
-            # Save the corrected classification to state
-            await _update_state_classification(conversation_id, category, sub_type)
-            # Append this as a new few-shot example to classify.md
-            if email_summary:
-                await _append_classify_example(email_summary, category, sub_type)
-            # Now run the agent with the confirmed classification
-            await _run_agent_with_classification(conversation_id, category, sub_type)
             label = f"{category}/{sub_type}" if sub_type else category
             summary = await _get_state_summary(conversation_id)
-            return {
-                "toast": {"type": "success", "content": f"已确认分类: {label}"},
-                "card": build_handled_card(summary, f"✅ 已确认分类: {label}，正在处理..."),
-            }
+
+            # Immediately update card to show processing state
+            if message_id:
+                processing_card = {
+                    "config": {"wide_screen_mode": True},
+                    "header": {"title": {"tag": "plain_text", "content": "⏳ 正在处理..."}, "template": "blue"},
+                    "elements": [
+                        {"tag": "div", "text": {"tag": "lark_md", "content": summary}},
+                        {"tag": "hr"},
+                        {"tag": "div", "text": {"tag": "lark_md", "content": f"**已确认分类：** {label}\n\n正在调用 AI 处理邮件，请稍候..."}},
+                    ],
+                }
+                await update_card(message_id, processing_card)
+
+            # Save the corrected classification to state
+            await _update_state_classification(conversation_id, category, sub_type)
+
+            # Append this as a new few-shot example to classify.md
+            if email_summary:
+                try:
+                    await _append_classify_example(email_summary, category, sub_type)
+                except Exception as e:
+                    logger.warning("Failed to append classify example: %s", e)
+
+            # Now run the agent with the confirmed classification
+            try:
+                await _run_agent_with_classification(conversation_id, category, sub_type, message_id)
+                # Success - card already updated by agent or we update here
+                if message_id:
+                    success_card = build_handled_card(summary, f"✅ 已确认分类: {label}，处理完成")
+                    await update_card(message_id, success_card)
+                return {
+                    "toast": {"type": "success", "content": f"已确认分类: {label}"},
+                }
+            except Exception as e:
+                logger.error("Failed to run agent after classification: %s", e, exc_info=True)
+                # Update card to show error
+                if message_id:
+                    error_card = {
+                        "config": {"wide_screen_mode": True},
+                        "header": {"title": {"tag": "plain_text", "content": "❌ 处理失败"}, "template": "red"},
+                        "elements": [
+                            {"tag": "div", "text": {"tag": "lark_md", "content": summary}},
+                            {"tag": "hr"},
+                            {"tag": "div", "text": {"tag": "lark_md", "content": f"**分类：** {label}\n\n**错误：** {str(e)[:200]}\n\n请在 Front 中手动处理"}},
+                        ],
+                    }
+                    await update_card(message_id, error_card)
+                return {
+                    "toast": {"type": "error", "content": f"处理失败: {str(e)[:50]}"},
+                }
         return {"code": 0}
 
     return {"code": 0}
@@ -187,21 +242,16 @@ async def _append_classify_example(email_summary: str, category: str, sub_type: 
         logger.info("Appended new classify example: %s/%s", category, sub_type)
 
 
-async def _run_agent_with_classification(conversation_id: str, category: str, sub_type: str | None) -> None:
-    """Re-run the agent with Bobby's confirmed classification."""
-    try:
-        from tools.front import get_conversation_messages
-        from agent.orchestrator import build_conversation_text, load_skill, _run_agent_loop
-        from openai import AsyncOpenAI
-        from config import settings
-        import json
+async def _run_agent_with_classification(conversation_id: str, category: str, sub_type: str | None, message_id: str = "") -> None:
+    """Re-run the agent with Bobby's confirmed classification. Raises on failure."""
+    from tools.front import get_conversation_messages
+    from agent.orchestrator import build_conversation_text, load_skill, _run_agent_loop
 
-        client = AsyncOpenAI(api_key=settings.openai_api_key)
-        all_messages = await get_conversation_messages(conversation_id)
-        conversation_text = build_conversation_text(all_messages)
-        skill_md = load_skill(category)
+    all_messages = await get_conversation_messages(conversation_id)
+    conversation_text = build_conversation_text(all_messages)
+    skill_md = load_skill(category)
 
-        system_prompt = f"""You are a Dify support email automation agent.
+    system_prompt = f"""You are a Dify support email automation agent.
 
 This email has been manually classified by Bobby as:
 - Category: {category}
@@ -214,11 +264,9 @@ Follow the skill instructions exactly. Call the appropriate tools to handle this
 Always be polite, professional, and empathetic in all replies to users.
 Conversation ID: {conversation_id}
 """
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": conversation_text},
-        ]
-        async with AsyncSessionLocal() as db:
-            await _run_agent_loop(messages, db)
-    except Exception as e:
-        logger.error("Failed to re-run agent after classification: %s", e)
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": conversation_text},
+    ]
+    async with AsyncSessionLocal() as db:
+        await _run_agent_loop(messages, db)

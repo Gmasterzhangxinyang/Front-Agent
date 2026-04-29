@@ -37,18 +37,7 @@ TOOL_SCHEMAS = [
             },
         },
     },
-    {
-        "type": "function",
-        "function": {
-            "name": "front_resolve",
-            "description": "Resolve (archive/close) the conversation in Front",
-            "parameters": {
-                "type": "object",
-                "properties": {"conversation_id": {"type": "string"}},
-                "required": ["conversation_id"],
-            },
-        },
-    },
+    # front_resolve removed — Bobby handles resolve manually
     {
         "type": "function",
         "function": {
@@ -199,10 +188,6 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
     elif tool_name == "front_assign":
         ok = await front.assign_conversation(args["conversation_id"], args["teammate_id"])
         return "assigned" if ok else "assign_failed"
-
-    elif tool_name == "front_resolve":
-        ok = await front.resolve_conversation(args["conversation_id"])
-        return "resolved" if ok else "resolve_failed"
 
     elif tool_name == "front_forward":
         ok = await front.forward_conversation(args["conversation_id"], args["to_email"], args.get("cc_email"))
