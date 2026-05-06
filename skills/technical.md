@@ -36,10 +36,11 @@ Handle technical questions, bug reports, API issues, service outages, and data p
 4. If issue is complex and cannot be resolved by AI, call `feishu_notify_bobby` with summary
 5. Leave conversation open
 
-### Self-hosted Non-Premium — any sub_type
+### Self-hosted Community Edition (non-Premium) — any sub_type
 1. Call `docs_search` to find relevant documentation
 2. Call `github_search` to check for known issues or workarounds
 3. Call `front_create_draft` directing to docs and GitHub community, referencing relevant docs and issues found
+   - If the user asks about multi-tenancy, logo customization, or commercial use: clarify that Community Edition does NOT support these — they need Premium (self-hosted with commercial license) or Enterprise Edition
 
 ### Outage (any user)
 1. Call `front_create_draft` acknowledging the issue

@@ -18,11 +18,17 @@ Handle questions about purchasing Dify plans, pricing, and reseller/agent inquir
 ## Reply Templates
 
 ### Enterprise inquiry
-⚠️ 需确认: business@dify.ai 是否正确？
 ```
 Dear [User's Name / Valued Customer],
 
 Thank you for your interest in Dify's Enterprise plan!
+
+The Enterprise plan is our most comprehensive offering, supporting:
+- Multi-tenancy (multiple workspaces)
+- Logo customization
+- Commercial use and redistribution
+- All features from other Dify plans
+- Dedicated support and SLA
 
 For Enterprise plan inquiries, please reach out directly to our business team at business@dify.ai. Please include your company name, company size, and a brief description of your use case so we can assist you more effectively.
 
@@ -36,20 +42,29 @@ Dify Support Team
 ```
 
 ### Pro/Team pricing
-⚠️ 需确认: pricing页面链接是否正确？
 ```
 Dear [User's Name / Valued Customer],
 
 Thank you for your interest in Dify's paid plans!
 
-You can find a full comparison of our Pro, Team, and other plans on our pricing page:
+You can find a full comparison of our plans on our pricing page:
 👉 https://dify.ai/pricing
 
 Here's a quick overview:
+
+**SaaS Plans (Cloud-hosted by Dify):**
 - **Sandbox (Free)**: Great for getting started and exploring Dify's features
 - **Pro**: Ideal for individual professionals and small teams
 - **Team**: Best for growing teams that need collaboration features
-- **Premium**: For organizations that need self-hosted deployment with a commercial license
+- All SaaS plans support logo customization
+
+**Self-hosted Plans:**
+- **Community Edition (Free, open-source)**: For internal use within your own organization, or providing services to external users via API. Does NOT support multi-tenancy or logo modification. Not for commercial redistribution.
+- **Premium (Self-hosted, commercial license)**: Supports logo customization and commercial use. Available on AWS Marketplace or via https://dify.ai/pricing
+
+**Enterprise Plan:**
+- Supports multi-tenancy (multiple workspaces), logo customization, commercial use, and all features from other plans
+- For Enterprise inquiries, please contact: business@dify.ai
 
 If you have specific questions about which plan is right for you, feel free to reply and we'll be happy to help!
 
