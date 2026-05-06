@@ -28,11 +28,31 @@ async def create_draft(conversation_id: str, body: str, author_id: str = None) -
         conv = await get_conversation(conversation_id)
         recipient = conv.get("recipient", {})
         sender_email = recipient.get("handle", "")
-    except Exception:
+        # channel_id is required by the drafts API
+        channel_id = None
+        for inbox in conv.get("_links", {}).get("related", {}).get("inboxes", []):
+            pass  # inboxes is a URL, not a list
+        # Get channel_id from the conversation's inbox list
+        inboxes = conv.get("inboxes", [])
+        if inboxes:
+            channel_id = inboxes[0].get("id")
+        if not channel_id:
+            # Fallback: fetch inboxes for this conversation
+            async with httpx.AsyncClient() as c:
+                ri = await c.get(f"{BASE_URL}/conversations/{conversation_id}/inboxes", headers=HEADERS)
+                if ri.status_code == 200:
+                    results = ri.json().get("_results", [])
+                    if results:
+                        channel_id = results[0].get("id")
+    except Exception as e:
+        logging.error("create_draft setup failed: %s", e)
         sender_email = ""
+        channel_id = None
 
     html_body = body.replace("\n", "<br>")
-    payload = {"body": html_body, "type": "email", "mode": "shared"}
+    payload = {"body": html_body, "mode": "shared"}
+    if channel_id:
+        payload["channel_id"] = channel_id
     if sender_email:
         payload["to"] = [sender_email]
     if author_id:
