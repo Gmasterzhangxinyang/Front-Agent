@@ -24,22 +24,25 @@ async def feishu_card_callback(request: Request):
 
     schema = body.get("schema")
     if schema == "2.0":
-        # New format: deduplicate — old format handles the action first
         event_type = body.get("header", {}).get("event_type")
-        if event_type == "card.action.trigger":
-            return {"code": 0}  # already handled by old-format callback
-        logger.info("Feishu non-card event body: %s", body)
-        return {"code": 0}
-
-    # Old card callback format: action is at top level
-    if "action" not in body:
-        logger.info("Feishu non-card event body: %s", body)
-        return {"code": 0}
-
-    action_value: dict = body.get("action", {}).get("value", {})
-    action = action_value.get("action")
-    conversation_id = action_value.get("conversation_id", "")
-    message_id = body.get("open_message_id", "")
+        if event_type != "card.action.trigger":
+            logger.info("Feishu non-card event body: %s", body)
+            return {"code": 0}
+        # Schema 2.0 card action — extract from event sub-object
+        event = body.get("event", {})
+        action_value: dict = event.get("action", {}).get("value", {})
+        action = action_value.get("action")
+        conversation_id = action_value.get("conversation_id", "")
+        message_id = event.get("context", {}).get("open_message_id", "")
+    else:
+        # Old card callback format: action is at top level
+        if "action" not in body:
+            logger.info("Feishu non-card event body: %s", body)
+            return {"code": 0}
+        action_value: dict = body.get("action", {}).get("value", {})
+        action = action_value.get("action")
+        conversation_id = action_value.get("conversation_id", "")
+        message_id = body.get("open_message_id", "")
 
     logger.info("Card action: %s  conv: %s  msg: %s", action, conversation_id, message_id)
 
