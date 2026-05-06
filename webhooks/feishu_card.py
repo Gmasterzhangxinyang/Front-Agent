@@ -74,18 +74,34 @@ async def feishu_card_callback(request: Request):
                 conversation_id, card.get("header", {}).get("title", {}).get("content"),
             )
             if message_id:
-                await update_card(message_id, card)
+                ok = await update_card(message_id, card)
+                logger.info(
+                    "Forwarded card push for conv %s msg %s: %s",
+                    conversation_id, message_id, "ok" if ok else "FAILED",
+                )
         return {
             "toast": {"type": "success", "content": "已转告相关同事"},
             "card": card,
         }
 
     if action == "security_forwarded":
-        await _update_state_step(conversation_id, "bobby_security_forwarded")
-        summary = await _get_state_summary(conversation_id)
-        handled = build_handled_card(summary, "已转安全团队")
-        if message_id:
-            await update_card(message_id, handled)
+        async with _get_action_lock(f"security_forwarded:{conversation_id}"):
+            already_security_forwarded = await _check_and_set_security_forwarded(conversation_id)
+            if already_security_forwarded:
+                logger.info(
+                    "Duplicate security_forwarded callback for %s (event_id=%s) — returning current card",
+                    conversation_id, event_id,
+                )
+            else:
+                logger.info("State transition → bobby_security_forwarded for conv %s", conversation_id)
+            summary = await _get_state_summary(conversation_id)
+            handled = build_handled_card(summary, "已转安全团队")
+            if message_id:
+                ok = await update_card(message_id, handled)
+                logger.info(
+                    "Security-forwarded card push for conv %s msg %s: %s",
+                    conversation_id, message_id, "ok" if ok else "FAILED",
+                )
         return {
             "toast": {"type": "success", "content": "已转安全团队"},
             "card": handled,
@@ -293,6 +309,26 @@ async def _check_and_set_resolved(conversation_id: str) -> bool:
             update(ConversationState)
             .where(ConversationState.conversation_id == conversation_id)
             .values(step="bobby_resolved")
+        )
+        await db.commit()
+        return False
+
+
+async def _check_and_set_security_forwarded(conversation_id: str) -> bool:
+    """Atomically check-and-set security_forwarded state. Returns True if already set (duplicate)."""
+    if not conversation_id:
+        return False
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(ConversationState).where(ConversationState.conversation_id == conversation_id)
+        )
+        state = result.scalar_one_or_none()
+        if state and state.step == "bobby_security_forwarded":
+            return True
+        await db.execute(
+            update(ConversationState)
+            .where(ConversationState.conversation_id == conversation_id)
+            .values(step="bobby_security_forwarded")
         )
         await db.commit()
         return False
