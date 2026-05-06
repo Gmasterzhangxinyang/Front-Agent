@@ -7,7 +7,7 @@ Handle partnership inquiries, marketplace cooperation, plugin cooperation, and p
 
 ### All sub-types (plugin, marketplace, plugin_takedown)
 1. Call `front_create_draft` with forwarding template
-2. Call `front_forward_to_partnerships` with conversation_id — this automatically forwards to 赵晗青 (cc 赵雅雯)
+2. Call `front_forward_to_partnerships` with conversation_id and summary (1-2 sentence summary of the user's inquiry) — this creates a draft email to the partnerships team (赵晗青 + 赵雅雯) for Bobby to review before sending
 
 ## Reply Template
 

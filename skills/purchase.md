@@ -46,7 +46,7 @@ Handle questions about purchasing Dify plans, pricing, and reseller/agent inquir
 
 ### reseller
 1. Call `front_create_draft` with "forwarding to partnerships team" template
-2. Call `front_forward_to_partnerships` with conversation_id — this automatically forwards to the partnerships team (赵晗青 + 赵雅雯) using system-configured email addresses
+2. Call `front_forward_to_partnerships` with conversation_id and summary (1-2 sentence summary of the user's inquiry) — this creates a draft email to the partnerships team (赵晗青 + 赵雅雯) for Bobby to review before sending
 
 ## Reply Templates
 

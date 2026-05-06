@@ -60,13 +60,14 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "front_forward_to_partnerships",
-            "description": "Forward the conversation to the partnerships team (赵晗青 with cc to 赵雅雯). Use this for partnership, reseller, marketplace, and plugin inquiries.",
+            "description": "Create a draft email forwarding the conversation to the partnerships team (赵晗青 with cc to 赵雅雯). Use this for partnership, reseller, marketplace, and plugin inquiries. The draft will be created for Bobby to review before sending.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "conversation_id": {"type": "string"},
+                    "summary": {"type": "string", "description": "Brief summary of the user's inquiry (1-2 sentences)"},
                 },
-                "required": ["conversation_id"],
+                "required": ["conversation_id", "summary"],
             },
         },
     },
@@ -219,19 +220,26 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         return "assigned" if ok else "assign_failed"
 
     elif tool_name == "front_forward":
-        ok = await front.forward_conversation(args["conversation_id"], args["to_email"], args.get("cc_email"))
+        ok = await front.forward_conversation(
+            args["conversation_id"],
+            args["to_email"],
+            args.get("cc_email"),
+            args.get("summary", "")
+        )
         return "forwarded" if ok else "forward_failed"
 
     elif tool_name == "front_forward_to_partnerships":
         conversation_id = args["conversation_id"]
+        summary = args.get("summary", "")
         if not settings.zhaohq_email:
             return "forward_failed: zhaohq_email not configured"
         ok = await front.forward_conversation(
             conversation_id,
             settings.zhaohq_email,
-            settings.zhaoyawen_email if settings.zhaoyawen_email else None
+            settings.zhaoyawen_email if settings.zhaoyawen_email else None,
+            summary
         )
-        return "forwarded" if ok else "forward_failed"
+        return "forward_draft_created" if ok else "forward_failed"
 
     elif tool_name == "front_add_comment":
         ok = await front.add_comment(args["conversation_id"], args["body"])

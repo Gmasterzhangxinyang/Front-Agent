@@ -133,39 +133,66 @@ async def add_comment(conversation_id: str, body: str, author_id: str = None) ->
         return r.status_code == 201
 
 
-async def forward_conversation(conversation_id: str, to_email: str, cc_email: str = None) -> bool:
+async def forward_conversation(conversation_id: str, to_email: str, cc_email: str = None, summary: str = "") -> bool:
     import logging
     try:
-        # Get channel_id from conversation inboxes
+        # Get channel_id and sender info
         channel_id = None
-        async with httpx.AsyncClient() as c:
-            ri = await c.get(f"{BASE_URL}/conversations/{conversation_id}/inboxes", headers=HEADERS)
-            if ri.status_code == 200:
-                results = ri.json().get("_results", [])
-                if results:
-                    address = results[0].get("address") or results[0].get("send_as")
-                    if address:
-                        channel_id = f"alt:address:{address}"
+        sender_email = ""
+
+        try:
+            conv = await get_conversation(conversation_id)
+            recipient = conv.get("recipient", {})
+            sender_email = recipient.get("handle", "")
+        except Exception as e:
+            logging.error("forward_conversation: failed to get conversation: %s", e)
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as c:
+                ri = await c.get(f"{BASE_URL}/conversations/{conversation_id}/inboxes", headers=HEADERS)
+                if ri.status_code == 200:
+                    results = ri.json().get("_results", [])
+                    if results:
+                        address = results[0].get("address") or results[0].get("send_as")
+                        if address:
+                            channel_id = f"alt:address:{address}"
+        except Exception as e:
+            logging.error("forward_conversation: failed to get channel_id: %s", e)
+
+        if not channel_id:
+            logging.error("forward_conversation: channel_id is None, forward will likely fail")
+
+        # Build forward message body
+        if summary:
+            body = f"Forwarding partnership/reseller inquiry:\n\n{summary}\n\nFrom: {sender_email}\nConversation ID: {conversation_id}"
+        else:
+            body = f"Forwarded conversation from {sender_email}\n\nConversation ID: {conversation_id}"
+
+        html_body = "<p>" + body.replace("\n\n", "</p><p>").replace("\n", "<br>") + "</p>"
 
         payload = {
             "to": [to_email],
-            "body": f"Forwarded conversation: {conversation_id}",
-            "type": "email",
+            "body": html_body,
+            "mode": "shared",
         }
         if cc_email:
             payload["cc"] = [cc_email]
         if channel_id:
             payload["channel_id"] = channel_id
 
-        async with httpx.AsyncClient() as client:
-            r = await client.post(
-                f"{BASE_URL}/conversations/{conversation_id}/messages",
-                headers=HEADERS,
-                json=payload,
-            )
-            if r.status_code != 202:
-                logging.error("Front forward failed: %s %s", r.status_code, r.text)
-            return r.status_code == 202
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                r = await client.post(
+                    f"{BASE_URL}/conversations/{conversation_id}/drafts",
+                    headers=HEADERS,
+                    json=payload,
+                )
+                if r.status_code not in (200, 201, 202, 204):
+                    logging.error("Front forward draft failed: %s %s", r.status_code, r.text)
+                return r.status_code in (200, 201, 202, 204)
+        except Exception as e:
+            logging.error("forward_conversation: request failed: %s", e)
+            return False
     except Exception as e:
         logging.error("forward_conversation failed: %s", e)
         return False
