@@ -71,7 +71,6 @@ We look forward to hearing from you!
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Must use school email
@@ -88,7 +87,6 @@ Thank you for your understanding.
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Not eligible (K-12 or unaccredited)
@@ -106,7 +104,6 @@ Thank you for your understanding.
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Received, forwarding to team
@@ -121,7 +118,6 @@ This typically takes 1–3 business days.
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Billing guidance (edu badge visible but no discount)
@@ -144,5 +140,4 @@ If you've followed these steps and still don't see the discount, please reply an
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```

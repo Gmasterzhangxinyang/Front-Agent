@@ -68,7 +68,6 @@ We look forward to hearing from you!
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Pro/Team pricing
@@ -100,7 +99,6 @@ If you have specific questions about which plan is right for you, feel free to r
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Reseller inquiry
@@ -113,5 +111,4 @@ We've forwarded your inquiry to our partnerships team, who will be in touch with
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```

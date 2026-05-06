@@ -27,7 +27,6 @@ If you have an urgent need for your data (for example, for legal or compliance r
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Escalating urgent data export
@@ -40,5 +39,4 @@ We've received your data export request and have escalated it to our team for re
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```

@@ -29,7 +29,6 @@ If you have additional details or evidence, please feel free to reply to this em
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Urgent security acknowledgment
@@ -44,5 +43,4 @@ Thank you for helping us keep Dify secure.
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```

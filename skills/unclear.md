@@ -21,5 +21,4 @@ Thank you for your patience!
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```

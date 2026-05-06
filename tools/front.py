@@ -123,20 +123,41 @@ async def add_comment(conversation_id: str, body: str, author_id: str = None) ->
 
 
 async def forward_conversation(conversation_id: str, to_email: str, cc_email: str = None) -> bool:
-    payload = {
-        "to": [to_email],
-        "body": f"Forwarded conversation: {conversation_id}",
-        "type": "email",
-    }
-    if cc_email:
-        payload["cc"] = [cc_email]
-    async with httpx.AsyncClient() as client:
-        r = await client.post(
-            f"{BASE_URL}/conversations/{conversation_id}/messages",
-            headers=HEADERS,
-            json=payload,
-        )
-        return r.status_code == 202
+    import logging
+    try:
+        # Get channel_id from conversation inboxes
+        channel_id = None
+        async with httpx.AsyncClient() as c:
+            ri = await c.get(f"{BASE_URL}/conversations/{conversation_id}/inboxes", headers=HEADERS)
+            if ri.status_code == 200:
+                results = ri.json().get("_results", [])
+                if results:
+                    address = results[0].get("address") or results[0].get("send_as")
+                    if address:
+                        channel_id = f"alt:address:{address}"
+
+        payload = {
+            "to": [to_email],
+            "body": f"Forwarded conversation: {conversation_id}",
+            "type": "email",
+        }
+        if cc_email:
+            payload["cc"] = [cc_email]
+        if channel_id:
+            payload["channel_id"] = channel_id
+
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                f"{BASE_URL}/conversations/{conversation_id}/messages",
+                headers=HEADERS,
+                json=payload,
+            )
+            if r.status_code != 202:
+                logging.error("Front forward failed: %s %s", r.status_code, r.text)
+            return r.status_code == 202
+    except Exception as e:
+        logging.error("forward_conversation failed: %s", e)
+        return False
 
 
 async def add_tag(conversation_id: str, tag_id: str) -> bool:

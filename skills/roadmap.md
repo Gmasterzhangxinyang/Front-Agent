@@ -23,5 +23,4 @@ If you have a feature suggestion, we'd love to hear it — feel free to share it
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```

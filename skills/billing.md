@@ -61,7 +61,6 @@ Thank you for your cooperation.
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Request refund details
@@ -91,7 +90,6 @@ Thank you for your patience!
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Refund received, processing
@@ -107,7 +105,6 @@ We'll notify you once the refund has been processed. If you have any questions i
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Downgrade / cancel self-service
@@ -125,7 +122,6 @@ If you encounter any issues during the process, please reply and we'll be happy 
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Invoice self-service
@@ -143,7 +139,6 @@ If you need further assistance, please don't hesitate to reply.
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Billing issue forwarded to team
@@ -158,5 +153,4 @@ Thank you for your patience.
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```

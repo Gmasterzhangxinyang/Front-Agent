@@ -81,7 +81,6 @@ If you have any trouble finding this option, feel free to reply and we'll guide 
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Transfer/Change email self-service (user can log in)
@@ -96,7 +95,6 @@ If you encounter any issues during the process, feel free to reply and we'll ass
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Identity verification request
@@ -117,7 +115,6 @@ Thank you for your patience and understanding.
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Investigating (cant_login)
@@ -133,7 +130,6 @@ In the meantime, please also check your spam/junk folder in case the verificatio
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Received, forwarded to team
@@ -148,7 +144,6 @@ Thank you for your patience.
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Change email self-service
@@ -163,7 +158,6 @@ If you encounter any issues during the process, feel free to reply and we'll ass
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Account hacked — urgent acknowledgment
@@ -178,7 +172,6 @@ We'll be in touch as soon as possible.
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Merge accounts — not available
@@ -193,5 +186,4 @@ If there's anything else we can help you with, please don't hesitate to ask.
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```

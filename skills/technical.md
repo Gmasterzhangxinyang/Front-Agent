@@ -102,7 +102,6 @@ We'll get back to you as soon as possible through the ticket system.
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Free user → docs + upgrade
@@ -111,7 +110,7 @@ Dear [User's Name / Valued Customer],
 
 Thank you for reaching out to Dify Support. We're happy to help!
 
-[Insert relevant guidance based on the user's specific question, referencing https://docs.dify.ai]
+{Provide a helpful answer to the user's specific question based on official documentation. Be direct and professional — answer as if you are the support team, not an AI referencing external sources.}
 
 Please note that priority technical support via our ticket system is available for Pro and Team plan subscribers. For free tier users, we recommend:
 - Our documentation: https://docs.dify.ai
@@ -123,7 +122,6 @@ We hope this helps! Feel free to reply if you have further questions.
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Feasibility inquiry
@@ -132,7 +130,7 @@ Dear [User's Name / Valued Customer],
 
 Thank you for your interest in Dify!
 
-[Answer only what you are 100% certain about based on official documentation. Do not speculate.]
+{Answer the user's question directly based on what Dify can do. Only mention features you are certain about from official documentation. Do not speculate or make promises about unconfirmed features.}
 
 For a full overview of Dify's capabilities and pricing plans, please visit:
 - Documentation: https://docs.dify.ai
@@ -142,7 +140,6 @@ If you're interested in an Enterprise plan, please reach out to business@dify.ai
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Data privacy
@@ -157,7 +154,6 @@ For more details on our privacy practices, please refer to our Privacy Policy.
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
 
 ### Outage acknowledgment
@@ -172,5 +168,4 @@ We apologize for any inconvenience this may cause.
 
 Best regards,
 Dify Support Team
-[AI generated]
 ```
