@@ -90,7 +90,7 @@ Here's a quick overview:
 
 **Self-hosted Plans:**
 - **Community Edition (Free, open-source)**: For internal use within your own organization, or providing services to external users via API. Does NOT support multi-tenancy or logo modification. Not for commercial redistribution.
-- **Premium (Self-hosted, commercial license)**: Supports logo customization and commercial use. Available on AWS Marketplace or via https://dify.ai/pricing
+- **Premium (Self-hosted, commercial license)**: Supports logo customization and commercial use. The pricing page (https://dify.ai/pricing) gives a general overview — for detailed pricing and purchase, refer users to AWS Marketplace as the primary channel
 
 **Enterprise Plan:**
 - Supports multi-tenancy (multiple workspaces), logo customization, commercial use, and all features from other plans
