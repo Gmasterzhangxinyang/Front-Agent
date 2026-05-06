@@ -298,10 +298,25 @@ async def _check_and_set_resolved(conversation_id: str) -> bool:
         return False
 
 
+_TERMINAL_STEPS = {"bobby_forwarded", "bobby_resolved", "bobby_security_forwarded"}
+
+
 async def _update_state_step(conversation_id: str, step: str) -> None:
     if not conversation_id:
         return
     async with AsyncSessionLocal() as db:
+        # Never overwrite a terminal state — prevents race conditions where a
+        # delayed webhook callback clobbers a forwarded/resolved state.
+        result = await db.execute(
+            select(ConversationState).where(ConversationState.conversation_id == conversation_id)
+        )
+        current = result.scalar_one_or_none()
+        if current and current.step in _TERMINAL_STEPS:
+            logger.warning(
+                "Refusing to overwrite terminal state '%s' with '%s' for conv %s",
+                current.step, step, conversation_id,
+            )
+            return
         await db.execute(
             update(ConversationState)
             .where(ConversationState.conversation_id == conversation_id)
