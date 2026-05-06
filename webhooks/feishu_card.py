@@ -407,7 +407,7 @@ async def _run_agent_with_classification(conversation_id: str, category: str, su
     conversation_text = build_conversation_text(all_messages)
     skill_md = load_skill(category)
 
-    # Extract sender_email from state and latest user message for linear ticket injection
+    # Extract sender_email from state, falling back to the first inbound email's from field
     sender_email = ""
     latest_user_message = ""
     async with AsyncSessionLocal() as db:
@@ -421,6 +421,14 @@ async def _run_agent_with_classification(conversation_id: str, category: str, su
         if msg.get("type") == "email" and not msg.get("is_draft"):
             latest_user_message = msg.get("text") or msg.get("body") or ""
             break
+    if not sender_email:
+        # Fallback: extract from the first inbound email message
+        for msg in all_messages:
+            if msg.get("type") == "email" and not msg.get("is_draft"):
+                author = msg.get("author") or {}
+                sender_email = author.get("handle") or author.get("email") or ""
+                if sender_email:
+                    break
 
     system_prompt = f"""You are a Dify support email automation agent.
 

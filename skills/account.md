@@ -7,7 +7,8 @@ Handle account-related requests: login issues, account deletion, transfer, email
 
 ### cant_login (can't log in / not receiving verification code)
 1. Call `front_create_draft` with the "investigating" template
-2. Call `feishu_notify_bobby` with message: "账号登录问题，请联系李敏查询。用户邮箱: [sender_email]. 对话ID: [conversation_id]"
+2. Call `feishu_notify_bobby` with message: "账号登录问题，请联系李敏查询。用户邮箱: {the actual sender email address from the conversation}. 对话ID: {the actual conversation_id}"
+   - IMPORTANT: You MUST substitute the real sender email and conversation_id values — do NOT leave placeholders
 3. Call `state_set` with step="notified_bobby", payload={"sender_email": sender_email}
 4. Leave conversation open (Bobby will follow up manually)
 
