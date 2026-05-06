@@ -1,3 +1,9 @@
+## 2026-05-06 (session 6)
+- [fix] 点击"已转告"后卡片跳回原状：用 asyncio.Lock 对 forwarded/resolved 操作加内存锁，防止飞书双回调并发竞争导致第二次回调绕过数据库检查
+
+## 2026-05-06 (session 6)
+- [fix] 点击"已转告"/"已解决"后卡片跳回原状：在 `webhooks/feishu_card.py` 中加入 per-conversation asyncio.Lock，将 check-and-set 操作串行化，彻底消除飞书双回调的 race condition
+
 ## 2026-05-06 (session 5)
 - [feat] 所有 Linear 工单自动注入发件人邮箱和邮件原文：在 `agent/orchestrator.py` 的 `_run_agent_loop` 中自动填充 `sender_email` 和 `original_message`，无需 AI 填参数，覆盖所有 skill（education/billing/account/technical）
 - [feat] Bobby 手动分类后创建的工单同样注入：`webhooks/feishu_card.py` 的 `_run_agent_with_classification` 从 state 取 sender_email，从消息历史取最新用户消息，传给 `_run_agent_loop`

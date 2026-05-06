@@ -2,7 +2,16 @@
 Feishu interactive card callback handler.
 Feishu POSTs here when Bobby clicks a button on a card.
 """
+import asyncio
 import logging
+
+_action_locks: dict[str, asyncio.Lock] = {}
+
+def _get_action_lock(key: str) -> asyncio.Lock:
+    if key not in _action_locks:
+        _action_locks[key] = asyncio.Lock()
+    return _action_locks[key]
+
 from fastapi import APIRouter, Request, HTTPException
 from sqlalchemy import update, select
 from database import AsyncSessionLocal
@@ -47,14 +56,15 @@ async def feishu_card_callback(request: Request):
     logger.info("Card action: %s  conv: %s  msg: %s", action, conversation_id, message_id)
 
     if action == "forwarded":
-        already_forwarded = await _check_and_set_forwarded(conversation_id)
-        if already_forwarded:
-            logger.info("Duplicate forwarded callback for %s, ignoring", conversation_id)
-            return {"code": 0}
-        summary = await _get_state_summary(conversation_id)
-        card = build_forwarded_card(conversation_id, summary)
-        if message_id:
-            await update_card(message_id, card)
+        async with _get_action_lock(f"forwarded:{conversation_id}"):
+            already_forwarded = await _check_and_set_forwarded(conversation_id)
+            if already_forwarded:
+                logger.info("Duplicate forwarded callback for %s, ignoring", conversation_id)
+                return {"code": 0}
+            summary = await _get_state_summary(conversation_id)
+            card = build_forwarded_card(conversation_id, summary)
+            if message_id:
+                await update_card(message_id, card)
         return {
             "toast": {"type": "success", "content": "已转告相关同事"},
             "card": card,
@@ -72,16 +82,16 @@ async def feishu_card_callback(request: Request):
         }
 
     if action == "resolved":
-        # Deduplicate: check if already resolved before doing anything
-        already_resolved = await _check_and_set_resolved(conversation_id)
-        if already_resolved:
-            logger.info("Duplicate resolved callback for %s, ignoring", conversation_id)
-            return {"code": 0}
-        summary = await _get_state_summary(conversation_id)
-        handled = build_handled_card(summary, "已解决 — 正在生成结案草稿...")
-        if message_id:
-            await update_card(message_id, handled)
-        # Generate closing draft in background
+        async with _get_action_lock(f"resolved:{conversation_id}"):
+            already_resolved = await _check_and_set_resolved(conversation_id)
+            if already_resolved:
+                logger.info("Duplicate resolved callback for %s, ignoring", conversation_id)
+                return {"code": 0}
+            summary = await _get_state_summary(conversation_id)
+            handled = build_handled_card(summary, "已解决 — 正在生成结案草稿...")
+            if message_id:
+                await update_card(message_id, handled)
+        # Generate closing draft outside lock
         try:
             await _generate_closing_draft(conversation_id)
             final = build_handled_card(summary, "✅ 已解决 — 结案草稿已写入 Front")
