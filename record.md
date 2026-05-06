@@ -1,3 +1,8 @@
+## 2026-05-06 (session 11)
+- [feat] 更新产品版本知识：Community/Premium/SaaS/Enterprise 版本区别，多租户、Logo、商用权限说明（purchase.md, technical.md）
+- [fix] Partnership 转发修复：新增 `front_forward_to_partnerships` 工具自动从 config 读取邮箱，修复 `forward_conversation` 缺少 channel_id 导致 400 错误（tools/front.py, agent/tool_registry.py, skills/partnership.md）
+- [fix] 邮件专业性改进：删除所有 `[AI generated]` 标签，改进模板语气，AI 以客服身份直接回答而非引用文档（所有 skill 文件）
+
 ## 2026-05-06 (session 10)
 - [fix] 点击按钮后卡片跳回原状（PR merge）：重复回调不再返回 `{"code": 0}`，而是始终返回正确的卡片状态（forwarded/resolved card），飞书用响应体更新 UI 而不是用缓存的旧状态覆盖
 
