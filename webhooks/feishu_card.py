@@ -17,7 +17,7 @@ from sqlalchemy import update, select, insert
 from database import AsyncSessionLocal
 from models import ConversationState, WebhookEvent
 from tools import feishu, front
-from tools.feishu import build_handled_card, build_forwarded_card, build_awaiting_reply_card, update_card
+from tools.feishu import build_handled_card, build_forwarded_card, build_awaiting_reply_card, build_notify_card, update_card
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -56,6 +56,15 @@ async def feishu_card_callback(request: Request):
     is_duplicate_event = bool(event_id and await _check_and_set_event_id(event_id))
     if is_duplicate_event:
         logger.info("Duplicate event_id %s detected — will still return correct card state", event_id)
+
+    # Card reload / initialisation — Feishu sends a card.action.trigger with no
+    # action value when it re-renders the card (e.g. after receiving another
+    # event).  Return the card that matches the conversation's current state so
+    # the UI always reflects reality instead of reverting to the initial card.
+    if not action:
+        logger.info("No action in card callback for conv %s — returning state-based card", conversation_id)
+        card = await _build_card_for_current_state(conversation_id)
+        return {"card": card}
 
     if action == "forwarded":
         async with _get_action_lock(f"forwarded:{conversation_id}"):
@@ -367,6 +376,36 @@ async def _update_state_classification(conversation_id: str, category: str, sub_
             .values(category=category, sub_type=sub_type, step="initial")
         )
         await db.commit()
+
+
+async def _build_card_for_current_state(conversation_id: str) -> dict:
+    """Return the card that matches the conversation's current DB state.
+
+    Used when Feishu reloads a card without an action (e.g. after receiving
+    another event) so the UI always shows the correct state rather than
+    reverting to the initial card.
+    """
+    summary = await _get_state_summary(conversation_id)
+    if not conversation_id:
+        return build_notify_card(conversation_id, summary)
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(ConversationState).where(ConversationState.conversation_id == conversation_id)
+        )
+        state = result.scalar_one_or_none()
+
+    if state is None:
+        return build_notify_card(conversation_id, summary)
+
+    step = state.step or ""
+    if step == "bobby_forwarded":
+        return build_forwarded_card(conversation_id, summary)
+    if step == "bobby_resolved":
+        return build_handled_card(summary, "✅ 已解决")
+    if step == "bobby_security_forwarded":
+        return build_handled_card(summary, "✅ 已转安全团队")
+    return build_notify_card(conversation_id, summary)
 
 
 async def _get_state_summary(conversation_id: str) -> str:
