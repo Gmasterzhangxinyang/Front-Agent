@@ -113,9 +113,9 @@ TOOL_SCHEMAS = [
                 "type": "object",
                 "properties": {
                     "message": {"type": "string"},
-                    "conversation_id": {"type": "string", "description": "Front conversation ID, used to link card actions back"},
+                    "conversation_id": {"type": "string", "description": "Front conversation ID, used to link card actions back — REQUIRED, always pass this"},
                 },
-                "required": ["message"],
+                "required": ["message", "conversation_id"],
             },
         },
     },
