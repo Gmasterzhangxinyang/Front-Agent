@@ -15,8 +15,32 @@ Handle education plan applications, rejections, and discount issues.
 ### rejected (education plan application rejected)
 
 **Step: initial**
-1. Call `front_create_draft` with "please provide school info" template
-2. Call `state_set` with step="awaiting_school_info", waiting=true
+1. **First, check if the user has already provided school information in their email** (school name and email domain)
+2. If school info is provided:
+   - Extract: school full name (English) and school email domain
+   - If user provided personal email (Gmail, Yahoo, etc.) instead of school domain:
+     - Call `front_create_draft` with "must use school email" template
+     - Call `state_set` with step="awaiting_school_info", waiting=true
+   - Determine school type:
+     - **Higher education (university/college, government-accredited):**
+       - Call `linear_create_ticket` with conversation_id, title "Education plan application - [school name]", sender_email (the user's email address), original_message (the user's original email text), and description — fill in actual values, never use placeholder text:
+         ```
+         **学校全名：** <actual school full name in English>
+
+         **邮箱域名：** <actual email domain>
+
+         **AI 评估：** <your actual assessment, e.g. "Higher education institution, government-accredited" or "Likely accredited university">
+         ```
+       - WAIT for `linear_create_ticket` to return the URL before proceeding
+       - Call `feishu_notify_bobby` with: "请转告张婉清审核教育版申请。学校: [school name], 域名: [domain]. Linear: [actual URL returned above]" — replace [actual URL returned above] with the real URL from the previous tool result, never use placeholder text
+       - Call `front_create_draft` with "received, forwarding to team" template
+       - Call `state_set` with step="ticket_created"
+     - **K-12 or unaccredited:**
+       - Call `front_create_draft` with "not eligible" template
+       - Call `state_set` with step="done"
+3. If school info is NOT provided:
+   - Call `front_create_draft` with "please provide school info" template
+   - Call `state_set` with step="awaiting_school_info", waiting=true
 
 **Step: awaiting_school_info** (user has replied with school info)
 1. Extract: school full name (English) and school email domain from user's reply
