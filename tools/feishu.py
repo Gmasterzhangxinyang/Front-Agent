@@ -192,6 +192,31 @@ def build_notify_card(
     }
 
 
+def build_forwarded_card(conversation_id: str, original_summary: str) -> dict:
+    """Card shown after Bobby clicks 已转告 — shows forwarded status + keeps 已解决 button."""
+    return {
+        "config": {"wide_screen_mode": True},
+        "header": _header("📬 已转告", "orange"),
+        "elements": [
+            {"tag": "div", "text": {"tag": "lark_md", "content": original_summary}},
+            {"tag": "hr"},
+            {"tag": "div", "text": {"tag": "lark_md", "content": f"**状态：** 已转告相关同事，等待处理完成"}},
+            {"tag": "hr"},
+            {
+                "tag": "action",
+                "actions": [
+                    {
+                        "tag": "button",
+                        "text": {"tag": "plain_text", "content": "✅ 已解决"},
+                        "type": "primary",
+                        "value": {"action": "resolved", "conversation_id": conversation_id},
+                    },
+                ],
+            },
+        ],
+    }
+
+
 def build_handled_card(original_summary: str, action_label: str) -> dict:
     """Card shown after Bobby clicks a button — replaces buttons with status."""
     return {

@@ -8,7 +8,7 @@ from sqlalchemy import update, select
 from database import AsyncSessionLocal
 from models import ConversationState
 from tools import feishu, front
-from tools.feishu import build_handled_card, build_awaiting_reply_card, update_card
+from tools.feishu import build_handled_card, build_forwarded_card, build_awaiting_reply_card, update_card
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -46,21 +46,46 @@ async def feishu_card_callback(request: Request):
 
     logger.info("Card action: %s  conv: %s  msg: %s", action, conversation_id, message_id)
 
-    if action in ("forwarded", "resolved", "security_forwarded"):
-        label_map = {
-            "forwarded": "已转告相关同事",
-            "resolved": "已解决",
-            "security_forwarded": "已转安全团队",
-        }
-        label = label_map[action]
-        await _update_state_step(conversation_id, f"bobby_{action}")
+    if action == "forwarded":
+        await _update_state_step(conversation_id, "bobby_forwarded")
         summary = await _get_state_summary(conversation_id)
-        handled = build_handled_card(summary, label)
+        card = build_forwarded_card(conversation_id, summary)
+        if message_id:
+            await update_card(message_id, card)
+        return {
+            "toast": {"type": "success", "content": "已转告相关同事"},
+            "card": card,
+        }
+
+    if action == "security_forwarded":
+        await _update_state_step(conversation_id, "bobby_security_forwarded")
+        summary = await _get_state_summary(conversation_id)
+        handled = build_handled_card(summary, "已转安全团队")
         if message_id:
             await update_card(message_id, handled)
         return {
-            "toast": {"type": "success", "content": label},
+            "toast": {"type": "success", "content": "已转安全团队"},
             "card": handled,
+        }
+
+    if action == "resolved":
+        await _update_state_step(conversation_id, "bobby_resolved")
+        summary = await _get_state_summary(conversation_id)
+        handled = build_handled_card(summary, "已解决 — 正在生成结案草稿...")
+        if message_id:
+            await update_card(message_id, handled)
+        # Generate closing draft in background
+        try:
+            await _generate_closing_draft(conversation_id)
+            final = build_handled_card(summary, "✅ 已解决 — 结案草稿已写入 Front")
+        except Exception as e:
+            logger.error("Failed to generate closing draft: %s", e)
+            final = build_handled_card(summary, "✅ 已解决（结案草稿生成失败，请手动回复）")
+        if message_id:
+            await update_card(message_id, final)
+        return {
+            "toast": {"type": "success", "content": "已解决，结案草稿已写入 Front"},
+            "card": final,
         }
 
     if action == "approve_draft":
@@ -243,6 +268,39 @@ async def _append_classify_example(email_summary: str, category: str, sub_type: 
         content = content.replace(insert_marker, example + "\n" + insert_marker)
         classify_path.write_text(content, encoding="utf-8")
         logger.info("Appended new classify example: %s/%s", category, sub_type)
+
+
+async def _generate_closing_draft(conversation_id: str) -> None:
+    """Call GPT to generate a closing email draft and write it to Front."""
+    from tools.front import get_conversation_messages, create_draft
+    from agent.orchestrator import build_conversation_text
+    from openai import AsyncOpenAI
+    from config import settings
+
+    all_messages = await get_conversation_messages(conversation_id)
+    conversation_text = build_conversation_text(all_messages)
+
+    client = AsyncOpenAI(api_key=settings.openai_api_key)
+    resp = await client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a Dify customer support agent. "
+                    "Bobby has just resolved this support conversation. "
+                    "Write a short, polite closing email to the user in English, "
+                    "letting them know their issue has been resolved and inviting them to reach out if they need further help. "
+                    "Do not repeat the full conversation. Keep it under 5 sentences. "
+                    "Return only the email body text, no subject line."
+                ),
+            },
+            {"role": "user", "content": conversation_text},
+        ],
+        temperature=0.4,
+    )
+    draft_body = resp.choices[0].message.content.strip()
+    await create_draft(conversation_id, draft_body)
 
 
 async def _run_agent_with_classification(conversation_id: str, category: str, sub_type: str | None, message_id: str = "") -> None:
