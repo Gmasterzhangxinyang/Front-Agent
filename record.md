@@ -1,3 +1,6 @@
+## 2026-05-06 (session 5)
+- [fix] Linear 教育版工单 AI 评估字段写占位符问题：在 `skills/education.md` 中明确要求填入实际值，不得使用占位符文本
+
 ## 2026-05-06 (session 4)
 - [fix] Linear 教育版工单描述格式：将 `skills/education.md` 中的工单描述从逗号连排改为分行 Markdown 格式（学校全名、邮箱域名、AI 评估各占一行）
 
