@@ -69,7 +69,11 @@ async def feishu_card_callback(request: Request):
         }
 
     if action == "resolved":
-        await _update_state_step(conversation_id, "bobby_resolved")
+        # Deduplicate: check if already resolved before doing anything
+        already_resolved = await _check_and_set_resolved(conversation_id)
+        if already_resolved:
+            logger.info("Duplicate resolved callback for %s, ignoring", conversation_id)
+            return {"code": 0}
         summary = await _get_state_summary(conversation_id)
         handled = build_handled_card(summary, "已解决 — 正在生成结案草稿...")
         if message_id:
@@ -201,6 +205,26 @@ async def feishu_card_callback(request: Request):
         return {"code": 0}
 
     return {"code": 0}
+
+
+async def _check_and_set_resolved(conversation_id: str) -> bool:
+    """Atomically check-and-set resolved state. Returns True if already resolved (duplicate)."""
+    if not conversation_id:
+        return False
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(ConversationState).where(ConversationState.conversation_id == conversation_id)
+        )
+        state = result.scalar_one_or_none()
+        if state and state.step == "bobby_resolved":
+            return True
+        await db.execute(
+            update(ConversationState)
+            .where(ConversationState.conversation_id == conversation_id)
+            .values(step="bobby_resolved")
+        )
+        await db.commit()
+        return False
 
 
 async def _update_state_step(conversation_id: str, step: str) -> None:

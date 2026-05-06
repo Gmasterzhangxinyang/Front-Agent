@@ -211,6 +211,7 @@ async def _classify(conversation_text: str, latest_message: str, sender_email: s
 
 
 async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int = 10) -> None:
+    notified_conversations: set[str] = set()  # deduplicate feishu_notify_bobby per conv
     for _ in range(max_iterations):
         response = await client.chat.completions.create(
             model=settings.openai_model,
@@ -232,6 +233,16 @@ async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int 
                 args = json.loads(tc.function.arguments)
             except Exception:
                 args = {}
+
+            # Deduplicate Feishu card notifications per conversation per agent run
+            if tool_name == "feishu_notify_bobby":
+                conv_id = args.get("conversation_id", "__no_conv__")
+                if conv_id in notified_conversations:
+                    logger.info("Skipping duplicate feishu_notify_bobby for conv %s", conv_id)
+                    result = "notified"
+                    messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
+                    continue
+                notified_conversations.add(conv_id)
 
             result = await execute_tool_call(tool_name, args, db)
             logger.info(f"Tool {tool_name} → {result}")

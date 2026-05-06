@@ -26,8 +26,8 @@ Handle education plan applications, rejections, and discount issues.
 3. Determine school type:
    - **Higher education (university/college, government-accredited):**
      - Call `linear_create_ticket` with conversation_id, title "Education plan application - [school name]" and description: school full name (English), email domain, AI assessment result
-     - Use the URL returned from `linear_create_ticket` in the next step
-     - Call `feishu_notify_bobby` with: "请转告张婉清审核教育版申请。学校: [school name], 域名: [domain]. Linear: [url from previous step]"
+     - WAIT for `linear_create_ticket` to return the URL before proceeding
+     - Call `feishu_notify_bobby` with: "请转告张婉清审核教育版申请。学校: [school name], 域名: [domain]. Linear: [actual URL returned above]" — replace [actual URL returned above] with the real URL from the previous tool result, never use placeholder text
      - Call `front_create_draft` with "received, forwarding to team" template
      - Call `state_set` with step="ticket_created"
    - **K-12 or unaccredited:**
