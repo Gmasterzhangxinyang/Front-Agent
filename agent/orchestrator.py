@@ -159,7 +159,7 @@ Sender email: {sender_email}
         {"role": "user", "content": user_content},
     ]
 
-    await _run_agent_loop(messages, db)
+    await _run_agent_loop(messages, db, sender_email=sender_email, message_body=message_body)
 
 
 async def _should_fetch_history(conversation_text: str, latest_message: str, sender_email: str) -> bool:
@@ -210,7 +210,7 @@ async def _classify(conversation_text: str, latest_message: str, sender_email: s
         return None
 
 
-async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int = 10) -> None:
+async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int = 10, sender_email: str = "", message_body: str = "") -> None:
     notified_conversations: set[str] = set()  # deduplicate feishu_notify_bobby per conv
     for _ in range(max_iterations):
         response = await client.chat.completions.create(
@@ -243,6 +243,13 @@ async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int 
                     messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
                     continue
                 notified_conversations.add(conv_id)
+
+            # Auto-inject sender_email and original_message for linear tickets
+            if tool_name == "linear_create_ticket":
+                if sender_email and not args.get("sender_email"):
+                    args["sender_email"] = sender_email
+                if message_body and not args.get("original_message"):
+                    args["original_message"] = message_body
 
             result = await execute_tool_call(tool_name, args, db)
             logger.info(f"Tool {tool_name} → {result}")

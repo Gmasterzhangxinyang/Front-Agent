@@ -359,6 +359,21 @@ async def _run_agent_with_classification(conversation_id: str, category: str, su
     conversation_text = build_conversation_text(all_messages)
     skill_md = load_skill(category)
 
+    # Extract sender_email from state and latest user message for linear ticket injection
+    sender_email = ""
+    latest_user_message = ""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(ConversationState).where(ConversationState.conversation_id == conversation_id)
+        )
+        state = result.scalar_one_or_none()
+        if state and state.sender_email:
+            sender_email = state.sender_email
+    for msg in reversed(all_messages):
+        if msg.get("type") == "email" and not msg.get("is_draft"):
+            latest_user_message = msg.get("text") or msg.get("body") or ""
+            break
+
     system_prompt = f"""You are a Dify support email automation agent.
 
 This email has been manually classified by Bobby as:
@@ -371,10 +386,11 @@ Skill instructions for this category:
 Follow the skill instructions exactly. Call the appropriate tools to handle this email.
 Always be polite, professional, and empathetic in all replies to users.
 Conversation ID: {conversation_id}
+Sender email: {sender_email}
 """
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": conversation_text},
     ]
     async with AsyncSessionLocal() as db:
-        await _run_agent_loop(messages, db)
+        await _run_agent_loop(messages, db, sender_email=sender_email, message_body=latest_user_message)
