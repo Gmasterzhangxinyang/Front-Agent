@@ -81,7 +81,6 @@ async def feishu_card_callback(request: Request):
                 )
         return {
             "toast": {"type": "success", "content": "已转告相关同事"},
-            "card": card,
         }
 
     if action == "security_forwarded":
@@ -104,7 +103,6 @@ async def feishu_card_callback(request: Request):
                 )
         return {
             "toast": {"type": "success", "content": "已转安全团队"},
-            "card": handled,
         }
 
     if action == "resolved":
@@ -123,7 +121,6 @@ async def feishu_card_callback(request: Request):
                 )
                 return {
                     "toast": {"type": "success", "content": "已解决，结案草稿已写入 Front"},
-                    "card": final,
                 }
             logger.info("State transition → bobby_resolved for conv %s", conversation_id)
             summary = await _get_state_summary(conversation_id)
@@ -145,7 +142,6 @@ async def feishu_card_callback(request: Request):
             await update_card(message_id, final)
         return {
             "toast": {"type": "success", "content": "已解决，结案草稿已写入 Front"},
-            "card": final,
         }
 
     if action == "approve_draft":
