@@ -8,35 +8,35 @@ Handle refund requests, duplicate charges, subscription changes, invoice issues,
 ### refund
 
 **Step: initial**
-1. Call `front_reply` with "please provide refund details" template
+1. Call `front_create_draft` with "please provide refund details" template
 2. Call `state_set` with step="awaiting_refund_details", waiting=true
 
 **Step: awaiting_refund_details** (user has provided details)
 1. Extract from user's reply: account email, last charge date, charge reason, workspace ID
-2. If workspace ID is missing: Call `front_reply` with "workspace ID instructions" template, keep state as awaiting_refund_details
-3. If any other info is missing: Call `front_reply` asking for the missing fields
+2. If workspace ID is missing: Call `front_create_draft` with "workspace ID instructions" template, keep state as awaiting_refund_details
+3. If any other info is missing: Call `front_create_draft` asking for the missing fields
 4. If all info present:
    - Call `front_assign` to assign conversation to 徐小茜 (teammate ID from config)
    - Call `front_add_comment` with summary: "退款请求 - 邮箱: [email], 扣款时间: [date], 原因: [reason], Workspace ID: [id]"
-   - Call `front_reply` with "received, processing" template
+   - Call `front_create_draft` with "received, processing" template
    - Call `state_set` with step="assigned_to_xiaxi"
 
 ### duplicate_charge
-1. Call `front_reply` with "please provide refund details" template (mention duplicate charge specifically)
+1. Call `front_create_draft` with "please provide refund details" template (mention duplicate charge specifically)
 2. Call `state_set` with step="awaiting_refund_details", sub_type="duplicate_charge", waiting=true
 3. When details received: same as refund flow, but add "⚠️ 重复扣款" note in the comment to 徐小茜
 
 ### downgrade
-1. Call `front_reply` with self-service downgrade template
+1. Call `front_create_draft` with self-service downgrade template
 
 ### invoice
-1. Call `front_reply` with invoice self-service template
+1. Call `front_create_draft` with invoice self-service template
 
 ### other
 1. Call `linear_create_ticket` with conversation_id, title "Billing issue - [email]" and description
 2. Use the URL returned from `linear_create_ticket` in the next step
 3. Call `feishu_notify_bobby` with: "请转告张婉清处理账单问题。用户: [email]. Linear: [url from previous step]"
-3. Call `front_reply` with "received, forwarding to team" template
+3. Call `front_create_draft` with "received, forwarding to team" template
 4. Call `state_set` with step="ticket_created"
 
 ## Reply Templates

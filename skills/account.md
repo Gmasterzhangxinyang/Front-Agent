@@ -6,7 +6,7 @@ Handle account-related requests: login issues, account deletion, transfer, email
 ## Steps by Sub-type
 
 ### cant_login (can't log in / not receiving verification code)
-1. Call `front_reply` with the "investigating" template
+1. Call `front_create_draft` with the "investigating" template
 2. Call `feishu_notify_bobby` with message: "账号登录问题，请联系李敏查询。用户邮箱: [sender_email]. 对话ID: [conversation_id]"
 3. Call `state_set` with step="notified_bobby", payload={"sender_email": sender_email}
 4. Leave conversation open (Bobby will follow up manually)
@@ -14,8 +14,8 @@ Handle account-related requests: login issues, account deletion, transfer, email
 ### delete_account
 **Step: initial**
 1. First check if user mentions they can still log in to their account:
-   - **If user can log in**: Call `front_reply` with self-service deletion template
-   - **If user cannot log in** (or unclear): Call `front_reply` with identity verification request template, call `state_set` with step="awaiting_identity_verification", sub_type="delete_account", waiting=true, leave conversation open
+   - **If user can log in**: Call `front_create_draft` with self-service deletion template
+   - **If user cannot log in** (or unclear): Call `front_create_draft` with identity verification request template, call `state_set` with step="awaiting_identity_verification", sub_type="delete_account", waiting=true, leave conversation open
 
 **Step: awaiting_identity_verification** (user has replied)
 1. Check if user's reply confirms identity (sent from original email, or provided proof)
@@ -23,24 +23,24 @@ Handle account-related requests: login issues, account deletion, transfer, email
    - Call `linear_create_ticket` with conversation_id, title "Account deletion request - [email]" and description including account email, reason, user's explanation summary
    - Use the URL returned from `linear_create_ticket` in the next step
    - Call `feishu_notify_bobby` with: "请转告张婉清处理账号删除工单。用户: [email]. Linear: [url from previous step]"
-   - Call `front_reply` with "received, forwarded to team" template
+   - Call `front_create_draft` with "received, forwarded to team" template
    - Call `state_set` with step="ticket_created"
-3. If not confirmed: Call `front_reply` asking again politely
+3. If not confirmed: Call `front_create_draft` asking again politely
 
 **Note on refund**: If user also mentions refund, after creating the Linear ticket, also follow billing/refund steps (ask for refund details, then assign to 徐小茜)
 
 ### transfer_account
 **Step: initial**
 1. First check if user mentions they can still log in to their account:
-   - **If user can log in**: Call `front_reply` with self-service transfer template
-   - **If user cannot log in** (or unclear): Call `front_reply` with identity verification request template, call `state_set` with step="awaiting_identity_verification", sub_type="transfer_account", waiting=true
+   - **If user can log in**: Call `front_create_draft` with self-service transfer template
+   - **If user cannot log in** (or unclear): Call `front_create_draft` with identity verification request template, call `state_set` with step="awaiting_identity_verification", sub_type="transfer_account", waiting=true
 
 **Step: awaiting_identity_verification**
 1. If confirmed:
    - Call `linear_create_ticket` with conversation_id, title "Account transfer request - [original email] → [new email]" and description
    - Use the URL returned from `linear_create_ticket` in the next step
    - Call `feishu_notify_bobby` with: "请转告张婉清处理账号转移工单。原邮箱: [email]. Linear: [url from previous step]"
-   - Call `front_reply` with "received, forwarded to team" template
+   - Call `front_create_draft` with "received, forwarded to team" template
    - Call `state_set` with step="ticket_created"
 
 ### change_email → handled by transfer_account flow (same process)
@@ -49,18 +49,18 @@ Handle account-related requests: login issues, account deletion, transfer, email
 1. Call `linear_create_ticket` with conversation_id, title "Account anomaly - [email]" and description including email, issue description, time
 2. Use the URL returned from `linear_create_ticket` in the next step
 3. Call `feishu_notify_bobby` with: "请转告张婉清处理账号异常工单。用户: [email]. Linear: [url from previous step]"
-3. Call `front_reply` with "received, forwarded to team" template
+3. Call `front_create_draft` with "received, forwarded to team" template
 4. Call `state_set` with step="ticket_created"
 
 ### account_hacked
 1. Call `linear_create_ticket` with conversation_id, title "Account compromised - [email]" and description
 2. Use the URL returned from `linear_create_ticket` in the next step
 3. Call `feishu_notify_bobby` with: "⚠️ 账号被盗报告，请立即关注。用户: [email]. Linear: [url from previous step]"
-3. Call `front_reply` with "received, investigating urgently" template
+3. Call `front_create_draft` with "received, investigating urgently" template
 4. Call `state_set` with step="ticket_created"
 
 ### merge_accounts
-1. Call `front_reply` explaining this feature is not currently available
+1. Call `front_create_draft` explaining this feature is not currently available
 2. Call `linear_create_ticket` with title "Feature request: account merge - [email]"
 3. Call `feishu_notify_bobby` with: "用户请求合并账号功能（目前不支持）。已建工单记录需求。"
 

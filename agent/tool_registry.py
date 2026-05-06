@@ -10,15 +10,17 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
-            "name": "front_reply",
-            "description": "Send a reply email to the user in the conversation",
+            "name": "front_create_draft",
+            "description": "Create a draft reply in Front for Bobby to review and send manually. Do NOT send directly. Always use this instead of sending.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "conversation_id": {"type": "string"},
                     "body": {"type": "string", "description": "The reply body in English, polite and professional"},
+                    "category": {"type": "string", "description": "Email category/sub_type, e.g. technical/how_to or billing/refund"},
+                    "reason_cn": {"type": "string", "description": "一句话说明为什么这样回复，中文，不超过30字，例如：用户询问工作流节点用法，引导至文档"},
                 },
-                "required": ["conversation_id", "body"],
+                "required": ["conversation_id", "body", "category", "reason_cn"],
             },
         },
     },
@@ -181,7 +183,18 @@ TOOL_SCHEMAS = [
 async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str:
     from config import settings
 
+    if tool_name == "front_create_draft":
+        conversation_id = args["conversation_id"]
+        body = args["body"]
+        category = args.get("category", "")
+        reason_cn = args.get("reason_cn", "AI 自动生成草稿")
+        comment = f"[AI草稿] 分类：{category}｜{reason_cn}"
+        await front.add_comment(conversation_id, comment)
+        ok = await front.create_draft(conversation_id, body)
+        return "draft_created" if ok else "draft_failed"
+
     if tool_name == "front_reply":
+        # Legacy path — only used when Bobby approves from Feishu card
         ok = await front.reply_to_conversation(args["conversation_id"], args["body"])
         return "replied" if ok else "reply_failed"
 

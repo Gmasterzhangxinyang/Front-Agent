@@ -6,9 +6,9 @@ Handle requests from users who want to export or download their personal data.
 ## Steps
 1. Check if Dify has a self-service data export feature (currently: NO self-service export available)
 2. If user's request is non-urgent:
-   - Call `front_reply` with "no self-service export" template
+   - Call `front_create_draft` with "no self-service export" template
 3. If user's request is urgent (mentions legal reasons, GDPR, account deletion + data):
-   - Call `front_reply` with "escalating" template
+   - Call `front_create_draft` with "escalating" template
    - Call `feishu_notify_bobby` with: "用户请求数据导出（紧急）。发件人: [email]. 摘要: [summary]"
    - Leave conversation open
 

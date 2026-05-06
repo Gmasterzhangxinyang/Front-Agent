@@ -7,11 +7,11 @@ Handle security-related reports and concerns.
 
 ### general (non-urgent security concern)
 1. Call `front_add_tag` with conversation_id and tag_id "tag_5fgwpn" (security_from_hello)
-2. Call `front_reply` with acknowledgment template
+2. Call `front_create_draft` with acknowledgment template
 3. Leave conversation open (Front rule will route it to security inbox based on the tag)
 
 ### urgent (active breach, data leak, critical vulnerability)
-1. Call `front_reply` with urgent acknowledgment template
+1. Call `front_create_draft` with urgent acknowledgment template
 2. Call `front_add_tag` with conversation_id and tag_id "tag_5fgwpn" (security_from_hello) to route to security inbox
 3. Call `feishu_notify_bobby` with: "🚨 紧急安全问题！用户: [email]. 描述: [summary]. 对话ID: [conversation_id]"
 

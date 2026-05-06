@@ -6,49 +6,49 @@ Handle technical questions, bug reports, API issues, service outages, and data p
 ## Steps by Sub-type
 
 ### Paid User (Team / Pro) — any technical sub_type except self_hosted and data_privacy
-1. Call `front_reply` with the ticket system guidance template
+1. Call `front_create_draft` with the ticket system guidance template
 2. Do NOT resolve — leave open for user to follow up if needed
 
 ### Free User (Sandbox) — how_to or workflow_issue
 1. Call `docs_search` with keywords from the user's question to find relevant documentation
 2. Call `github_search` with keywords from the user's issue to find related issues/PRs
-3. Call `front_reply` with documentation guidance + upgrade suggestion, referencing docs and any relevant GitHub issues found
+3. Call `front_create_draft` with documentation guidance + upgrade suggestion, referencing docs and any relevant GitHub issues found
 
 ### Free User — feasibility (evaluating before purchase)
 1. Call `docs_search` to check if the feature exists in official documentation
 2. Call `github_search` to check if the feature is planned or discussed
-3. Call `front_reply` answering ONLY what you are 100% certain Dify can do based on official docs
+3. Call `front_create_draft` answering ONLY what you are 100% certain Dify can do based on official docs
 4. Do NOT make promises about features you are unsure of
 5. Include pricing page link to encourage upgrade
 
 ### Free User — bug_report
 1. Call `github_search` to check if this bug is already reported or fixed
-2. Call `front_reply` directing to GitHub issues, mentioning any related issue found
+2. Call `front_create_draft` directing to GitHub issues, mentioning any related issue found
 
 ### Free User — api_issue
 1. Call `github_search` to check for known API issues
-2. Call `front_reply` directing to pricing page for API limits info and docs for API key management
+2. Call `front_create_draft` directing to pricing page for API limits info and docs for API key management
 
 ### Premium User (self-hosted licensed) — any sub_type
 1. Call `docs_search` with keywords from the user's issue to find relevant documentation
 2. Call `github_search` with keywords from the user's issue
-3. Call `front_reply` with a helpful answer based on official docs and GitHub findings
+3. Call `front_create_draft` with a helpful answer based on official docs and GitHub findings
 4. If issue is complex and cannot be resolved by AI, call `feishu_notify_bobby` with summary
 5. Leave conversation open
 
 ### Self-hosted Non-Premium — any sub_type
 1. Call `docs_search` to find relevant documentation
 2. Call `github_search` to check for known issues or workarounds
-3. Call `front_reply` directing to docs and GitHub community, referencing relevant docs and issues found
+3. Call `front_create_draft` directing to docs and GitHub community, referencing relevant docs and issues found
 
 ### Outage (any user)
-1. Call `front_reply` acknowledging the issue
+1. Call `front_create_draft` acknowledging the issue
 2. Call `linear_create_ticket` with title "Service outage report - [sender email]" and description
 3. Call `feishu_notify_bobby` with summary
 4. Leave conversation open
 
 ### Data Privacy — general question
-1. Call `front_reply` clearly stating Dify does NOT use user data for training and does NOT share data
+1. Call `front_create_draft` clearly stating Dify does NOT use user data for training and does NOT share data
 
 ### Data Privacy — serious concern (potential data breach)
 1. Route to security skill instead

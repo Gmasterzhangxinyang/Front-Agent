@@ -6,7 +6,7 @@ Handle partnership inquiries, marketplace cooperation, plugin cooperation, and p
 ## Steps
 
 ### All sub-types (plugin, marketplace, plugin_takedown)
-1. Call `front_reply` with forwarding template
+1. Call `front_create_draft` with forwarding template
 2. Call `front_forward` to 赵晗青's email, cc 赵雅雯
 
 ## Reply Template

@@ -6,13 +6,13 @@ Handle questions about purchasing Dify plans, pricing, and reseller/agent inquir
 ## Steps by Sub-type
 
 ### enterprise
-1. Call `front_reply` with enterprise inquiry template
+1. Call `front_create_draft` with enterprise inquiry template
 
 ### pro_team
-1. Call `front_reply` with pricing guidance template
+1. Call `front_create_draft` with pricing guidance template
 
 ### reseller
-1. Call `front_reply` with "forwarding to partnerships team" template
+1. Call `front_create_draft` with "forwarding to partnerships team" template
 2. Call `front_forward` to 赵晗青's email with cc to 赵雅雯
 
 ## Reply Templates

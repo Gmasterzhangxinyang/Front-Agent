@@ -22,9 +22,34 @@ async def get_conversation(conversation_id: str) -> dict:
         return r.json()
 
 
+async def create_draft(conversation_id: str, body: str, author_id: str = None) -> bool:
+    import logging
+    try:
+        conv = await get_conversation(conversation_id)
+        recipient = conv.get("recipient", {})
+        sender_email = recipient.get("handle", "")
+    except Exception:
+        sender_email = ""
+
+    html_body = body.replace("\n", "<br>")
+    payload = {"body": html_body, "type": "email", "mode": "shared"}
+    if sender_email:
+        payload["to"] = [sender_email]
+    if author_id:
+        payload["author_id"] = author_id
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            f"{BASE_URL}/conversations/{conversation_id}/drafts",
+            headers=HEADERS,
+            json=payload,
+        )
+        if r.status_code not in (200, 201, 202, 204):
+            logging.error("Front draft failed: %s %s", r.status_code, r.text)
+        return r.status_code in (200, 201, 202, 204)
+
+
 async def reply_to_conversation(conversation_id: str, body: str, author_id: str = None) -> bool:
     import logging
-    # Get sender email from conversation
     try:
         conv = await get_conversation(conversation_id)
         recipient = conv.get("recipient", {})

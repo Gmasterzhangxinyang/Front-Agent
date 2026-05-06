@@ -15,32 +15,32 @@ Handle education plan applications, rejections, and discount issues.
 ### rejected (education plan application rejected)
 
 **Step: initial**
-1. Call `front_reply` with "please provide school info" template
+1. Call `front_create_draft` with "please provide school info" template
 2. Call `state_set` with step="awaiting_school_info", waiting=true
 
 **Step: awaiting_school_info** (user has replied with school info)
 1. Extract: school full name (English) and school email domain from user's reply
 2. If user provided personal email (Gmail, Yahoo, etc.) instead of school domain:
-   - Call `front_reply` with "must use school email" template
+   - Call `front_create_draft` with "must use school email" template
    - Keep state as awaiting_school_info
 3. Determine school type:
    - **Higher education (university/college, government-accredited):**
      - Call `linear_create_ticket` with conversation_id, title "Education plan application - [school name]" and description: school full name (English), email domain, AI assessment result
      - Use the URL returned from `linear_create_ticket` in the next step
      - Call `feishu_notify_bobby` with: "请转告张婉清审核教育版申请。学校: [school name], 域名: [domain]. Linear: [url from previous step]"
-     - Call `front_reply` with "received, forwarding to team" template
+     - Call `front_create_draft` with "received, forwarding to team" template
      - Call `state_set` with step="ticket_created"
    - **K-12 or unaccredited:**
-     - Call `front_reply` with "not eligible" template
+     - Call `front_create_draft` with "not eligible" template
 
 ### no_discount (edu verified but discount not showing)
 
 **Step: initial**
 1. Check if user mentions they can see the "edu" badge in their account
 2. If they see the edu badge but no discount:
-   - Call `front_reply` with billing guidance template
+   - Call `front_create_draft` with billing guidance template
 3. If they don't see the edu badge (not verified):
-   - Call `front_reply` with "please provide school info" template
+   - Call `front_create_draft` with "please provide school info" template
    - Call `state_set` with step="awaiting_school_info", waiting=true
    - Continue with the same logic as `rejected` flow: assess school type, create ticket if eligible, reject if not
 

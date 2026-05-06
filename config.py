@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     # Linear
     linear_api_key: str
     linear_team_id: str
-    linear_cus_project_id: str
+    linear_cus_project_id: str = ""
 
     # Feishu webhooks
     feishu_webhook_bobby: str

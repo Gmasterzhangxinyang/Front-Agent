@@ -4,7 +4,7 @@
 Handle questions about Dify's roadmap, upcoming features, and release timelines.
 
 ## Steps
-1. Call `front_reply` with roadmap guidance template
+1. Call `front_create_draft` with roadmap guidance template
 
 ## Reply Template
 

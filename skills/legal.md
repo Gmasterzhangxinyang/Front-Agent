@@ -4,7 +4,7 @@
 Handle emails containing legal threats, lawyer letters, or lawsuit mentions.
 
 ## Steps
-1. Call `front_reply` with acknowledgment template (calm, professional, non-committal)
+1. Call `front_create_draft` with acknowledgment template (calm, professional, non-committal)
 2. Call `feishu_notify_bobby` with: "⚠️ 法律威胁邮件！请立即处理。发件人: [sender_email]. 摘要: [summary]"
 3. Leave conversation open (Bobby will handle manually)
 
