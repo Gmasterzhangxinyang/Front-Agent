@@ -3,6 +3,36 @@
 ## Purpose
 Handle questions about purchasing Dify plans, pricing, and reseller/agent inquiries.
 
+## Product Knowledge — Dify Plans and Features
+
+### Community Edition (Self-hosted, Free, Open-source)
+- **Multi-tenancy**: ❌ NOT supported
+- **Logo customization**: ❌ NOT supported
+- **Commercial use**: ⚠️ Only for internal use within your organization, OR providing services to external users via API. NOT for commercial redistribution.
+- **Support**: Community support via GitHub and docs
+
+### Premium (Self-hosted, Commercial License)
+- **Multi-tenancy**: ❌ NOT supported
+- **Logo customization**: ✅ Supported
+- **Commercial use**: ✅ Supported (commercial redistribution allowed)
+- **Purchase**: Available on AWS Marketplace or via https://dify.ai/pricing
+- **Support**: Standard support
+
+### SaaS Plans (Cloud-hosted by Dify)
+- **Sandbox (Free)**: For getting started and exploring
+- **Pro**: For individual professionals and small teams
+- **Team**: For growing teams with collaboration needs
+- **Logo customization**: ✅ All SaaS plans support logo customization
+- **Multi-tenancy**: ❌ NOT supported (single workspace per account)
+
+### Enterprise Plan
+- **Multi-tenancy**: ✅ Supported (multiple workspaces)
+- **Logo customization**: ✅ Supported
+- **Commercial use**: ✅ Supported
+- **All features**: Includes all features from other plans
+- **Support**: Dedicated support with SLA
+- **Contact**: business@dify.ai
+
 ## Steps by Sub-type
 
 ### enterprise

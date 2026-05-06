@@ -3,6 +3,35 @@
 ## Purpose
 Handle technical questions, bug reports, API issues, service outages, and data privacy questions.
 
+## Product Knowledge — Dify Version Overview
+
+**Community Edition（社区版，免费开源）：**
+- 免费、开源，可自部署
+- 不支持多租户（不支持多 workspace）
+- 不支持修改 Logo
+- 只能企业内部使用，或通过 API 方式向外部提供服务
+- 不可商用分发
+
+**Premium（自部署商业版）：**
+- 付费，自部署，需商业授权
+- 支持修改 Logo
+- 支持商用
+- 不支持多租户
+- 可通过 AWS Marketplace 或 https://dify.ai/pricing 购买
+
+**SaaS 云端版本（Pro / Team）：**
+- 云端托管，按月/年订阅
+- 支持修改 Logo
+- 不支持多租户
+- 详见 https://dify.ai/pricing
+
+**Enterprise（企业版）：**
+- 支持多租户（多 workspace）
+- 支持修改 Logo
+- 支持商用及所有功能
+- 包含其他版本所有功能
+- 购买联系：business@dify.ai
+
 ## Steps by Sub-type
 
 ### Paid User (Team / Pro) — any technical sub_type except self_hosted and data_privacy
