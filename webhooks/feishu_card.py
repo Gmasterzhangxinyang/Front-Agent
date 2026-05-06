@@ -50,19 +50,29 @@ async def feishu_card_callback(request: Request):
 
     logger.info("Card action: %s  conv: %s  msg: %s  event_id: %s", action, conversation_id, message_id, event_id)
 
-    # Deduplicate by event_id — Feishu may send the same event_id twice
-    if event_id and await _check_and_set_event_id(event_id):
-        logger.info("Duplicate event_id %s, ignoring", event_id)
-        return {"code": 0}
+    # Deduplicate by event_id — Feishu may send the same event_id twice.
+    # We do NOT short-circuit with code 0; instead we fall through so the
+    # correct card is always returned, preventing Feishu from reverting the UI.
+    is_duplicate_event = bool(event_id and await _check_and_set_event_id(event_id))
+    if is_duplicate_event:
+        logger.info("Duplicate event_id %s detected — will still return correct card state", event_id)
 
     if action == "forwarded":
         async with _get_action_lock(f"forwarded:{conversation_id}"):
             already_forwarded = await _check_and_set_forwarded(conversation_id)
             if already_forwarded:
-                logger.info("Duplicate forwarded callback for %s, ignoring", conversation_id)
-                return {"code": 0}
+                logger.info(
+                    "Duplicate forwarded callback for %s (event_id=%s) — returning current forwarded card",
+                    conversation_id, event_id,
+                )
+            else:
+                logger.info("State transition → bobby_forwarded for conv %s", conversation_id)
             summary = await _get_state_summary(conversation_id)
             card = build_forwarded_card(conversation_id, summary)
+            logger.debug(
+                "Returning forwarded card for conv %s: header=%s",
+                conversation_id, card.get("header", {}).get("title", {}).get("content"),
+            )
             if message_id:
                 await update_card(message_id, card)
         return {
@@ -85,8 +95,21 @@ async def feishu_card_callback(request: Request):
         async with _get_action_lock(f"resolved:{conversation_id}"):
             already_resolved = await _check_and_set_resolved(conversation_id)
             if already_resolved:
-                logger.info("Duplicate resolved callback for %s, ignoring", conversation_id)
-                return {"code": 0}
+                logger.info(
+                    "Duplicate resolved callback for %s (event_id=%s) — returning current resolved card",
+                    conversation_id, event_id,
+                )
+                summary = await _get_state_summary(conversation_id)
+                final = build_handled_card(summary, "✅ 已解决")
+                logger.debug(
+                    "Returning resolved card for conv %s: header=%s",
+                    conversation_id, final.get("header", {}).get("title", {}).get("content"),
+                )
+                return {
+                    "toast": {"type": "success", "content": "已解决，结案草稿已写入 Front"},
+                    "card": final,
+                }
+            logger.info("State transition → bobby_resolved for conv %s", conversation_id)
             summary = await _get_state_summary(conversation_id)
             handled = build_handled_card(summary, "已解决 — 正在生成结案草稿...")
             if message_id:
@@ -98,6 +121,10 @@ async def feishu_card_callback(request: Request):
         except Exception as e:
             logger.error("Failed to generate closing draft: %s", e)
             final = build_handled_card(summary, "✅ 已解决（结案草稿生成失败，请手动回复）")
+        logger.debug(
+            "Returning final resolved card for conv %s: header=%s",
+            conversation_id, final.get("header", {}).get("title", {}).get("content"),
+        )
         if message_id:
             await update_card(message_id, final)
         return {
