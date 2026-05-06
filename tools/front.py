@@ -49,7 +49,7 @@ async def create_draft(conversation_id: str, body: str, author_id: str = None) -
         sender_email = ""
         channel_id = None
 
-    html_body = body.replace("\n", "<br>")
+    html_body = "<p>" + body.replace("\n\n", "</p><p>").replace("\n", "<br>") + "</p>"
     payload = {"body": html_body, "mode": "shared"}
     if channel_id:
         payload["channel_id"] = channel_id
