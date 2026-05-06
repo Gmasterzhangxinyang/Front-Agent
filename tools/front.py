@@ -28,22 +28,17 @@ async def create_draft(conversation_id: str, body: str, author_id: str = None) -
         conv = await get_conversation(conversation_id)
         recipient = conv.get("recipient", {})
         sender_email = recipient.get("handle", "")
-        # channel_id is required by the drafts API
+        # channel_id must be a channel resource alias, not an inbox id
+        # Fetch inboxes to get the address, then build alt:address: alias
         channel_id = None
-        for inbox in conv.get("_links", {}).get("related", {}).get("inboxes", []):
-            pass  # inboxes is a URL, not a list
-        # Get channel_id from the conversation's inbox list
-        inboxes = conv.get("inboxes", [])
-        if inboxes:
-            channel_id = inboxes[0].get("id")
-        if not channel_id:
-            # Fallback: fetch inboxes for this conversation
-            async with httpx.AsyncClient() as c:
-                ri = await c.get(f"{BASE_URL}/conversations/{conversation_id}/inboxes", headers=HEADERS)
-                if ri.status_code == 200:
-                    results = ri.json().get("_results", [])
-                    if results:
-                        channel_id = results[0].get("id")
+        async with httpx.AsyncClient() as c:
+            ri = await c.get(f"{BASE_URL}/conversations/{conversation_id}/inboxes", headers=HEADERS)
+            if ri.status_code == 200:
+                results = ri.json().get("_results", [])
+                if results:
+                    address = results[0].get("address") or results[0].get("send_as")
+                    if address:
+                        channel_id = f"alt:address:{address}"
     except Exception as e:
         logging.error("create_draft setup failed: %s", e)
         sender_email = ""
