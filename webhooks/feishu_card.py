@@ -13,9 +13,9 @@ def _get_action_lock(key: str) -> asyncio.Lock:
     return _action_locks[key]
 
 from fastapi import APIRouter, Request, HTTPException
-from sqlalchemy import update, select
+from sqlalchemy import update, select, insert
 from database import AsyncSessionLocal
-from models import ConversationState
+from models import ConversationState, WebhookEvent
 from tools import feishu, front
 from tools.feishu import build_handled_card, build_forwarded_card, build_awaiting_reply_card, update_card
 
@@ -34,6 +34,7 @@ async def feishu_card_callback(request: Request):
     schema = body.get("schema")
     if schema == "2.0":
         event_type = body.get("header", {}).get("event_type")
+        event_id = body.get("header", {}).get("event_id", "")
         if event_type != "card.action.trigger":
             logger.info("Feishu non-card event body: %s", body)
             return {"code": 0}
@@ -47,7 +48,12 @@ async def feishu_card_callback(request: Request):
         # Old format callback — Feishu sends this alongside schema 2.0, ignore it
         return {"code": 0}
 
-    logger.info("Card action: %s  conv: %s  msg: %s", action, conversation_id, message_id)
+    logger.info("Card action: %s  conv: %s  msg: %s  event_id: %s", action, conversation_id, message_id, event_id)
+
+    # Deduplicate by event_id — Feishu may send the same event_id twice
+    if event_id and await _check_and_set_event_id(event_id):
+        logger.info("Duplicate event_id %s, ignoring", event_id)
+        return {"code": 0}
 
     if action == "forwarded":
         async with _get_action_lock(f"forwarded:{conversation_id}"):
@@ -212,6 +218,17 @@ async def feishu_card_callback(request: Request):
         return {"code": 0}
 
     return {"code": 0}
+
+
+async def _check_and_set_event_id(event_id: str) -> bool:
+    """Returns True if this event_id was already processed (duplicate). Inserts it if new."""
+    try:
+        async with AsyncSessionLocal() as db:
+            await db.execute(insert(WebhookEvent).values(event_id=event_id))
+            await db.commit()
+            return False  # Successfully inserted — first time seeing this event
+    except Exception:
+        return True  # Insert failed (unique constraint) — already processed
 
 
 async def _check_and_set_forwarded(conversation_id: str) -> bool:
