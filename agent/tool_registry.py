@@ -97,6 +97,8 @@ TOOL_SCHEMAS = [
                     "conversation_id": {"type": "string", "description": "Front conversation ID, used to link the ticket back"},
                     "title": {"type": "string"},
                     "body": {"type": "string", "description": "Ticket description in Chinese, include all relevant details"},
+                    "sender_email": {"type": "string", "description": "The sender's email address"},
+                    "original_message": {"type": "string", "description": "The original email body from the user"},
                 },
                 "required": ["conversation_id", "title", "body"],
             },
@@ -215,7 +217,16 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         return "tag_added" if ok else "tag_failed"
 
     elif tool_name == "linear_create_ticket":
-        result = await linear.create_ticket(args["title"], args["body"])
+        body = args["body"]
+        sender_email = args.get("sender_email", "")
+        original_message = args.get("original_message", "")
+        if sender_email or original_message:
+            body += "\n\n---"
+            if sender_email:
+                body += f"\n\n**发件人：** {sender_email}"
+            if original_message:
+                body += f"\n\n**邮件原文：**\n{original_message}"
+        result = await linear.create_ticket(args["title"], body)
         if result:
             url, identifier = result
             conversation_id = args.get("conversation_id")
