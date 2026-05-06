@@ -207,8 +207,9 @@ def build_notify_card(
 def build_forwarded_card(conversation_id: str, original_summary: str) -> dict:
     """Card shown after Bobby clicks 已转告 — shows forwarded status + keeps 已解决 button.
 
-    The 已转告 button is rendered in a disabled state so that even if Feishu
-    reverts the card UI, the button cannot be clicked again.
+    The 已转告 button is intentionally omitted (rather than shown as disabled)
+    to avoid Feishu client issues where a disabled button in the same action
+    block can prevent other buttons from being clickable.
     """
     return {
         "config": {"wide_screen_mode": True, "update_multi": False},
@@ -221,13 +222,6 @@ def build_forwarded_card(conversation_id: str, original_summary: str) -> dict:
             {
                 "tag": "action",
                 "actions": [
-                    {
-                        "tag": "button",
-                        "text": {"tag": "plain_text", "content": "✅ 已转告"},
-                        "type": "default",
-                        "disabled": True,
-                        "value": {"action": "forwarded", "conversation_id": conversation_id},
-                    },
                     {
                         "tag": "button",
                         "text": {"tag": "plain_text", "content": "✅ 已解决"},
