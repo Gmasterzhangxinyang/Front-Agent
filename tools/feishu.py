@@ -60,8 +60,11 @@ async def send_card(card: dict) -> str | None:
 
 async def update_card(message_id: str, card: dict) -> bool:
     """Update an existing card (e.g. mark as handled after Bobby clicks)."""
+    import logging as _logging
+    _logger = _logging.getLogger(__name__)
     token = await _get_tenant_token()
     if not token:
+        _logger.error("update_card: failed to obtain tenant token, card NOT updated (msg=%s)", message_id)
         return False
     async with httpx.AsyncClient() as client:
         r = await client.patch(
@@ -69,7 +72,16 @@ async def update_card(message_id: str, card: dict) -> bool:
             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
             json={"content": json.dumps(card)},
         )
-        return r.json().get("code") == 0
+        resp = r.json()
+        ok = resp.get("code") == 0
+        if ok:
+            _logger.info("update_card: successfully updated card for msg=%s", message_id)
+        else:
+            _logger.error(
+                "update_card: Feishu API returned error for msg=%s: code=%s msg=%s",
+                message_id, resp.get("code"), resp.get("msg"),
+            )
+        return ok
 
 
 # ── Card builders ──────────────────────────────────────────────────────────
@@ -195,7 +207,7 @@ def build_notify_card(
 def build_forwarded_card(conversation_id: str, original_summary: str) -> dict:
     """Card shown after Bobby clicks 已转告 — shows forwarded status + keeps 已解决 button."""
     return {
-        "config": {"wide_screen_mode": True},
+        "config": {"wide_screen_mode": True, "update_multi": False},
         "header": _header("📬 已转告", "orange"),
         "elements": [
             {"tag": "div", "text": {"tag": "lark_md", "content": original_summary}},
