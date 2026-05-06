@@ -24,14 +24,19 @@ async def get_conversation(conversation_id: str) -> dict:
 
 async def create_draft(conversation_id: str, body: str, author_id: str = None) -> bool:
     import logging
+    sender_email = ""
+    channel_id = None
+
     try:
         conv = await get_conversation(conversation_id)
         recipient = conv.get("recipient", {})
         sender_email = recipient.get("handle", "")
-        # channel_id must be a channel resource alias, not an inbox id
-        # Fetch inboxes to get the address, then build alt:address: alias
-        channel_id = None
-        async with httpx.AsyncClient() as c:
+    except Exception as e:
+        logging.error("create_draft: failed to get conversation: %s", e)
+
+    # Fetch channel_id from inboxes
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as c:
             ri = await c.get(f"{BASE_URL}/conversations/{conversation_id}/inboxes", headers=HEADERS)
             if ri.status_code == 200:
                 results = ri.json().get("_results", [])
@@ -40,9 +45,10 @@ async def create_draft(conversation_id: str, body: str, author_id: str = None) -
                     if address:
                         channel_id = f"alt:address:{address}"
     except Exception as e:
-        logging.error("create_draft setup failed: %s", e)
-        sender_email = ""
-        channel_id = None
+        logging.error("create_draft: failed to get channel_id: %s", e)
+
+    if not channel_id:
+        logging.error("create_draft: channel_id is None, draft will likely fail")
 
     html_body = "<p>" + body.replace("\n\n", "</p><p>").replace("\n", "<br>") + "</p>"
     payload = {"body": html_body, "mode": "shared"}
@@ -52,15 +58,20 @@ async def create_draft(conversation_id: str, body: str, author_id: str = None) -
         payload["to"] = [sender_email]
     if author_id:
         payload["author_id"] = author_id
-    async with httpx.AsyncClient() as client:
-        r = await client.post(
-            f"{BASE_URL}/conversations/{conversation_id}/drafts",
-            headers=HEADERS,
-            json=payload,
-        )
-        if r.status_code not in (200, 201, 202, 204):
-            logging.error("Front draft failed: %s %s", r.status_code, r.text)
-        return r.status_code in (200, 201, 202, 204)
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(
+                f"{BASE_URL}/conversations/{conversation_id}/drafts",
+                headers=HEADERS,
+                json=payload,
+            )
+            if r.status_code not in (200, 201, 202, 204):
+                logging.error("Front draft failed: %s %s", r.status_code, r.text)
+            return r.status_code in (200, 201, 202, 204)
+    except Exception as e:
+        logging.error("create_draft: request failed: %s", e)
+        return False
 
 
 async def reply_to_conversation(conversation_id: str, body: str, author_id: str = None) -> bool:
