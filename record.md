@@ -1,5 +1,5 @@
-## 2026-05-06 (session 6)
-- [fix] 点击"已转告"后卡片跳回原状：用 asyncio.Lock 对 forwarded/resolved 操作加内存锁，防止飞书双回调并发竞争导致第二次回调绕过数据库检查
+## 2026-05-06 (session 7)
+- [fix] 点击按钮后卡片跳回原状（根本修复）：直接丢弃旧格式回调，只处理 schema 2.0 回调，从源头消除双回调问题。之前的 asyncio.Lock 方案在多进程部署下无效
 
 ## 2026-05-06 (session 6)
 - [fix] 点击"已转告"/"已解决"后卡片跳回原状：在 `webhooks/feishu_card.py` 中加入 per-conversation asyncio.Lock，将 check-and-set 操作串行化，彻底消除飞书双回调的 race condition

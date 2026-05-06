@@ -44,14 +44,8 @@ async def feishu_card_callback(request: Request):
         conversation_id = action_value.get("conversation_id", "")
         message_id = event.get("context", {}).get("open_message_id", "")
     else:
-        # Old card callback format: action is at top level
-        if "action" not in body:
-            logger.info("Feishu non-card event body: %s", body)
-            return {"code": 0}
-        action_value: dict = body.get("action", {}).get("value", {})
-        action = action_value.get("action")
-        conversation_id = action_value.get("conversation_id", "")
-        message_id = body.get("open_message_id", "")
+        # Old format callback — Feishu sends this alongside schema 2.0, ignore it
+        return {"code": 0}
 
     logger.info("Card action: %s  conv: %s  msg: %s", action, conversation_id, message_id)
 
