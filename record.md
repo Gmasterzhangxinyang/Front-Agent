@@ -1,3 +1,9 @@
+## 2026-05-07
+- [feat] 教育版自动建工单：用户首封邮件已提供学校名和域名时，AI 直接判断并建工单，跳过"请提供学校信息"步骤（skills/education.md）
+- [feat] 促销码处理：新增 purchase/promo_code 分类，回复"无促销码，但有免费 Sandbox 和教育折扣"（skills/classify.md, skills/purchase.md）
+- [fix] Partnership 转发改为草稿：`forward_conversation` 创建草稿而非直接发送，需 Bobby 手动审核；转发内容包含摘要、发件人、conversation ID（tools/front.py, agent/tool_registry.py, skills/partnership.md, skills/purchase.md）
+- [fix] create_draft 错误处理改进：分离异常处理、加超时、详细日志，修复 channel_id 获取失败导致 400 错误（tools/front.py）
+
 ## 2026-05-06 (session 11)
 - [feat] 更新产品版本知识：Community/Premium/SaaS/Enterprise 版本区别，多租户、Logo、商用权限说明（purchase.md, technical.md）
 - [fix] Partnership 转发修复：新增 `front_forward_to_partnerships` 工具自动从 config 读取邮箱，修复 `forward_conversation` 缺少 channel_id 导致 400 错误（tools/front.py, agent/tool_registry.py, skills/partnership.md）
