@@ -37,6 +37,17 @@ async def handle_email(
 ) -> None:
     existing_state = await state_tool.get_state(db, conversation_id)
 
+    # Terminal states set by Bobby via Feishu card — do not re-process.
+    # A subsequent Front webhook (e.g. a reply notification) must not overwrite
+    # a forwarded/resolved state or trigger a new Feishu card notification.
+    _TERMINAL_STEPS = {"bobby_forwarded", "bobby_resolved", "bobby_security_forwarded"}
+    if existing_state and existing_state.step in _TERMINAL_STEPS:
+        logger.info(
+            "Skipping handle_email for conv %s — already in terminal state '%s'",
+            conversation_id, existing_state.step,
+        )
+        return
+
     # Fetch full conversation history from Front
     all_messages = await get_conversation_messages(conversation_id)
     conversation_text = build_conversation_text(all_messages)
