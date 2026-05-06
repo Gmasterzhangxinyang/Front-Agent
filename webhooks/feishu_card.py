@@ -47,7 +47,10 @@ async def feishu_card_callback(request: Request):
     logger.info("Card action: %s  conv: %s  msg: %s", action, conversation_id, message_id)
 
     if action == "forwarded":
-        await _update_state_step(conversation_id, "bobby_forwarded")
+        already_forwarded = await _check_and_set_forwarded(conversation_id)
+        if already_forwarded:
+            logger.info("Duplicate forwarded callback for %s, ignoring", conversation_id)
+            return {"code": 0}
         summary = await _get_state_summary(conversation_id)
         card = build_forwarded_card(conversation_id, summary)
         if message_id:
@@ -205,6 +208,26 @@ async def feishu_card_callback(request: Request):
         return {"code": 0}
 
     return {"code": 0}
+
+
+async def _check_and_set_forwarded(conversation_id: str) -> bool:
+    """Atomically check-and-set forwarded state. Returns True if already forwarded (duplicate)."""
+    if not conversation_id:
+        return False
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(ConversationState).where(ConversationState.conversation_id == conversation_id)
+        )
+        state = result.scalar_one_or_none()
+        if state and state.step == "bobby_forwarded":
+            return True
+        await db.execute(
+            update(ConversationState)
+            .where(ConversationState.conversation_id == conversation_id)
+            .values(step="bobby_forwarded")
+        )
+        await db.commit()
+        return False
 
 
 async def _check_and_set_resolved(conversation_id: str) -> bool:

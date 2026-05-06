@@ -225,19 +225,9 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         return "ticket_failed"
 
     elif tool_name == "feishu_notify_bobby":
-        # Extract linear_url from message if present (AI puts it inline)
         msg = args["message"]
-        linear_url = None
         conv_id = args.get("conversation_id", "")
-        import re
-        m = re.search(r'https://linear\.app/\S+', msg)
-        if m:
-            linear_url = m.group(0)
-        ok = await feishu.notify_bobby(
-            msg,
-            conversation_id=conv_id,
-            linear_url=linear_url,
-        )
+        ok = await feishu.notify_bobby(msg, conversation_id=conv_id)
         return "notified" if ok else "notify_failed"
 
     elif tool_name == "feishu_notify_yongle":
