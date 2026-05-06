@@ -198,7 +198,7 @@ def build_notify_card(
     }
 
     return {
-        "config": {"wide_screen_mode": True},
+        "config": {"wide_screen_mode": True, "update_multi": False},
         "header": _header(title_map.get(card_type, "📬 新工单通知"), color_map.get(card_type, "blue")),
         "elements": elements,
     }
@@ -288,7 +288,7 @@ def build_awaiting_reply_card(
         },
     ]
     return {
-        "config": {"wide_screen_mode": True},
+        "config": {"wide_screen_mode": True, "update_multi": False},
         "header": _header("📝 请确认回复内容", "wathet"),
         "elements": elements,
     }
