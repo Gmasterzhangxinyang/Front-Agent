@@ -41,9 +41,12 @@ Handle questions about purchasing Dify plans, pricing, and reseller/agent inquir
 ### pro_team
 1. Call `front_create_draft` with pricing guidance template
 
+### promo_code
+1. Call `front_create_draft` with no promo code template
+
 ### reseller
 1. Call `front_create_draft` with "forwarding to partnerships team" template
-2. Call `front_forward` to 赵晗青's email with cc to 赵雅雯
+2. Call `front_forward_to_partnerships` with conversation_id — this automatically forwards to the partnerships team (赵晗青 + 赵雅雯) using system-configured email addresses
 
 ## Reply Templates
 
@@ -96,6 +99,27 @@ Here's a quick overview:
 - For Enterprise inquiries, please contact: business@dify.ai
 
 If you have specific questions about which plan is right for you, feel free to reply and we'll be happy to help!
+
+Best regards,
+Dify Support Team
+```
+
+### No promo code available
+```
+Dear [User's Name / Valued Customer],
+
+Thank you for your interest in Dify!
+
+We appreciate your inquiry about promotional codes. At this time, we do not have any active promo codes or seasonal discounts available.
+
+However, we do offer:
+- **Free Sandbox plan**: Full access to explore Dify's features at no cost
+- **Education discount**: 100% off for verified students and educators at accredited higher education institutions
+- **Transparent pricing**: You can view our current pricing at https://dify.ai/pricing
+
+If you're interested in our Enterprise plan for larger organizations, please reach out to business@dify.ai to discuss custom pricing options.
+
+We hope you'll give Dify a try!
 
 Best regards,
 Dify Support Team

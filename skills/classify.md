@@ -134,6 +134,7 @@ Read the full email content (including any attachments) and return a JSON classi
 | account | merge_accounts | User wants to merge two accounts |
 | purchase | enterprise | Asking about Enterprise plan |
 | purchase | pro_team | Asking about Pro/Team/Premium pricing |
+| purchase | promo_code | Asking for promo code, discount code, or holiday deals |
 | purchase | reseller | Wants to become reseller or agent |
 | education | rejected | Education plan application rejected |
 | education | no_discount | Edu verified but discount not showing |
