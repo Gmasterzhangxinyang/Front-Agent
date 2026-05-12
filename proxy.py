@@ -32,9 +32,11 @@ async def handle_client(client_reader, client_writer):
                 break
         
         # Determine target
-        if path.startswith("/streamlit"):
+        # Streamlit's internal assets: /_stcore/*, /static/*
+        if path.startswith("/streamlit") or path.startswith("/_stcore") or path.startswith("/static"):
             target_port = STREAMLIT_PORT
-            new_path = path[len("/streamlit"):] or "/"
+            new_path = path[len("/streamlit"):] if path.startswith("/streamlit") else path
+            new_path = new_path or "/"
             new_request = f"{method} {new_path} HTTP/1.1\r\n".encode() + headers
         else:
             target_port = UVICORN_PORT
@@ -74,7 +76,7 @@ async def main():
         print(f"[proxy] Starting on port {LISTEN_PORT}", flush=True)
         server = await asyncio.start_server(handle_client, "0.0.0.0", LISTEN_PORT)
         print(f"[proxy] Listening on {LISTEN_PORT}", flush=True)
-        print(f"[proxy]   /streamlit/* → streamlit:{STREAMLIT_PORT}", flush=True)
+        print(f"[proxy]   /streamlit/* /_stcore/* /static/* → streamlit:{STREAMLIT_PORT}", flush=True)
         print(f"[proxy]   /* → uvicorn:{UVICORN_PORT}", flush=True)
         async with server:
             await server.serve_forever()
