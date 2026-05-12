@@ -41,7 +41,7 @@ async def get_feishu_chat_id(user_open_id: str = ""):
     if not token:
         return {"error": "No Feishu app credentials configured"}
     if not user_open_id:
-        return {"error": "Pass your open_id as ?user_open_id=ou_xxx. Find it at: https://open.feishu.cn/api-explorer/cli_a96df2401b791cc0?apiName=get&version=v3&resource=bot (call bot/v3/info as user)"}
+        return {"error": "Pass your open_id as ?user_open_id=ou_xxx"}
     async with httpx.AsyncClient() as client:
         r = await client.post(
             "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id",
@@ -49,11 +49,11 @@ async def get_feishu_chat_id(user_open_id: str = ""):
             json={
                 "receive_id": user_open_id,
                 "msg_type": "text",
-                "content": '{"text":"Hello from Bobby的小猫 — setup test"}',
+                "content": '{"text":"Hello from Bobby"}',
             },
         )
         data = r.json()
         if data.get("code") == 0:
             chat_id = data["data"].get("chat_id", "")
-            return {"chat_id": chat_id, "message_id": data["data"].get("message_id"), "hint": f"Set FEISHU_BOT_CHAT_ID={chat_id} in .env"}
+            return {"chat_id": chat_id}
         return data
