@@ -8,7 +8,7 @@ import sys
 
 UVICORN_PORT = 8000
 STREAMLIT_PORT = 8501
-LISTEN_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
+LISTEN_PORT = int(sys.argv[3]) if len(sys.argv) > 3 else 8080  # 3rd arg = PROXY_PORT = $PORT
 
 
 async def pipe(reader, writer):
