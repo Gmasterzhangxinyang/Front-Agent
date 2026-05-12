@@ -89,9 +89,11 @@ async def handle(client_reader, client_writer):
         if raw_path.startswith("/streamlit"):
             target_port = STREAMLIT_PORT
             path_override = raw_path[len("/streamlit"):] or "/"
+            print(f"[proxy] /streamlit request → streamlit:{STREAMLIT_PORT} path={path_override}")
         else:
             target_port = UVICORN_PORT
             path_override = None
+            print(f"[proxy] request → uvicorn:{UVICORN_PORT} path={raw_path}")
 
         await forward_request(client_reader, client_writer, target_port, path_override)
 
