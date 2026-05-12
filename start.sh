@@ -2,7 +2,7 @@
 # Start both FastAPI (uvicorn) and Streamlit in the same container
 
 # Start uvicorn in background
-uvicorn main:app --host 0.0.0.0 --port 8000 &
+uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} &
 UVICORN_PID=$!
 
 # Start streamlit in background
