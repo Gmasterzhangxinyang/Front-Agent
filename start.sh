@@ -14,8 +14,16 @@ UVICORN_PID=$!
 streamlit run app_ui.py --server.port $STREAMLIT_PORT --server.address 0.0.0.0 &
 STREAMLIT_PID=$!
 
-# Wait for services to be ready
-sleep 4
+# Wait for services to be ready with a health check
+echo "Waiting for services to be ready..."
+for i in {1..30}; do
+  if nc -z 127.0.0.1 $UVICORN_PORT 2>/dev/null && nc -z 127.0.0.1 $STREAMLIT_PORT 2>/dev/null; then
+    echo "Services ready after $((i-1)) seconds"
+    break
+  fi
+  sleep 1
+done
 
 # Start proxy — this runs in foreground on the Railway-exposed port
-exec python proxy.py $UVICORN_PORT $STREAMLIT_PORT $PROXY_PORT
+echo "Starting proxy on port $PROXY_PORT..."
+python proxy.py $UVICORN_PORT $STREAMLIT_PORT $PROXY_PORT
