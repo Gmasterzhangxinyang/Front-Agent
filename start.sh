@@ -11,7 +11,7 @@ uvicorn main:app --host 0.0.0.0 --port $UVICORN_PORT &
 UVICORN_PID=$!
 
 # Start streamlit on internal port
-streamlit run app_ui.py --server.port $STREAMLIT_PORT --server.address 0.0.0.0 --server.baseUrlPath /streamlit &
+streamlit run app_ui.py --server.port $STREAMLIT_PORT --server.address 0.0.0.0 &
 STREAMLIT_PID=$!
 
 # Wait for services to be ready
