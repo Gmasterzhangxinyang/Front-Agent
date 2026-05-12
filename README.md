@@ -101,6 +101,10 @@ SQLite（Railway 上挂载持久化 Volume 到 `/data/`）。
 |---|---|
 | `conversation_states` | 每个对话的分类、处理步骤、等待状态、附加数据 |
 | `webhook_events` | 已处理的 Front event ID，防止重复处理 |
+| `skill_examples` | Bobby 确认的分类例子，用于向量检索提升分类准确率 |
+| `skill_suggestions` | 待审批的 skill 修改建议（diff 格式） |
+| `skill_versions` | skill 文件版本快照，每 3 次更新存一个 |
+| `skill_feedback` | 原始反馈记录（用户问题、AI回答、Bobby纠正、评分），用于未来微调 |
 
 ---
 
@@ -144,7 +148,26 @@ ngrok http 8000
 1. 新建项目，连接 GitHub 仓库
 2. 添加 Volume，挂载到 `/data`
 3. 在 Variables 中填入所有 `.env` 变量
-4. 部署完成后，把 Railway 域名 + `/webhook/front` 填入 Front Rule
+4. 设置 `STREAMLIT_URL=https://<railway分配的域名>`
+5. 部署完成后，把 Railway 域名 + `/webhook/front` 填入 Front Rule
+6. Streamlit UI 地址：`https://<railway分配的域名>/streamlit/`
+
+---
+
+## Skill 自进化 UI
+
+Bobby 可通过 Streamlit UI 管理 skill 进化和反馈审批。
+
+**访问地址**：Railway 部署的 Streamlit 服务（见 Railway 项目面板）
+
+**功能页面**：
+- **待审批建议**：查看 AI 生成的 skill 修改建议，支持 diff 可视化对比，通过/否决
+- **Skill 列表**：浏览所有 skill 文件内容
+- **版本回退**：回滚到任意历史版本
+- **完整日志**：查看所有原始反馈记录和评分统计
+
+**数据流**：
+- AI 回复后 → Front 评论含评分链接 → Bobby 填评分+建议 → skill_analyzer 分析 → 写 skill_suggestions → UI 审批 → 自动 commit+push
 
 ---
 
