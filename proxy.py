@@ -86,12 +86,23 @@ async def handle(client_reader, client_writer):
 
 async def main():
     server = await asyncio.start_server(handle, "0.0.0.0", PROXY_PORT)
-    print(f"Reverse proxy running on port {PROXY_PORT}")
-    print(f"  /streamlit/* → streamlit on {STREAMLIT_PORT}")
-    print(f"  everything else → uvicorn on {UVICORN_PORT}")
+    print(f"Reverse proxy running on port {PROXY_PORT}", flush=True)
+    print(f"  /streamlit/* → streamlit on {STREAMLIT_PORT}", flush=True)
+    print(f"  everything else → uvicorn on {UVICORN_PORT}", flush=True)
     async with server:
         await server.serve_forever()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        print(f"Starting reverse proxy on port {PROXY_PORT}...", flush=True)
+        print(f"  /streamlit/* → streamlit on {STREAMLIT_PORT}", flush=True)
+        print(f"  everything else → uvicorn on {UVICORN_PORT}", flush=True)
+        sys.stdout.flush()
+        sys.stderr.flush()
+        asyncio.run(main())
+    except Exception as e:
+        print(f"ERROR: proxy.py failed to start: {e}", file=sys.stderr, flush=True)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)
