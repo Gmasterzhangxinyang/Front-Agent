@@ -1,20 +1,21 @@
 #!/bin/bash
-# Railway sets $PORT to the exposed port (e.g. 8080)
-# We start uvicorn on PORT, streamlit on 8501, and a reverse proxy on 8080
+# Railway sets $PORT to the exposed port
+# uvicorn: internal 8000, streamlit: internal 8501, proxy: $PORT
 
-APP_PORT=${PORT:-8080}
+UVICORN_PORT=8000
+STREAMLIT_PORT=8501
+PROXY_PORT=${PORT:-8080}
 
-# Start uvicorn in background
-uvicorn main:app --host 0.0.0.0 --port $APP_PORT &
+# Start uvicorn on internal port
+uvicorn main:app --host 0.0.0.0 --port $UVICORN_PORT &
 UVICORN_PID=$!
 
-# Start streamlit in background
-streamlit run app_ui.py --server.port 8501 --server.address 0.0.0.0 &
+# Start streamlit on internal port
+streamlit run app_ui.py --server.port $STREAMLIT_PORT --server.address 0.0.0.0 &
 STREAMLIT_PID=$!
 
-# Start reverse proxy in background
-python proxy.py $APP_PORT &
-PROXY_PID=$!
+# Wait for services to be ready
+sleep 4
 
-# Wait for all
-wait $UVICORN_PID $STREAMLIT_PID $PROXY_PID
+# Start proxy — this runs in foreground on the Railway-exposed port
+exec python proxy.py $UVICORN_PORT $STREAMLIT_PORT $PROXY_PORT
