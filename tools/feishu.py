@@ -123,7 +123,7 @@ def build_notify_card(
             "text": {"tag": "lark_md", "content": "**AI 不确定分类，请选择正确类别：**"},
         })
         actions = []
-        for opt in classification_options[:4]:  # Max 4 buttons
+        for opt in classification_options:
             actions.append({
                 "tag": "button",
                 "text": {"tag": "plain_text", "content": opt["label"]},

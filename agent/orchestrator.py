@@ -119,10 +119,18 @@ Use the tools available to you to handle the email completely.
             if confidence < 0.75:
                 from tools.feishu import notify_bobby
                 options = [
-                    {"label": "教育版", "category": "education", "sub_type": "rejected"},
-                    {"label": "技术问题", "category": "technical", "sub_type": "workflow_issue"},
-                    {"label": "账号问题", "category": "account", "sub_type": "cant_login"},
-                    {"label": "退款/账单", "category": "billing", "sub_type": "refund"},
+                    {"label": "技术问题(technical)", "category": "technical"},
+                    {"label": "账号问题(account)", "category": "account"},
+                    {"label": "购买咨询(purchase)", "category": "purchase"},
+                    {"label": "教育版(education)", "category": "education"},
+                    {"label": "账单退款(billing)", "category": "billing"},
+                    {"label": "合作洽谈(partnership)", "category": "partnership"},
+                    {"label": "安全问题(security)", "category": "security"},
+                    {"label": "垃圾邮件(spam)", "category": "spam"},
+                    {"label": "法律相关(legal)", "category": "legal"},
+                    {"label": "产品路线(roadmap)", "category": "roadmap"},
+                    {"label": "数据导出(data_export)", "category": "data_export"},
+                    {"label": "无法分类(unclear)", "category": "unclear"},
                 ]
                 await notify_bobby(
                     f"⚠️ 分类置信度低 ({confidence:.0%})\n\n邮件摘要: {classification.get('summary')}\n\nAI 猜测: {category}/{classification.get('sub_type')}",
@@ -171,6 +179,14 @@ Sender email: {sender_email}
     ]
 
     await _run_agent_loop(messages, db, sender_email=sender_email, message_body=message_body)
+
+    # After agent loop, send feedback comment to Front for Bobby to rate the response
+    await _send_feedback_comment(
+        conversation_id=conversation_id,
+        sender_email=sender_email,
+        category=category,
+        all_messages=messages,
+    )
 
 
 async def _should_fetch_history(conversation_text: str, latest_message: str, sender_email: str) -> bool:
@@ -273,3 +289,42 @@ async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int 
 
         if response.choices[0].finish_reason == "stop":
             break
+
+
+async def _send_feedback_comment(
+    conversation_id: str,
+    sender_email: str,
+    category: str,
+    all_messages: list,
+) -> None:
+    """After agent loop completes, send a private comment in Front with feedback link."""
+    from tools import front
+
+    # Extract the last AI reply from conversation history
+    last_ai_reply = ""
+    last_user_question = ""
+    for msg in all_messages:
+        if isinstance(msg, dict):
+            role = msg.get("role", "")
+            content = msg.get("content", "") or ""
+            if role == "user" and not last_user_question:
+                last_user_question = content[:200]
+            elif role == "assistant" and content and not last_ai_reply:
+                last_ai_reply = content[:300]
+                break
+
+    # Get the Streamlit URL (configure via env var)
+    from config import settings
+    streamlit_url = getattr(settings, "streamlit_url", "http://localhost:8501")
+    feedback_url = f"{streamlit_url}/feedback?conv={conversation_id}&category={category}"
+
+    comment_body = f"""📋 请评价这条 AI 回复：
+
+用户问题：{last_user_question[:200] if last_user_question else 'N/A'}
+AI 回复：{last_ai_reply[:300] if last_ai_reply else 'N/A'}
+
+👉 [点击评分]({feedback_url})"""
+    try:
+        await front.add_comment(conversation_id, comment_body)
+    except Exception as e:
+        logger.warning("Failed to send feedback comment: %s", e)
