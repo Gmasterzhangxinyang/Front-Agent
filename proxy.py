@@ -1,28 +1,22 @@
 #!/usr/bin/env python3
-"""Minimal threaded HTTP proxy using socketserver."""
+"""Simple HTTP proxy. Routes /streamlit/* to streamlit:8500, everything else to uvicorn:8080."""
 import socketserver
 import http.client
 import sys
-import threading
 
 UVICORN_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
 STREAMLIT_PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 8501
-LISTEN_PORT = UVICORN_PORT  # proxy binds to same port as uvicorn — proxy must start first or uvicorn must --reload
+LISTEN_PORT = UVICORN_PORT  # proxy listens on uvicorn's port (uvicorn starts first on that port, this is a race — not ideal)
 
 
 class ProxyHandler(socketserver.BaseRequestHandler):
     def handle(self):
         try:
-            # Read full HTTP request
             data = self.request.recv(4096)
             if not data:
                 return
+            method, path, version = data.decode().split("\r\n")[0].split()
 
-            # Parse request line
-            lines = data.decode().split("\r\n")
-            method, path, version = lines[0].split()
-
-            # Route
             if path.startswith("/streamlit") or path.startswith("/_stcore") or path.startswith("/static"):
                 target_port = STREAMLIT_PORT
                 clean_path = path[len("/streamlit"):] if path.startswith("/streamlit") else path
@@ -31,19 +25,15 @@ class ProxyHandler(socketserver.BaseRequestHandler):
                 target_port = UVICORN_PORT
                 clean_path = path
 
-            # Connect to target and forward
             target = http.client.HTTPConnection("127.0.0.1", target_port, timeout=15)
             try:
                 target.connect()
                 target.sock.sendall(data)
-                # Read response and forward back
                 while True:
                     chunk = target.sock.recv(4096)
                     if not chunk:
                         break
                     self.request.sendall(chunk)
-            except Exception as e:
-                print(f"[proxy] fwd error: {e}", flush=True)
             finally:
                 target.close()
         except Exception as e:
