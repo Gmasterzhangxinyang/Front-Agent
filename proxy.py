@@ -5,9 +5,9 @@ import http.client
 import sys
 import threading
 
-UVICORN_PORT = 8000
-STREAMLIT_PORT = 8501
-LISTEN_PORT = int(sys.argv[3]) if len(sys.argv) > 3 else 8080
+UVICORN_PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
+STREAMLIT_PORT = int(sys.argv[2]) if len(sys.argv) > 2 else 8501
+LISTEN_PORT = UVICORN_PORT  # proxy binds to same port as uvicorn — proxy must start first or uvicorn must --reload
 
 
 class ProxyHandler(socketserver.BaseRequestHandler):

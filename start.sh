@@ -1,5 +1,10 @@
 #!/bin/bash
-# uvicorn on internal 8000, streamlit directly on $PORT (no proxy)
+# Railway sets $PORT
+# proxy on $PORT (foreground, via exec), uvicorn:8000, streamlit:8500 (background)
+
 uvicorn main:app --host 127.0.0.1 --port 8000 &
-streamlit run app_ui.py --server.port ${PORT:-8080} --server.address 0.0.0.0 &
-wait
+streamlit run app_ui.py --server.port 8500 --server.address 127.0.0.1 &
+
+sleep 8
+
+exec python proxy.py 8000 8500
