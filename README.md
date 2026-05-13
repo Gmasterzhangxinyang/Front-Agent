@@ -25,7 +25,7 @@ orchestrator.py
     ├─ 2. 下载附件（支持图片/PDF，传给 GPT-4o Vision）
     ├─ 3. 分类（classify.md + GPT-4o）
     │       ├─ 置信度 ≥ 75%  → 直接进入对应 skill 处理
-    │       └─ 置信度 < 75%  → 飞书通知 Bobby 手动选分类
+    │       └─ 置信度 < 75%  → 飞书卡片 12 按钮让 Bobby 选分类
     │                              └─ Bobby 点击卡片按钮
     │                                     └─ /webhook/feishu/card
     │                                            └─ 重新走 skill 处理
@@ -53,16 +53,25 @@ orchestrator.py
 ├── main.py                  # FastAPI 入口，注册路由，启动定时任务
 ├── config.py                # 所有环境变量（pydantic-settings）
 ├── database.py              # SQLite 异步连接（aiosqlite）
-├── models.py                # 数据库模型
-│
+├── models.py                # 数据库模型（含 skill 相关表）
+├── app_ui.py                # Streamlit UI 入口
+├── pages/
+│   └── feedback.py          # Streamlit 评分表单页（/feedback 路由）
+├── routes/
+│   └── feedback.py         # /feedback/submit API 端点
+├── services/
+│   ├── skill_analyzer.py    # 三层架构分析（semantic/episodic/procedural）
+│   ├── skill_example_store.py
+│   ├── skill_feedback_store.py
+│   ├── skill_suggestion_store.py
+│   ├── skill_version_store.py
+│   └── file_git.py          # 写 skill 文件 + git commit+push
 ├── webhooks/
 │   ├── front_webhook.py     # 接收 Front 事件，幂等处理，调用 orchestrator
 │   └── feishu_card.py       # 接收飞书卡片按钮点击，执行对应动作
-│
 ├── agent/
 │   ├── orchestrator.py      # 主逻辑：分类 → 加载 skill → agent loop
 │   └── tool_registry.py     # GPT-4o function calling 工具定义 + 执行
-│
 ├── tools/
 │   ├── front.py             # Front API（回复、resolve、assign、forward、tag）
 │   ├── linear.py            # Linear API（创建工单）
@@ -71,7 +80,6 @@ orchestrator.py
 │   ├── attachments.py       # 下载附件并转 base64（供 GPT-4o Vision）
 │   ├── docs_search.py       # 搜索 docs.dify.ai
 │   └── github.py            # 搜索 langgenius/dify GitHub issues
-│
 ├── skills/                  # ← 修改处理规则只需改这里
 │   ├── classify.md          # 分类规则 + 输出格式（JSON）
 │   ├── technical.md         # 技术/Bug 类
@@ -86,7 +94,6 @@ orchestrator.py
 │   ├── roadmap.md           # Roadmap/功能上线咨询
 │   ├── data_export.md       # 数据导出请求
 │   └── unclear.md           # 分类不确定（通用回复 + 通知 Bobby）
-│
 └── tasks/
     └── scheduler.py         # APScheduler：每 6 小时自动关闭 10 天无回复对话
 ```
@@ -117,9 +124,24 @@ Bobby 收到的飞书通知是可点击的交互卡片，点击后 POST 到 `/we
 | `general` | 需人工跟进（账号/账单/教育版等） | 已转告 / 已解决 |
 | `security` | 安全紧急事件 | 已转安全团队 / 已解决 |
 | `reply_needed` | AI 草稿需 Bobby 确认 | 通过发送 / 我来改 |
-| `classify` | 分类置信度 < 75% | 4 个分类选项按钮 |
+| `classify` | 分类置信度 < 75% | 12 个分类选项按钮 |
 
 Bobby 点击后，卡片自动更新为"已处理"状态，防止重复操作。
+
+---
+
+## Skill 自进化 UI
+
+Bobby 可通过 Streamlit UI 管理 skill 进化和反馈审批。
+
+**功能页面**：
+- **待审批建议**：查看 AI 生成的 skill 修改建议，支持 diff 可视化对比，通过/否决
+- **Skill 列表**：浏览所有 skill 文件内容
+- **版本回退**：回滚到任意历史版本
+- **完整日志**：查看所有原始反馈记录和评分统计
+
+**数据流**：
+- AI 回复后 → Front 评论含评分链接 → Bobby 填评分+建议 → skill_analyzer 分析 → 写 skill_suggestions → UI 审批 → 自动 commit+push
 
 ---
 
@@ -148,26 +170,7 @@ ngrok http 8000
 1. 新建项目，连接 GitHub 仓库
 2. 添加 Volume，挂载到 `/data`
 3. 在 Variables 中填入所有 `.env` 变量
-4. 设置 `STREAMLIT_URL=https://<railway分配的域名>`
-5. 部署完成后，把 Railway 域名 + `/webhook/front` 填入 Front Rule
-6. Streamlit UI 地址：`https://<railway分配的域名>/streamlit/`
-
----
-
-## Skill 自进化 UI
-
-Bobby 可通过 Streamlit UI 管理 skill 进化和反馈审批。
-
-**访问地址**：Railway 部署的 Streamlit 服务（见 Railway 项目面板）
-
-**功能页面**：
-- **待审批建议**：查看 AI 生成的 skill 修改建议，支持 diff 可视化对比，通过/否决
-- **Skill 列表**：浏览所有 skill 文件内容
-- **版本回退**：回滚到任意历史版本
-- **完整日志**：查看所有原始反馈记录和评分统计
-
-**数据流**：
-- AI 回复后 → Front 评论含评分链接 → Bobby 填评分+建议 → skill_analyzer 分析 → 写 skill_suggestions → UI 审批 → 自动 commit+push
+4. 部署完成后，把 Railway 分配的域名 + `/webhook/front` 填入 Front Rule
 
 ---
 
@@ -179,4 +182,4 @@ Bobby 可通过 Streamlit UI 管理 skill 进化和反馈审批。
 
 ## 修改回复模板
 
-直接编辑对应的 `skills/<类别>.md`，搜索 `⚠️ 需确认` 找到需要确认的地方。
+直接编辑对应的 `skills/<类别>.md`。
