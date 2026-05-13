@@ -1,4 +1,5 @@
-## 2026-05-12
+## 2026-05-13
+- [fix] start.sh 重启死循环：加入进程清理、健康检查等待，确保 uvicorn 先启动完成后再启动 proxy，避免端口冲突（start.sh）
 - [feat] 分类不确定卡片重新设计：从4个按钮扩展到12个分类全覆盖，移除按钮数量限制，按钮文字改为"中文(category)"格式（agent/orchestrator.py, tools/feishu.py）
 - [feat] Skill 自进化系统：Skill Analyzer + 三层架构 + skill_versions/skill_suggestions/skill_feedback/skill_examples 表 + Streamlit UI + git commit+push + 每3次更新存快照（models.py, services/, app_ui.py, routes/feedback.py, agent/orchestrator.py, railway.toml, start.sh）
 
