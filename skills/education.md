@@ -23,7 +23,7 @@ Handle education plan applications, rejections, and discount issues.
      - Call `state_set` with step="awaiting_school_info", waiting=true
    - Determine school type:
      - **Higher education (university/college, government-accredited):**
-       - Call `linear_create_ticket` with conversation_id, title "Education plan application - [school name]", sender_email (the user's email address), original_message (the user's original email text), and description — fill in actual values, never use placeholder text:
+       - Call `linear_create_ticket` with conversation_id, title "教育版 - [school name]", sender_email (the user's email address), original_message (the user's original email text), and description — fill in actual values, never use placeholder text:
          ```
          **学校全名：** <actual school full name in English>
 
@@ -49,7 +49,7 @@ Handle education plan applications, rejections, and discount issues.
    - Keep state as awaiting_school_info
 3. Determine school type:
    - **Higher education (university/college, government-accredited):**
-     - Call `linear_create_ticket` with conversation_id, title "Education plan application - [school name]", sender_email (the user's email address), original_message (the user's original email text), and description — fill in actual values, never use placeholder text:
+     - Call `linear_create_ticket` with conversation_id, title "教育版 - [school name]", sender_email (the user's email address), original_message (the user's original email text), and description — fill in actual values, never use placeholder text:
        ```
        **学校全名：** <actual school full name in English>
 
