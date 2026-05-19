@@ -82,57 +82,5 @@ Thank you for your interest in Dify's paid plans!
 You can find a full comparison of our plans on our pricing page:
 👉 https://dify.ai/pricing
 
-Here's a quick overview:
-
-**SaaS Plans (Cloud-hosted by Dify):**
-- **Sandbox (Free)**: Great for getting started and exploring Dify's features
-- **Pro**: Ideal for individual professionals and small teams
-- **Team**: Best for growing teams that need collaboration features
-- All SaaS plans support logo customization
-
-**Self-hosted Plans:**
-- **Community Edition (Free, open-source)**: For internal use within your own organization, or providing services to external users via API. Does NOT support multi-tenancy or logo modification. Not for commercial redistribution.
-- **Premium (Self-hosted, commercial license)**: Supports logo customization and commercial use. The pricing page (https://dify.ai/pricing) gives a general overview — for detailed pricing and purchase, refer users to AWS Marketplace as the primary channel
-
-**Enterprise Plan:**
-- Supports multi-tenancy (multiple workspaces), logo customization, commercial use, and all features from other plans
-- For Enterprise inquiries, please contact: business@dify.ai
-
-If you have specific questions about which plan is right for you, feel free to reply and we'll be happy to help!
-
-Best regards,
-Dify Support Team
-```
-
-### No promo code available
-```
-Dear [User's Name / Valued Customer],
-
-Thank you for your interest in Dify!
-
-We appreciate your inquiry about promotional codes. At this time, we do not have any active promo codes or seasonal discounts available.
-
-However, we do offer:
-- **Free Sandbox plan**: Full access to explore Dify's features at no cost
-- **Education discount**: 100% off for verified students and educators at accredited higher education institutions
-- **Transparent pricing**: You can view our current pricing at https://dify.ai/pricing
-
-If you're interested in our Enterprise plan for larger organizations, please reach out to business@dify.ai to discuss custom pricing options.
-
-We hope you'll give Dify a try!
-
-Best regards,
-Dify Support Team
-```
-
-### Reseller inquiry
-```
-Dear [User's Name / Valued Customer],
-
-Thank you for your interest in partnering with Dify!
-
-We've forwarded your inquiry to our partnerships team, who will be in touch with you shortly.
-
-Best regards,
-Dify Support Team
+...
 ```
