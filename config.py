@@ -45,8 +45,8 @@ class Settings(BaseSettings):
     # Database — on Railway, use /data/email_automation.db (persistent volume)
     database_url: str = "sqlite+aiosqlite:////data/email_automation.db"
 
-    # Streamlit URL (set in Railway env vars)
-    streamlit_url: str = "http://localhost:8501"
+    # Base URL for feedback form (set in Railway env vars)
+    streamlit_url: str = "http://localhost:8000"
 
     class Config:
         env_file = ".env"

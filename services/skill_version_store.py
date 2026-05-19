@@ -52,7 +52,17 @@ class SkillVersionStore:
             )
             latest = result.scalar_one_or_none()
             if not latest:
-                return 0
+                # Create first version entry
+                sv = SkillVersion(
+                    skill_name=skill_name,
+                    version=1,
+                    content="",
+                    change_count=1,
+                    created_by="ai",
+                )
+                db.add(sv)
+                await db.commit()
+                return 1
 
             new_count = latest.change_count + 1
             await db.execute(
@@ -61,10 +71,6 @@ class SkillVersionStore:
                 .values(change_count=new_count)
             )
             await db.commit()
-
-            if new_count >= CHANGE_COUNT_THRESHOLD:
-                # Snapshot saved externally by caller
-                pass
             return new_count
 
     async def list_versions(

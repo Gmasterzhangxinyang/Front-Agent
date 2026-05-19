@@ -313,10 +313,11 @@ async def _send_feedback_comment(
                 last_ai_reply = content[:300]
                 break
 
-    # Get the Streamlit URL (configure via env var)
+    # Get the base URL from config (Railway exposes PORT directly)
     from config import settings
-    streamlit_url = getattr(settings, "streamlit_url", "http://localhost:8501")
-    feedback_url = f"{streamlit_url}/feedback?conv={conversation_id}&category={category}"
+    base_url = getattr(settings, "streamlit_url", "http://localhost:8000").replace(":8501", ":8000")
+    # Use FastAPI-based feedback form (no Streamlit dependency)
+    feedback_url = f"{base_url}/feedback/form?conv={conversation_id}&category={category}"
 
     comment_body = f"""📋 请评价这条 AI 回复：
 

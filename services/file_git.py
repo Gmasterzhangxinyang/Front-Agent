@@ -36,7 +36,7 @@ async def update_skill_file(
         try:
             # 1. Fetch 并检测冲突
             proc = await asyncio.create_subprocess_shell(
-                "cd /Users/bobby/Desktop/email && git fetch origin main 2>&1",
+                "git fetch origin main 2>&1",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -44,7 +44,7 @@ async def update_skill_file(
 
             # 2. 读取远程版本
             proc2 = await asyncio.create_subprocess_shell(
-                f"cd /Users/bobby/Desktop/email && git show origin/main:skills/{skill_name}.md 2>/dev/null || echo ''",
+                f"git show origin/main:skills/{skill_name}.md 2>/dev/null || echo ''",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -69,14 +69,14 @@ async def update_skill_file(
             commit_msg = message or f"feat(skills): update {skill_name}.md via skill evolution system"
 
             add_proc = await asyncio.create_subprocess_shell(
-                f"cd /Users/bobby/Desktop/email && git add skills/{skill_name}.md",
+                f"git add skills/{skill_name}.md",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
             await add_proc.communicate()
 
             commit_proc = await asyncio.create_subprocess_shell(
-                f'cd /Users/bobby/Desktop/email && git commit -m "{commit_msg}"',
+                f'git commit -m "{commit_msg}"',
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -87,7 +87,7 @@ async def update_skill_file(
                 return False, f"Git commit failed: {commit_err.decode()}"
 
             push_proc = await asyncio.create_subprocess_shell(
-                "cd /Users/bobby/Desktop/email && git push origin main",
+                "git push origin main",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

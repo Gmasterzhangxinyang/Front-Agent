@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🧬 Skill 自进化管理</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+  .card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 16px; }
+  h1 { margin-top: 0; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; }
+  .tab { padding: 8px 16px; border: 1px solid #ddd; background: #fafafa; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 14px; }
+  .tab.active { background: #3b82f6; color: white; border-color: #3b82f6; }
+  .tab:hover:not(.active) { background: #e8f4fd; }
+  .suggestion { border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .suggestion-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+  .suggestion-header h3 { margin: 0; font-size: 16px; }
+  .badge { padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  .badge-pending { background: #fef9c3; color: #854d0e; }
+  .badge-approved { background: #dcfce7; color: #166534; }
+  .badge-rejected { background: #fee2e2; color: #991b1b; }
+  .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .diff-section h4 { margin: 0 0 8px 0; font-size: 13px; color: #666; }
+  .diff-section.deleted h4 { color: #dc2626; }
+  .diff-section.added h4 { color: #16a34a; }
+  pre { background: #f3f4f6; padding: 12px; border-radius: 8px; font-size: 12px; overflow: auto; white-space: pre-wrap; margin: 0; max-height: 200px; }
+  .reason { background: #f0f9ff; padding: 12px; border-radius: 8px; font-size: 14px; color: #1e40af; margin: 12px 0; }
+  .source-examples { background: #fafafa; padding: 12px; border-radius: 8px; font-size: 13px; margin: 12px 0; border: 1px solid #e5e7eb; }
+  .source-examples strong { color: #374151; }
+  .actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .btn { padding: 8px 20px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 600; }
+  .btn-approve { background: #16a34a; color: white; }
+  .btn-approve:hover { background: #15803d; }
+  .btn-reject { background: #dc2626; color: white; }
+  .btn-reject:hover { background: #b91c1c; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .loading { text-align: center; padding: 40px; color: #666; }
+  .empty { text-align: center; padding: 40px; color: #999; }
+  .stats { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+  .stat-card { background: white; border-radius: 12px; padding: 16px 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); min-width: 120px; }
+  .stat-card .num { font-size: 28px; font-weight: 700; color: #3b82f6; }
+  .stat-card .label { font-size: 13px; color: #666; }
+  @media (max-width: 700px) { .diff-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<h1>🧬 Skill 自进化管理</h1>
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('pending')">📋 待审批</button>
+  <button class="tab" onclick="showTab('approved')">✅ 已通过</button>
+  <button class="tab" onclick="showTab('feedback')">📊 反馈日志</button>
+</div>
+
+<div id="stats" class="stats"></div>
+<div id="content"><div class="loading">加载中...</div></div>
+
+<script>
+let currentTab = 'pending';
+let suggestions = [];
+let feedbacks = [];
+
+async function loadData() {
+  try {
+    const [sugRes, fbRes] = await Promise.all([
+      fetch('/feedback/api/suggestions'),
+      fetch('/feedback/api/feedbacks')
+    ]);
+    suggestions = await sugRes.json();
+    feedbacks = await fbRes.json();
+    renderStats();
+    renderContent();
+  } catch(e) {
+    document.getElementById('content').innerHTML = '<div class="error">加载失败: ' + e.message + '</div>';
+  }
+}
+
+function renderStats() {
+  const pending = suggestions.filter(s => s.status === 'pending').length;
+  const approved = suggestions.filter(s => s.status === 'approved').length;
+  const avgScores = {};
+  feedbacks.forEach(fb => {
+    if (!avgScores[fb.skill_name]) avgScores[fb.skill_name] = [];
+    if (fb.score != null) avgScores[fb.skill_name].push(fb.score);
+  });
+  const avgHtml = Object.entries(avgScores).map(([k, v]) => {
+    const avg = (v.reduce((a,b)=>a+b,0)/v.length).toFixed(1);
+    return `<div class="stat-card"><div class="num">${avg}</div><div class="label">${k} 平均分</div></div>`;
+  }).join('');
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card"><div class="num">${pending}</div><div class="label">待审批</div></div>
+    <div class="stat-card"><div class="num">${approved}</div><div class="label">已通过</div></div>
+    ${avgHtml}
+  `;
+}
+
+function showTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  renderContent();
+}
+
+function renderContent() {
+  if (currentTab === 'pending') {
+    const pending = suggestions.filter(s => s.status === 'pending');
+    if (!pending.length) {
+      document.getElementById('content').innerHTML = '<div class="empty">暂无待审批建议</div>';
+      return;
+    }
+    document.getElementById('content').innerHTML = pending.map(sg => renderSuggestion(sg)).join('');
+  } else if (currentTab === 'approved') {
+    const approved = suggestions.filter(s => s.status === 'approved');
+    if (!approved.length) {
+      document.getElementById('content').innerHTML = '<div class="empty">暂无已通过建议</div>';
+      return;
+    }
+    document.getElementById('content').innerHTML = approved.map(sg => renderSuggestion(sg)).join('');
+  } else {
+    if (!feedbacks.length) {
+      document.getElementById('content').innerHTML = '<div class="empty">暂无反馈记录</div>';
+      return;
+    }
+    document.getElementById('content').innerHTML = feedbacks.slice(0, 50).map(fb => `
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <strong>${fb.skill_name}</strong>
+          <span style="font-size:20px">${fb.score != null ? '🟢🟡🔴'.split('')[Math.ceil(fb.score/3.5)-1] : '❓'} ${fb.score ?? '?'}/10</span>
+        </div>
+        <div style="color:#666;font-size:13px;margin:8px 0">${fb.created_at ? fb.created_at.slice(0,19) : ''}</div>
+        <div><strong>用户问题：</strong>${fb.user_question || '-'}</div>
+        <div><strong>AI 回答：</strong>${fb.ai_answer || '-'}</div>
+        <div><strong>Bobby 正确回复：</strong>${fb.bobby_corrected_answer || '-'}</div>
+        <div><strong>建议：</strong>${fb.bobby_suggestion || '-'}</div>
+      </div>
+    `).join('');
+  }
+}
+
+function renderSuggestion(sg) {
+  const badge = sg.status === 'pending'
+    ? '<span class="badge badge-pending">待审批</span>'
+    : sg.status === 'approved' ? '<span class="badge badge-approved">已通过</span>'
+    : '<span class="badge badge-rejected">已否决</span>';
+  let sourceHtml = '';
+  if (sg.source_examples) {
+    try {
+      const src = JSON.parse(sg.source_examples);
+      sourceHtml = `<div class="source-examples">
+        <strong>来源：</strong>用户问题: ${src.user_question || '-'} | AI回答: ${src.ai_answer || '-'} | 评分: ${src.score}/10
+      </div>`;
+    } catch(e) {}
+  }
+  return `
+  <div class="suggestion">
+    <div class="suggestion-header">
+      <h3>${sg.skill_name} · ${sg.suggestion_type} ${badge}</h3>
+      <span style="color:#999;font-size:12px">${sg.created_at ? sg.created_at.slice(0,19) : ''}</span>
+    </div>
+    <div class="diff-grid">
+      <div class="diff-section deleted">
+        <h4>🔴 已删除</h4>
+        <pre>${sg.deleted_content || '(无删除)'}</pre>
+      </div>
+      <div class="diff-section added">
+        <h4>🟢 已新增</h4>
+        <pre>${sg.added_content || '(无新增)'}</pre>
+      </div>
+    </div>
+    <div class="reason"><strong>💡 改动理由：</strong>${sg.reason || '无说明'}</div>
+    ${sourceHtml}
+    ${sg.status === 'pending' ? `
+    <div class="actions">
+      <button class="btn btn-approve" onclick="approve(${sg.id}, this)">✅ 通过</button>
+      <button class="btn btn-reject" onclick="reject(${sg.id}, this)">❌ 否决</button>
+    </div>` : ''}
+  </div>`;
+}
+
+async function approve(id, btn) {
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/feedback/api/suggestions/${id}/approve`, { method: 'POST' });
+    const d = await r.json();
+    if (d.status === 'ok') {
+      await loadData();
+    } else {
+      alert('操作失败: ' + (d.message || d.error));
+      btn.disabled = false;
+    }
+  } catch(e) {
+    alert('操作失败: ' + e.message);
+    btn.disabled = false;
+  }
+}
+
+async function reject(id, btn) {
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/feedback/api/suggestions/${id}/reject`, { method: 'POST' });
+    const d = await r.json();
+    if (d.status === 'ok') {
+      await loadData();
+    } else {
+      alert('操作失败: ' + (d.message || d.error));
+      btn.disabled = false;
+    }
+  } catch(e) {
+    alert('操作失败: ' + e.message);
+    btn.disabled = false;
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>

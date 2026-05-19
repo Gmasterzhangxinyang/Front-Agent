@@ -89,22 +89,24 @@ async def analyze_and_suggest(
     )
 
     # 2. LLM 三层分析
+    skill_snippet = current_skill_content[:3000] + ("..." if len(current_skill_content) > 3000 else "")
+    user_q = user_question[:500] if user_question else ""
+    ai_a = ai_answer[:500] if ai_answer else ""
+    bobby_c = bobby_corrected[:500] if bobby_corrected else ""
+    bobby_s = bobby_suggestion[:300] if bobby_suggestion else ""
+
     prompt = f"""当前 Skill 内容（{skill_name}）：
 
 ```markdown
-{current_skill_content}
+{skill_snippet}
 ```
 
 ---
 
-用户问题：{user_question}
-
-AI 原回答：{ai_answer}
-
-Bobby 正确回复：{bobby_corrected}
-
-Bobby 修改建议：{bobby_suggestion}
-
+用户问题：{user_q}
+AI 原回答：{ai_a}
+Bobby 正确回复：{bobby_c}
+Bobby 修改建议：{bobby_s}
 Bobby 评分：{score}/10
 
 {SKILL_ANALYZER_PROMPT}
