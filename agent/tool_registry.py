@@ -74,6 +74,37 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "front_forward_to_community",
+            "description": "Create a draft email forwarding the conversation to community/partnership team with regional routing. The draft will be created for Bobby to review before sending.\n\nRegional routing:\n- 插件与模板生态 (plugins & templates): forward to 赵晗青, cc 赵雅雯\n- 日本 (Japan): forward to 赵雅雯, cc marudan.kj@dify.ai\n- CN & APAC Business Line: forward to 赵雅雯, cc lushachen@dify.ai + byron@dify.ai\n- EU Business Line: forward to 赵雅雯, cc xinruiliu@dify.ai",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "conversation_id": {"type": "string"},
+                    "summary": {"type": "string", "description": "Brief summary of the user's inquiry (1-2 sentences)"},
+                    "region": {"type": "string", "description": "Region: plugins_templates / japan / cn_apac / eu", "enum": ["plugins_templates", "japan", "cn_apac", "eu"]},
+                },
+                "required": ["conversation_id", "summary", "region"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "front_forward_to_marketing",
+            "description": "Move the conversation to the marketing inbox in Front. Use the inbox name as shown in Front (e.g. 'Marketing'). This is for marketing-related inquiries, campaigns, events, or promotional requests.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "conversation_id": {"type": "string"},
+                    "summary": {"type": "string", "description": "Brief summary of the user's inquiry (1-2 sentences)"},
+                },
+                "required": ["conversation_id", "summary"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "front_add_comment",
             "description": "Add an internal comment/note to the conversation (not visible to user)",
             "parameters": {
@@ -240,6 +271,56 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
             summary
         )
         return "forward_draft_created" if ok else "forward_failed"
+
+    elif tool_name == "front_forward_to_community":
+        conversation_id = args["conversation_id"]
+        summary = args.get("summary", "")
+        region = args.get("region", "")
+
+        # Regional routing
+        if region == "plugins_templates":
+            to_email = settings.zhaohq_email
+            cc_email = settings.zhaoyawen_email or None
+        elif region == "japan":
+            to_email = settings.yawen_email
+            cc_email = settings.marudan_kj_email or None
+        elif region == "cn_apac":
+            to_email = settings.yawen_email
+            cc_parts = []
+            if settings.lushachen_email:
+                cc_parts.append(settings.lushachen_email)
+            if settings.byron_email:
+                cc_parts.append(settings.byron_email)
+            cc_email = ", ".join(cc_parts) if cc_parts else None
+        elif region == "eu":
+            to_email = settings.yawen_email
+            cc_email = settings.xinruiliu_email or None
+        else:
+            return "forward_failed: unknown region"
+
+        if not to_email:
+            return f"forward_failed: to_email not configured for region {region}"
+
+        ok = await front.forward_conversation(conversation_id, to_email, cc_email, summary)
+        return "forward_draft_created" if ok else "forward_failed"
+
+    elif tool_name == "front_forward_to_marketing":
+        conversation_id = args["conversation_id"]
+        summary = args.get("summary", "")
+        if not settings.marketing_inbox_name:
+            return "forward_failed: marketing_inbox_name not configured"
+        # Move to marketing inbox (no draft, no reply to user)
+        ok = await front.move_conversation_to_inbox(
+            conversation_id,
+            settings.marketing_inbox_name
+        )
+        if ok:
+            # Add internal comment with summary
+            await front.add_comment(
+                conversation_id,
+                f"[AI] Marketing type email - moved to marketing inbox. Summary: {summary}"
+            )
+        return "moved_to_marketing" if ok else "move_failed"
 
     elif tool_name == "front_add_comment":
         ok = await front.add_comment(args["conversation_id"], args["body"])

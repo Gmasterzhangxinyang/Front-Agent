@@ -42,6 +42,16 @@ class Settings(BaseSettings):
     zhaohq_email: str = ""             # 赵晗青邮箱
     zhaoyawen_email: str = ""          # 赵雅雯邮箱
 
+    # Marketing inbox (use inbox name from Front, e.g. "Marketing")
+    marketing_inbox_name: str = ""    # 市场团队邮箱
+
+    # Community / Partnership regional routing
+    yawen_email: str = ""                # 赵雅雯邮箱（亚太区接口人）
+    marudan_kj_email: str = ""          # 日本区 marudan.kj@dify.ai
+    lushachen_email: str = ""            # CN & APAC lushachen@dify.ai
+    byron_email: str = ""               # CN & APAC byron@dify.ai
+    xinruiliu_email: str = ""           # EU xinruiliu@dify.ai
+
     # Database — on Railway, use /data/email_automation.db (persistent volume)
     database_url: str = "sqlite+aiosqlite:////data/email_automation.db"
 

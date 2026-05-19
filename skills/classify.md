@@ -146,6 +146,9 @@ Read the full email content (including any attachments) and return a JSON classi
 | partnership | plugin | Plugin cooperation or bug |
 | partnership | marketplace | Marketplace cooperation |
 | partnership | plugin_takedown | Wants to take down their own plugin |
+| marketing | campaign | Marketing campaigns, promotional events |
+| marketing | collaboration | Marketing collaboration inquiries |
+| marketing | event | Marketing events or sponsorship |
 | security | general | Security concern |
 | security | urgent | Active breach, data leak, critical vulnerability |
 | spam | null | Promotional, advertising, unsolicited sales |

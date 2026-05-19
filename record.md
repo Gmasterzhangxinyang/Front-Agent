@@ -1,3 +1,10 @@
+## 2026-05-20
+- [feat] 社区/合作区域路由：新增 `front_forward_to_community` 工具，支持 plugins_templates/japan/cn_apac/eu 四种区域路由（agent/tool_registry.py）
+- [feat] 区域路由 Skill 更新：重写 `skills/partnership.md`，支持插件模板/日本/CN&APAC/EU 四种分类和对应转发（skills/partnership.md）
+- [fix] Partnership/Community 都不自动回复用户：只创建转发草稿供 Bobby 审核后手动发送（skills/partnership.md）
+- [feat] 新增 Marketing 分类：新增 `front_forward_to_marketing` 工具，marketing 类邮件移动到 marketing inbox（agent/tool_registry.py, skills/classify.md, skills/marketing.md）
+- [feat] Front inbox 移动功能：新增 `move_conversation_to_inbox` 函数，通过 inbox email 地址移动对话到指定 inbox（tools/front.py）
+
 ## 2026-05-15
 - [fix] Sandbox 用户技术支持免责：明确告知 AI 回复仅供参考，付费用户享有优先技术支持（skills/technical.md）
 - [fix] 教育版工单标题改为"教育版"：将 Linear 工单 title 从 "Education plan application - [school name]" 改为 "教育版 - [school name]"（skills/education.md）
