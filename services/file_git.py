@@ -34,6 +34,16 @@ async def update_skill_file(
 
     async with lock:
         try:
+            # 0. Configure git credentials if GITHUB_TOKEN is set
+            github_token = os.environ.get("GITHUB_TOKEN", "")
+            if github_token:
+                proc = await asyncio.create_subprocess_shell(
+                    f"git remote set-url origin 'https://{github_token}@github.com/Gmasterzhangxinyang/Front-Agent.git'",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                await proc.communicate()
+
             # 1. Fetch 并检测冲突
             proc = await asyncio.create_subprocess_shell(
                 "git fetch origin main 2>&1",
