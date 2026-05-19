@@ -184,6 +184,25 @@
     margin-bottom: 16px;
     color: #1d1d1f;
   }
+  .edit-toolbar {
+    display: flex;
+    gap: 8px;
+    padding: 10px 16px;
+    background: #f5f5f7;
+    border-radius: 12px 12px 0 0;
+    align-items: center;
+  }
+  .edit-toolbar .title { font-size: 13px; font-weight: 600; color: #1d1d1f; flex: 1; }
+  .e-btn { padding: 7px 16px; border: 1px solid #d2d2d7; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; background: white; transition: all 0.15s; }
+  .e-btn:hover { background: #f5f5f7; }
+  .e-btn.save { background: #34c759; color: white; border-color: #34c759; }
+  .e-btn.save:hover { background: #2db84e; }
+  .e-btn.cancel { background: #f5f5f7; }
+  .e-btn.cancel:hover { background: #e5e5e7; }
+  .e-btn.primary { background: #0071e3; color: white; border-color: #0071e3; }
+  .e-btn.primary:hover { background: #0077ed; }
+  .edit-textarea { width: 100%; border: none; padding: 16px; font-size: 12px; line-height: 1.7; font-family: 'SF Mono', Monaco, monospace; resize: vertical; background: white; box-sizing: border-box; }
+  .edit-textarea:focus { outline: none; }
 
   .fb-card {
     background: white;
@@ -367,12 +386,37 @@ function renderFeedbacks() {
 }
 
 let skillsOpen = {};
+let editingSkill = null;
+
 function renderSkills() {
   stats();
   if (!skills.length) {
     document.getElementById('content').innerHTML = '<div class="empty">暂无 Skill 文件</div>';
     return;
   }
+  // If editing a skill, show editor
+  if (editingSkill) {
+    const sk = skills.find(s => s.name === editingSkill.name);
+    const content = editingSkill.originalContent || (sk ? sk.content : '');
+    document.getElementById('content').innerHTML = `
+      <div class="skill-view" style="margin-bottom:0">
+        <div class="skill-view-header" style="border-radius:16px 16px 0 0;cursor:default">
+          <span class="name">📄 ${editingSkill.name}.md</span>
+          <span class="size">${content.length} bytes</span>
+        </div>
+        <div style="background:white">
+          <div class="edit-toolbar">
+            <span class="title">编辑中...</span>
+            <button class="e-btn save" onclick="saveSkillEdit()">保存并推送</button>
+            <button class="e-btn cancel" onclick="cancelSkillEdit()">取消</button>
+          </div>
+          <textarea class="edit-textarea" id="skill-edit-area" autofocus style="min-height:400px">${esc(content)}</textarea>
+        </div>
+      </div>`;
+    document.getElementById('skill-edit-area').focus();
+    return;
+  }
+  // Normal list
   document.getElementById('content').innerHTML = skills.map(sk => {
     const open = skillsOpen[sk.name] || false;
     return `<div class="skill-view">
@@ -380,14 +424,61 @@ function renderSkills() {
         <span class="name">📄 ${sk.name}.md</span>
         <span class="size">${sk.size} bytes ${open?'↑':'↓'}</span>
       </div>
-      ${open ? `<pre>${esc(sk.content)}</pre>` : ''}
+      ${open ? `<div style="background:white">
+        <div class="edit-toolbar">
+          <button class="e-btn primary" onclick="editSkill('${sk.name}')">✏️ 编辑</button>
+        </div>
+        <pre>${esc(sk.content)}</pre>
+      </div>` : ''}
     </div>`;
   }).join('');
 }
 
 function toggleSkill(name) {
+  if (editingSkill) return;
   skillsOpen[name] = !skillsOpen[name];
   renderSkills();
+}
+
+function editSkill(name) {
+  const sk = skills.find(s => s.name === name);
+  if (!sk) return;
+  editingSkill = { name, originalContent: sk.content };
+  skillsOpen = {};
+  renderSkills();
+}
+
+function cancelSkillEdit() {
+  editingSkill = null;
+  renderSkills();
+}
+
+async function saveSkillEdit() {
+  const ta = document.getElementById('skill-edit-area');
+  if (!ta || !editingSkill) return;
+  const newContent = ta.value;
+  const btn = document.querySelector('.e-btn.save');
+  if (btn) { btn.disabled = true; btn.textContent = '保存中...'; }
+  try {
+    const r = await fetch('/feedback/api/skills/' + editingSkill.name, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: newContent })
+    });
+    const d = await r.json();
+    if (d.status === 'ok') {
+      const sk = skills.find(s => s.name === editingSkill.name);
+      if (sk) { sk.content = newContent; sk.size = newContent.length; }
+      editingSkill = null;
+      await load();
+    } else {
+      alert('保存失败: ' + (d.message || d.error));
+      if (btn) { btn.disabled = false; btn.textContent = '保存并推送'; }
+    }
+  } catch(e) {
+    alert('保存失败: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '保存并推送'; }
+  }
 }
 
 async function ok(id, btn) {

@@ -158,6 +158,22 @@ async def list_skills():
     return result
 
 
+@router.put("/feedback/api/skills/{skill_name}")
+async def update_skill(skill_name: str, content: str = ""):
+    """直接更新 skill 文件并推送到 GitHub"""
+    skill_path = Path(__file__).parent.parent / "skills" / f"{skill_name}.md"
+    if not skill_path.exists():
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
+    skill_path.write_text(content, encoding="utf-8")
+    success, msg = await update_skill_file(
+        skill_name, content,
+        f"edit: manual update {skill_name}.md via admin UI"
+    )
+    if not success:
+        return {"status": "error", "message": msg}
+    return {"status": "ok", "skill_name": skill_name, "size": len(content)}
+
+
 @router.get("/feedback/api/admin")
 async def admin_page():
     """Serve the admin dashboard HTML."""
