@@ -3,362 +3,414 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🧬 Skill 自进化管理</title>
+<title>Skill Evolution</title>
 <style>
-  * { box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 1400px; margin: 0 auto; padding: 20px; background: #f0f2f5; }
-  h1 { margin: 0 0 4px 0; color: #1e293b; }
-  .subtitle { color: #64748b; font-size: 13px; margin-bottom: 20px; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', sans-serif;
+    background: #f5f5f7;
+    color: #1d1d1f;
+    font-size: 14px;
+    line-height: 1.5;
+  }
 
-  .stats-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
-  .stat { background: white; border-radius: 10px; padding: 12px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); min-width: 100px; }
-  .stat .num { font-size: 24px; font-weight: 700; color: #3b82f6; }
-  .stat .lbl { font-size: 12px; color: #64748b; margin-top: 2px; }
+  .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
 
-  .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 0; flex-wrap: wrap; }
-  .tab { padding: 10px 20px; border: none; background: transparent; border-bottom: 3px solid transparent; margin-bottom: -2px; cursor: pointer; font-size: 14px; color: #64748b; font-weight: 500; border-radius: 8px 8px 0 0; transition: all 0.2s; }
-  .tab:hover { color: #3b82f6; background: #f0f9ff; }
-  .tab.active { color: #3b82f6; border-bottom-color: #3b82f6; font-weight: 600; }
+  .header { margin-bottom: 32px; }
+  .header h1 { font-size: 28px; font-weight: 600; color: #1d1d1f; }
+  .header p { color: #86868b; font-size: 14px; margin-top: 4px; }
 
-  .suggestion-card { background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 16px; overflow: hidden; }
-  .sg-header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap; gap: 8px; }
-  .sg-title { display: flex; align-items: center; gap: 10px; }
-  .sg-title h3 { margin: 0; font-size: 15px; color: #1e293b; }
-  .sg-meta { display: flex; align-items: center; gap: 12px; font-size: 12px; color: #94a3b8; }
-  .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-  .status-pending { background: #fef9c3; color: #854d0e; }
-  .status-approved { background: #dcfce7; color: #166534; }
-  .status-rejected { background: #fee2e2; color: #991b1b; }
+  .stats {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+  .stat-card {
+    background: white;
+    border-radius: 12px;
+    padding: 16px 24px;
+    min-width: 80px;
+  }
+  .stat-card .val { font-size: 24px; font-weight: 600; color: #1d1d1f; }
+  .stat-card .lbl { font-size: 12px; color: #86868b; margin-top: 2px; }
 
-  .sg-body { padding: 20px; }
-  .sg-reason { background: linear-gradient(135deg, #f0f9ff, #e0f2fe); border-left: 4px solid #3b82f6; padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 14px; color: #1e40af; margin-bottom: 16px; line-height: 1.6; }
-  .sg-reason strong { display: block; margin-bottom: 4px; font-size: 12px; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.05em; }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 24px;
+    background: white;
+    border-radius: 12px;
+    padding: 4px;
+    width: fit-content;
+  }
+  .tab {
+    padding: 8px 20px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #86868b;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tab.active {
+    background: #0071e3;
+    color: white;
+  }
+  .tab:hover:not(.active) { background: #f5f5f7; }
 
-  .diff-viewer { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
-  .diff-viewer h4 { margin: 0; padding: 10px 14px; font-size: 12px; font-weight: 600; background: #f8fafc; color: #475569; border-bottom: 1px solid #e2e8f0; }
-  .diff-content { margin: 0; font-size: 12px; line-height: 1.7; max-height: 400px; overflow: auto; background: #fafafa; font-family: 'Monaco', 'Menlo', 'Consolas', monospace; }
-  .diff-line { padding: 2px 14px; white-space: pre-wrap; word-break: break-word; }
-  .diff-line.deleted { background: #fef2f2; color: #dc2626; }
-  .diff-line.deleted::before { content: '- '; color: #f87171; font-weight: 700; }
-  .diff-line.added { background: #f0fdf4; color: #16a34a; }
-  .diff-line.added::before { content: '+ '; color: #4ade80; font-weight: 700; }
-  .diff-line.context { color: #64748b; }
-  .diff-line.context::before { content: '  '; color: #cbd5e1; font-weight: 700; }
-  .diff-line.header { color: #1e40af; font-weight: 600; background: #f0f9ff; }
-  .diff-line.header::before { content: ''; }
-  .diff-empty { padding: 20px; text-align: center; color: #94a3b8; font-size: 13px; }
+  .card {
+    background: white;
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
 
-  .sg-source { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #64748b; margin-bottom: 12px; }
-  .sg-source strong { color: #334155; }
-  .sg-source .src-row { display: flex; gap: 8px; margin-bottom: 4px; }
-  .sg-source .src-label { color: #94a3b8; min-width: 70px; }
+  .card-header {
+    padding: 20px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #f5f5f7;
+  }
+  .card-header .title { font-size: 16px; font-weight: 600; }
+  .card-header .meta { font-size: 12px; color: #86868b; margin-top: 2px; }
+  .badge {
+    font-size: 12px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  .badge-pending { background: #fffbdd; color: #997404; }
+  .badge-approved { background: #dcfce7; color: #166534; }
 
-  .sg-actions { display: flex; gap: 10px; padding: 16px 20px; background: #f8fafc; border-top: 1px solid #f1f5f9; }
-  .btn { padding: 10px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-  .btn-approve { background: #16a34a; color: white; }
-  .btn-approve:hover { background: #15803d; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(22,163,74,0.3); }
-  .btn-reject { background: #dc2626; color: white; }
-  .btn-reject:hover { background: #b91c1c; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(220,38,38,0.3); }
-  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+  .card-body { padding: 20px 24px; }
+  .card-body label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: #86868b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+    margin-top: 14px;
+  }
+  .card-body label:first-child { margin-top: 0; }
+  .card-body .reason-text {
+    font-size: 14px;
+    color: #1d1d1f;
+    background: #f5f5f7;
+    padding: 12px 14px;
+    border-radius: 10px;
+    line-height: 1.6;
+  }
 
-  .skill-card { background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 16px; overflow: hidden; }
-  .skill-header { padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; }
-  .skill-header h3 { margin: 0; font-size: 16px; color: #1e293b; }
-  .skill-header .size { font-size: 12px; color: #94a3b8; }
-  .skill-body textarea { width: 100%; border: none; padding: 16px; font-size: 12px; line-height: 1.7; font-family: 'Monaco', 'Menlo', monospace; resize: vertical; background: #fafafa; min-height: 200px; }
+  .diff-wrap { border: 1px solid #e5e5e7; border-radius: 12px; overflow: hidden; }
+  .diff-head {
+    padding: 10px 14px;
+    background: #f5f5f7;
+    font-size: 12px;
+    font-weight: 600;
+    color: #86868b;
+    border-bottom: 1px solid #e5e5e7;
+  }
+  .diff-body { font-size: 12px; line-height: 1.7; max-height: 320px; overflow: auto; }
+  .line { padding: 3px 14px; white-space: pre-wrap; word-break: break-word; font-family: 'SF Mono', Monaco, monospace; }
+  .line.del { background: #fe4d4d14; color: #c41e1e; }
+  .line.add { background: #29d01814; color: #1a7a12; }
+  .line.ctx { color: #86868b; }
+  .line.empty { padding: 20px; color: #86868b; font-size: 13px; text-align: center; }
 
-  .feedback-card { background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 12px; padding: 16px 20px; }
-  .fb-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-  .fb-header .skill { font-weight: 600; color: #1e293b; }
-  .fb-header .score { font-size: 20px; font-weight: 700; }
-  .fb-header .score.good { color: #16a34a; }
-  .fb-header .score.ok { color: #ca8a04; }
-  .fb-header .score.bad { color: #dc2626; }
-  .fb-meta { font-size: 12px; color: #94a3b8; margin-bottom: 8px; }
-  .fb-content { font-size: 13px; line-height: 1.6; }
-  .fb-content div { margin-bottom: 4px; }
-  .fb-content strong { color: #475569; }
+  .card-source {
+    background: #f5f5f7;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 12px;
+    color: #86868b;
+    margin-top: 14px;
+  }
+  .card-source .row { display: flex; gap: 6px; margin-bottom: 3px; }
+  .card-source .row:last-child { margin-bottom: 0; }
+  .card-source .lbl { color: #1d1d1f; font-weight: 500; min-width: 48px; }
 
-  .empty-state { text-align: center; padding: 60px 20px; color: #94a3b8; }
-  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
-  .loading { text-align: center; padding: 60px; color: #64748b; }
+  .card-actions {
+    padding: 16px 24px;
+    display: flex;
+    gap: 10px;
+    border-top: 1px solid #f5f5f7;
+  }
+  .btn {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-ok { background: #0071e3; color: white; }
+  .btn-ok:hover { background: #0077ed; }
+  .btn-no { background: #f5f5f7; color: #1d1d1f; }
+  .btn-no:hover { background: #e5e5e7; }
+  .btn:disabled { opacity: 0.4; cursor: default; }
 
-  @media (max-width: 700px) { .diff-viewer { } }
+  .skill-view { margin-bottom: 16px; }
+  .skill-view-header {
+    background: white;
+    border-radius: 16px;
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .skill-view-header:hover { background: #fafafa; }
+  .skill-view-header .name { font-size: 15px; font-weight: 500; }
+  .skill-view-header .size { font-size: 12px; color: #86868b; }
+  .skill-view pre {
+    background: white;
+    padding: 16px 20px;
+    font-size: 12px;
+    line-height: 1.7;
+    font-family: 'SF Mono', Monaco, monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border-radius: 0 0 16px 16px;
+    margin-bottom: 16px;
+    color: #1d1d1f;
+  }
+
+  .fb-card {
+    background: white;
+    border-radius: 16px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .fb-card .fb-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .fb-card .fb-skill { font-size: 14px; font-weight: 500; }
+  .fb-card .fb-score { font-size: 20px; font-weight: 600; }
+  .fb-card .fb-score.good { color: #34c759; }
+  .fb-card .fb-score.ok { color: #ff9500; }
+  .fb-card .fb-score.bad { color: #ff3b30; }
+  .fb-card .fb-date { font-size: 12px; color: #86868b; margin-bottom: 8px; }
+  .fb-card .fb-text { font-size: 13px; color: #515151; }
+  .fb-card .fb-text div { margin-bottom: 3px; }
+  .fb-card .fb-text strong { color: #86868b; }
+
+  .empty { text-align: center; padding: 60px; color: #86868b; font-size: 15px; }
+  .loading { text-align: center; padding: 60px; color: #86868b; }
 </style>
 </head>
 <body>
-<h1>🧬 Skill 自进化管理</h1>
-<p class="subtitle">AI 回复评分 → 三层记忆提取 → 修改建议审批 → 自动更新 Skill 文件</p>
+<div class="container">
+  <div class="header">
+    <h1>Skill Evolution</h1>
+    <p>评分反馈 → 修改建议 → 自动更新 Skill 文件</p>
+  </div>
 
-<div class="stats-bar" id="stats"></div>
+  <div class="stats" id="stats"></div>
 
-<div class="tabs">
-  <button class="tab active" onclick="showTab('pending')">📋 待审批 <span id="pending-count"></span></button>
-  <button class="tab" onclick="showTab('approved')">✅ 已通过</button>
-  <button class="tab" onclick="showTab('feedback')">📊 反馈日志</button>
-  <button class="tab" onclick="showTab('skills')">📁 Skill 文件</button>
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('pending')">待审批 <span id="pending-badge"></span></button>
+    <button class="tab" onclick="showTab('approved')">已通过</button>
+    <button class="tab" onclick="showTab('feedback')">反馈</button>
+    <button class="tab" onclick="showTab('skills')">Skills</button>
+  </div>
+
+  <div id="content"><div class="loading">加载中...</div></div>
 </div>
 
-<div id="content"><div class="loading">加载中...</div></div>
-
 <script>
-// ── Diff engine ─────────────────────────────────────────────────────────────────
-function escapeHtml(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+let tab = 'pending';
+let suggestions = [], feedbacks = [], skills = [];
+
+async function load() {
+  const [s, f, sk] = await Promise.all([
+    fetch('/feedback/api/suggestions').then(r=>r.json()),
+    fetch('/feedback/api/feedbacks').then(r=>r.json()),
+    fetch('/feedback/api/skills').then(r=>r.json())
+  ]);
+  suggestions = s; feedbacks = f; skills = sk;
+  render();
 }
 
-// LCS-based line diff
-function diffLines(oldText, newText) {
-  const o = (oldText || '').split('\n');
-  const n = (newText || '').split('\n');
-  const m = o.length, nn = n.length;
-  const dp = Array(m+1).fill(null).map(() => Array(nn+1).fill(0));
-  for (let i = 1; i <= m; i++)
-    for (let j = 1; j <= nn; j++)
-      dp[i][j] = o[i-1] === n[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1]);
-  const res = [];
-  let i = m, j = nn;
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && o[i-1] === n[j-1]) {
-      res.unshift({ type: 'context', text: o[i-1] });
-      i--; j--;
-    } else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) {
-      res.unshift({ type: 'added', text: n[j-1] });
-      j--;
-    } else {
-      res.unshift({ type: 'deleted', text: o[i-1] });
-      i--;
-    }
+function showTab(t) {
+  tab = t;
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  event.target.closest('.tab').classList.add('active');
+  render();
+}
+
+function render() {
+  if (tab === 'pending') renderList(suggestions.filter(s=>s.status==='pending'));
+  else if (tab === 'approved') renderList(suggestions.filter(s=>s.status==='approved'));
+  else if (tab === 'feedback') renderFeedbacks();
+  else renderSkills();
+}
+
+function stats() {
+  const p = suggestions.filter(s=>s.status==='pending').length;
+  const a = suggestions.filter(s=>s.status==='approved').length;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card"><div class="val">${p}</div><div class="lbl">待审批</div></div>
+    <div class="stat-card"><div class="val">${a}</div><div class="lbl">已通过</div></div>
+    <div class="stat-card"><div class="val">${feedbacks.length}</div><div class="lbl">总反馈</div></div>
+  `;
+  document.getElementById('pending-badge').textContent = p > 0 ? `(${p})` : '';
+}
+
+function diffLines(old, nw) {
+  const o = (old||'').split('\n'), n = (nw||'').split('\n');
+  const m=o.length, nn=n.length;
+  const dp = Array(m+1).fill(0).map(()=>Array(nn+1).fill(0));
+  for (let i=1;i<=m;i++) for (let j=1;j<=nn;j++)
+    dp[i][j] = o[i-1]===n[j-1] ? dp[i-1][j-1]+1 : Math.max(dp[i-1][j],dp[i][j-1]);
+  const r=[];
+  let i=m,j=nn;
+  while(i>0||j>0) {
+    if (i>0&&j>0&&o[i-1]===n[j-1]) { r.unshift({t:'ctx',v:o[i-1]}); i--;j--; }
+    else if (j>0&&(i===0||dp[i][j-1]>=dp[i-1][j])) { r.unshift({t:'add',v:n[j-1]}); j--; }
+    else { r.unshift({t:'del',v:o[i-1]}); i--; }
   }
-  return res;
+  return r;
+}
+
+function esc(t) {
+  const d=document.createElement('div');
+  d.textContent=t||'';
+  return d.innerHTML;
 }
 
 function renderDiff(diff) {
-  if (!diff || !diff.length) {
-    return '<div class="diff-empty">文件无变化</div>';
-  }
-  let html = '';
-  diff.forEach(line => {
-    html += '<div class="diff-line ' + line.type + '">' + escapeHtml(line.text) + '</div>';
-  });
-  return html;
+  if (!diff||!diff.length) return '<div class="line empty">无变化</div>';
+  return diff.map(l=>`<div class="line ${l.t==='add'?'add':l.t==='del'?'del':'ctx'}">${l.t==='add'?'+ ':l.t==='del'?'- ':'  '}${esc(l.v)}</div>`).join('');
 }
 
-// ── State ────────────────────────────────────────────────────────────────────────
-let currentTab = 'pending';
-let suggestions = [];
-let feedbacks = [];
-let skills = [];
-
-async function loadData() {
-  try {
-    const [sugRes, fbRes, skRes] = await Promise.all([
-      fetch('/feedback/api/suggestions'),
-      fetch('/feedback/api/feedbacks'),
-      fetch('/feedback/api/skills')
-    ]);
-    suggestions = await sugRes.json();
-    feedbacks = await fbRes.json();
-    skills = await skRes.json();
-    updateStats();
-    renderContent();
-  } catch(e) {
-    document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">❌</div>加载失败: ' + e.message + '</div>';
-  }
+function getSkillContent(name) {
+  const s = skills.find(x=>x.name===name);
+  return s ? s.content : '';
 }
 
-function updateStats() {
-  const pending = suggestions.filter(s => s.status === 'pending').length;
-  const approved = suggestions.filter(s => s.status === 'approved').length;
-  const avgScores = {};
-  feedbacks.forEach(fb => {
-    if (!avgScores[fb.skill_name]) avgScores[fb.skill_name] = [];
-    if (fb.score != null) avgScores[fb.skill_name].push(fb.score);
-  });
-  const avgHtml = Object.entries(avgScores).map(([k, v]) => {
-    const avg = (v.reduce((a,b)=>a+b,0)/v.length).toFixed(1);
-    return `<div class="stat"><div class="num">${avg}</div><div class="lbl">${k} 平均分</div></div>`;
-  }).join('');
-  document.getElementById('stats').innerHTML = `
-    <div class="stat"><div class="num">${pending}</div><div class="lbl">待审批</div></div>
-    <div class="stat"><div class="num">${approved}</div><div class="lbl">已通过</div></div>
-    <div class="stat"><div class="num">${feedbacks.length}</div><div class="lbl">总反馈</div></div>
-    ${avgHtml}
-  `;
-  document.getElementById('pending-count').textContent = pending > 0 ? `(${pending})` : '';
-}
-
-function showTab(tab) {
-  currentTab = tab;
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  event.target.closest('.tab').classList.add('active');
-  renderContent();
-}
-
-function renderContent() {
-  if (currentTab === 'pending') {
-    renderSuggestions(suggestions.filter(s => s.status === 'pending'), '待审批建议');
-  } else if (currentTab === 'approved') {
-    renderSuggestions(suggestions.filter(s => s.status === 'approved'), '已通过建议');
-  } else if (currentTab === 'skills') {
-    renderSkills();
-  } else {
-    renderFeedbacks();
-  }
-}
-
-function renderSuggestions(list, title) {
+function renderList(list) {
+  stats();
   if (!list.length) {
-    document.getElementById('content').innerHTML = `<div class="empty-state"><div class="icon">📋</div>暂无${title}</div>`;
+    document.getElementById('content').innerHTML = '<div class="empty">暂无内容</div>';
     return;
   }
-  document.getElementById('content').innerHTML = list.map(sg => renderSuggestionCard(sg)).join('');
-  // After DOM inserted, fetch current skill content and compute diff
-  list.forEach(sg => fetchAndRenderDiff(sg));
-}
-
-function getCurrentSkillContent(skillName) {
-  const sk = skills.find(s => s.name === skillName);
-  return sk ? sk.content : '';
-}
-
-async function fetchAndRenderDiff(sg) {
-  const el = document.getElementById('diff-' + sg.id);
-  if (!el) return;
-  const currentContent = getCurrentSkillContent(sg.skill_name);
-  const diff = diffLines(currentContent, sg.full_skill_content || '');
-  el.innerHTML = renderDiff(diff);
-}
-
-function renderSuggestionCard(sg) {
-  const statusLabel = sg.status === 'pending' ? '待审批' : sg.status === 'approved' ? '已通过' : '已否决';
-  const statusClass = sg.status === 'pending' ? 'status-pending' : sg.status === 'approved' ? 'status-approved' : 'status-rejected';
-  let sourceHtml = '';
-  if (sg.source_examples) {
+  document.getElementById('content').innerHTML = list.map(sg => {
+    const diff = diffLines(getSkillContent(sg.skill_name), sg.full_skill_content||'');
+    const badge = sg.status==='pending' ? '待审批' : '已通过';
+    const badgeCls = sg.status==='pending' ? 'badge-pending' : 'badge-approved';
+    let src = '';
     try {
-      const src = JSON.parse(sg.source_examples);
-      sourceHtml = `<div class="sg-source">
-        <div class="src-row"><span class="src-label">用户问题</span><span>${escapeHtml(src.user_question || '-')}</span></div>
-        <div class="src-row"><span class="src-label">AI 回答</span><span>${escapeHtml(src.ai_answer || '-')}</span></div>
-        <div class="src-row"><span class="src-label">评分</span><span>${src.score ?? '?'}/10</span></div>
+      const j = JSON.parse(sg.source_examples||'{}');
+      src = `<div class="card-source">
+        <div class="row"><span class="lbl">问题</span><span>${esc(j.user_question||'-')}</span></div>
+        <div class="row"><span class="lbl">评分</span><span>${j.score}/10</span></div>
       </div>`;
     } catch(e) {}
-  }
-  return `
-  <div class="suggestion-card" id="sg-${sg.id}">
-    <div class="sg-header">
-      <div class="sg-title">
-        <h3>${sg.skill_name}.md</h3>
-        <span style="background:#dbeafe;color:#1d4ed8;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">${sg.suggestion_type}</span>
-      </div>
-      <div class="sg-meta">
-        <span>${sg.created_at ? sg.created_at.slice(0,19) : ''}</span>
-        <span class="status-badge ${statusClass}">${statusLabel}</span>
-      </div>
-    </div>
-    <div class="sg-body">
-      <div class="sg-reason">
-        <strong>💡 改动理由</strong>
-        ${escapeHtml(sg.reason || '无说明')}
-      </div>
-
-      <div class="diff-viewer">
-        <h4>📄 ${sg.skill_name}.md — 改动对比（当前版本 vs 建议版本）</h4>
-        <div class="diff-content" id="diff-${sg.id}">
-          <div class="diff-line context">加载中，与服务器同步...</div>
+    return `<div class="card">
+      <div class="card-header">
+        <div>
+          <div class="title">${esc(sg.skill_name)}.md</div>
+          <div class="meta">${sg.suggestion_type} · ${sg.created_at?sg.created_at.slice(0,16):''}</div>
         </div>
+        <span class="badge ${badgeCls}">${badge}</span>
       </div>
+      <div class="card-body">
+        <label>改动理由</label>
+        <div class="reason-text">${esc(sg.reason||'无')}</div>
 
-      ${sourceHtml}
-    </div>
-    <div class="sg-actions">
-      <button class="btn btn-approve" onclick="approve(${sg.id}, this)" ${sg.status !== 'pending' ? 'disabled' : ''}>✅ 通过</button>
-      <button class="btn btn-reject" onclick="reject(${sg.id}, this)" ${sg.status !== 'pending' ? 'disabled' : ''}>❌ 否决</button>
-    </div>
-  </div>`;
-}
-
-function renderSkills() {
-  if (!skills.length) {
-    document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">📁</div>暂无 Skill 文件</div>';
-    return;
-  }
-  document.getElementById('content').innerHTML = skills.map(sk => `
-    <div class="skill-card">
-      <div class="skill-header">
-        <h3>📄 ${sk.name}.md</h3>
-        <span class="size">${sk.size} bytes</span>
+        <label>Diff 对比</label>
+        <div class="diff-wrap">
+          <div class="diff-head">${esc(sg.skill_name)}.md — 当前版本 vs 建议</div>
+          <div class="diff-body" id="diff-${sg.id}">${renderDiff(diff)}</div>
+        </div>
+        ${src}
       </div>
-      <div class="skill-body">
-        <textarea readonly onclick="this.style.height=this.scrollHeight+'px'">${escapeHtml(sk.content)}</textarea>
-      </div>
-    </div>
-  `).join('');
-}
-
-function renderFeedbacks() {
-  if (!feedbacks.length) {
-    document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">📊</div>暂无反馈记录</div>';
-    return;
-  }
-  document.getElementById('content').innerHTML = feedbacks.slice(0, 50).map(fb => {
-    const scoreClass = fb.score >= 7 ? 'good' : fb.score >= 4 ? 'ok' : 'bad';
-    const emoji = fb.score >= 7 ? '🟢' : fb.score >= 4 ? '🟡' : '🔴';
-    return `
-    <div class="feedback-card">
-      <div class="fb-header">
-        <span class="skill">${fb.skill_name}</span>
-        <span class="score ${scoreClass}">${emoji} ${fb.score ?? '?'}/10</span>
-      </div>
-      <div class="fb-meta">${fb.created_at ? fb.created_at.slice(0,19) : ''}</div>
-      <div class="fb-content">
-        <div><strong>用户问题：</strong>${escapeHtml(fb.user_question || '-')}</div>
-        <div><strong>AI 回答：</strong>${escapeHtml(fb.ai_answer || '-')}</div>
-        <div><strong>Bobby 正确回复：</strong>${escapeHtml(fb.bobby_corrected_answer || '-')}</div>
-        <div><strong>建议：</strong>${escapeHtml(fb.bobby_suggestion || '-')}</div>
+      <div class="card-actions">
+        <button class="btn btn-ok" onclick="ok(${sg.id},this)" ${sg.status!=='pending'?'disabled':''}>通过</button>
+        <button class="btn btn-no" onclick="no(${sg.id},this)" ${sg.status!=='pending'?'disabled':''}>否决</button>
       </div>
     </div>`;
   }).join('');
 }
 
-async function approve(id, btn) {
-  btn.disabled = true;
-  try {
-    const r = await fetch('/feedback/api/suggestions/' + id + '/approve', { method: 'POST' });
-    const d = await r.json();
-    if (d.status === 'ok') {
-      await loadData();
-    } else {
-      alert('操作失败: ' + (d.message || d.error));
-      btn.disabled = false;
-    }
-  } catch(e) {
-    alert('操作失败: ' + e.message);
-    btn.disabled = false;
+function renderFeedbacks() {
+  stats();
+  if (!feedbacks.length) {
+    document.getElementById('content').innerHTML = '<div class="empty">暂无反馈</div>';
+    return;
   }
+  document.getElementById('content').innerHTML = feedbacks.slice(0,50).map(fb => {
+    const sc = fb.score>=7?'good':fb.score>=4?'ok':'bad';
+    const em = fb.score>=7?'🟢':fb.score>=4?'🟡':'🔴';
+    return `<div class="fb-card">
+      <div class="fb-top">
+        <span class="fb-skill">${esc(fb.skill_name)}</span>
+        <span class="fb-score ${sc}">${em} ${fb.score??'?'}/10</span>
+      </div>
+      <div class="fb-date">${fb.created_at?fb.created_at.slice(0,16):''}</div>
+      <div class="fb-text">
+        <div><strong>用户问题：</strong>${esc(fb.user_question||'-')}</div>
+        <div><strong>AI 回答：</strong>${esc(fb.ai_answer||'-')}</div>
+        <div><strong>Bobby 正确回复：</strong>${esc(fb.bobby_corrected_answer||'-')}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
-async function reject(id, btn) {
-  btn.disabled = true;
-  try {
-    const r = await fetch('/feedback/api/suggestions/' + id + '/reject', { method: 'POST' });
-    const d = await r.json();
-    if (d.status === 'ok') {
-      await loadData();
-    } else {
-      alert('操作失败: ' + (d.message || d.error));
-      btn.disabled = false;
-    }
-  } catch(e) {
-    alert('操作失败: ' + e.message);
-    btn.disabled = false;
+let skillsOpen = {};
+function renderSkills() {
+  stats();
+  if (!skills.length) {
+    document.getElementById('content').innerHTML = '<div class="empty">暂无 Skill 文件</div>';
+    return;
   }
+  document.getElementById('content').innerHTML = skills.map(sk => {
+    const open = skillsOpen[sk.name] || false;
+    return `<div class="skill-view">
+      <div class="skill-view-header" onclick="toggleSkill('${sk.name}')">
+        <span class="name">📄 ${sk.name}.md</span>
+        <span class="size">${sk.size} bytes ${open?'↑':'↓'}</span>
+      </div>
+      ${open ? `<pre>${esc(sk.content)}</pre>` : ''}
+    </div>`;
+  }).join('');
 }
 
-loadData();
+function toggleSkill(name) {
+  skillsOpen[name] = !skillsOpen[name];
+  renderSkills();
+}
+
+async function ok(id, btn) {
+  btn.disabled = true;
+  try {
+    const r = await fetch('/feedback/api/suggestions/'+id+'/approve', {method:'POST'});
+    const d = await r.json();
+    if (d.status==='ok') { await load(); }
+    else { alert('失败: '+(d.message||d.error)); btn.disabled=false; }
+  } catch(e) { alert('失败: '+e.message); btn.disabled=false; }
+}
+
+async function no(id, btn) {
+  btn.disabled = true;
+  try {
+    const r = await fetch('/feedback/api/suggestions/'+id+'/reject', {method:'POST'});
+    const d = await r.json();
+    if (d.status==='ok') { await load(); }
+    else { alert('失败: '+(d.message||d.error)); btn.disabled=false; }
+  } catch(e) { alert('失败: '+e.message); btn.disabled=false; }
+}
+
+load();
 </script>
 </body>
 </html>
