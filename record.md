@@ -5,6 +5,15 @@
 - [feat] 分类不确定卡片重新设计：从4个按钮扩展到12个分类全覆盖，移除按钮数量限制，按钮文字改为"中文(category)"格式（agent/orchestrator.py, tools/feishu.py）
 - [feat] Skill 自进化系统：Skill Analyzer + 三层架构 + skill_versions/skill_suggestions/skill_feedback/skill_examples 表 + Streamlit UI + git commit+push + 每3次更新存快照（models.py, services/, app_ui.py, routes/feedback.py, agent/orchestrator.py, railway.toml, start.sh）
 
+## 2026-05-19
+- [fix] 自进化系统部署问题修复：将 Streamlit 页面迁移到 FastAPI HTML 页面，移除 Streamlit 依赖（routes/static/feedback.html, routes/static/admin.html, routes/feedback_api.py）
+- [fix] file_git.py 硬编码路径修复：移除 `/Users/bobby/Desktop/email` 硬编码，改用相对路径（services/file_git.py）
+- [fix] skill_analyzer.py 重复变量修复：修复重复定义的 `prompt` 变量，并限制 prompt 大小防止 token 溢出（services/skill_analyzer.py）
+- [fix] skill_version_store.py 空初始化修复：首次 increment_change_count 时自动创建版本条目（services/skill_version_store.py）
+- [feat] FastAPI 反馈表单：独立的 HTML 评分表单页面（/feedback/form），Bobby 无需 Streamlit 即可评分（routes/static/feedback.html）
+- [feat] FastAPI 管理后台：独立 HTML 管理页面（/feedback/api/admin），支持审批/否决建议、查看反馈日志（routes/static/admin.html）
+- [refactor] 保持 Railway 部署简洁：start.sh 使用简化版（无 proxy/streamlit），$PORT 直接暴露 uvicorn
+
 ## 2026-05-07
 - [feat] 教育版自动建工单：用户首封邮件已提供学校名和域名时，AI 直接判断并建工单，跳过"请提供学校信息"步骤（skills/education.md）
 - [feat] 促销码处理：新增 purchase/promo_code 分类，回复"无促销码，但有免费 Sandbox 和教育折扣"（skills/classify.md, skills/purchase.md）
