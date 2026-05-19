@@ -6,77 +6,123 @@
 <title>🧬 Skill 自进化管理</title>
 <style>
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
-  .card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 16px; }
-  h1 { margin-top: 0; }
-  .tabs { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; }
-  .tab { padding: 8px 16px; border: 1px solid #ddd; background: #fafafa; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 14px; }
-  .tab.active { background: #3b82f6; color: white; border-color: #3b82f6; }
-  .tab:hover:not(.active) { background: #e8f4fd; }
-  .suggestion { border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
-  .suggestion-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
-  .suggestion-header h3 { margin: 0; font-size: 16px; }
-  .badge { padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-  .badge-pending { background: #fef9c3; color: #854d0e; }
-  .badge-approved { background: #dcfce7; color: #166534; }
-  .badge-rejected { background: #fee2e2; color: #991b1b; }
-  .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
-  .diff-section h4 { margin: 0 0 8px 0; font-size: 13px; color: #666; }
-  .diff-section.deleted h4 { color: #dc2626; }
-  .diff-section.added h4 { color: #16a34a; }
-  pre { background: #f3f4f6; padding: 12px; border-radius: 8px; font-size: 12px; overflow: auto; white-space: pre-wrap; margin: 0; max-height: 200px; }
-  .reason { background: #f0f9ff; padding: 12px; border-radius: 8px; font-size: 14px; color: #1e40af; margin: 12px 0; }
-  .source-examples { background: #fafafa; padding: 12px; border-radius: 8px; font-size: 13px; margin: 12px 0; border: 1px solid #e5e7eb; }
-  .source-examples strong { color: #374151; }
-  .actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
-  .btn { padding: 8px 20px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 600; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 1400px; margin: 0 auto; padding: 20px; background: #f0f2f5; }
+  h1 { margin: 0 0 4px 0; color: #1e293b; }
+  .subtitle { color: #64748b; font-size: 13px; margin-bottom: 20px; }
+
+  .stats-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .stat { background: white; border-radius: 10px; padding: 12px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); min-width: 100px; }
+  .stat .num { font-size: 24px; font-weight: 700; color: #3b82f6; }
+  .stat .lbl { font-size: 12px; color: #64748b; margin-top: 2px; }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 0; flex-wrap: wrap; }
+  .tab { padding: 10px 20px; border: none; background: transparent; border-bottom: 3px solid transparent; margin-bottom: -2px; cursor: pointer; font-size: 14px; color: #64748b; font-weight: 500; border-radius: 8px 8px 0 0; transition: all 0.2s; }
+  .tab:hover { color: #3b82f6; background: #f0f9ff; }
+  .tab.active { color: #3b82f6; border-bottom-color: #3b82f6; font-weight: 600; }
+
+  .suggestion-card { background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 16px; overflow: hidden; }
+  .sg-header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap; gap: 8px; }
+  .sg-title { display: flex; align-items: center; gap: 10px; }
+  .sg-title h3 { margin: 0; font-size: 15px; color: #1e293b; }
+  .sg-title .skill-badge { background: #dbeafe; color: #1d4ed8; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .sg-title .type-badge { background: #f0fdf4; color: #166534; padding: 3px 10px; border-radius: 20px; font-size: 12px; }
+  .sg-meta { display: flex; align-items: center; gap: 12px; font-size: 12px; color: #94a3b8; }
+  .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .status-pending { background: #fef9c3; color: #854d0e; }
+  .status-approved { background: #dcfce7; color: #166534; }
+  .status-rejected { background: #fee2e2; color: #991b1b; }
+
+  .sg-body { padding: 20px; }
+  .sg-reason { background: linear-gradient(135deg, #f0f9ff, #e0f2fe); border-left: 4px solid #3b82f6; padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 14px; color: #1e40af; margin-bottom: 16px; line-height: 1.6; }
+  .sg-reason strong { display: block; margin-bottom: 4px; font-size: 12px; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .diff-container { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .diff-panel { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
+  .diff-panel h4 { margin: 0; padding: 10px 14px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+  .diff-panel.deleted h4 { background: #fef2f2; color: #dc2626; }
+  .diff-panel.added h4 { background: #f0fdf4; color: #16a34a; }
+  .diff-panel.full h4 { background: #fafafa; color: #475569; }
+  .diff-panel pre { margin: 0; padding: 14px; font-size: 12px; line-height: 1.6; max-height: 250px; overflow: auto; white-space: pre-wrap; word-break: break-word; background: #fafafa; }
+  .diff-panel.deleted pre { background: #fef2f2; }
+  .diff-panel.added pre { background: #f0fdf4; }
+
+  .sg-source { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #64748b; }
+  .sg-source strong { color: #334155; }
+  .sg-source .src-row { display: flex; gap: 8px; margin-bottom: 4px; }
+  .sg-source .src-label { color: #94a3b8; min-width: 70px; }
+
+  .sg-actions { display: flex; gap: 10px; padding: 16px 20px; background: #f8fafc; border-top: 1px solid #f1f5f9; }
+  .btn { padding: 10px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
   .btn-approve { background: #16a34a; color: white; }
-  .btn-approve:hover { background: #15803d; }
+  .btn-approve:hover { background: #15803d; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(22,163,74,0.3); }
   .btn-reject { background: #dc2626; color: white; }
-  .btn-reject:hover { background: #b91c1c; }
-  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .loading { text-align: center; padding: 40px; color: #666; }
-  .empty { text-align: center; padding: 40px; color: #999; }
-  .stats { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
-  .stat-card { background: white; border-radius: 12px; padding: 16px 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); min-width: 120px; }
-  .stat-card .num { font-size: 28px; font-weight: 700; color: #3b82f6; }
-  .stat-card .label { font-size: 13px; color: #666; }
-  @media (max-width: 700px) { .diff-grid { grid-template-columns: 1fr; } }
+  .btn-reject:hover { background: #b91c1c; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(220,38,38,0.3); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  .skill-card { background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 16px; overflow: hidden; }
+  .skill-header { padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; }
+  .skill-header h3 { margin: 0; font-size: 16px; color: #1e293b; }
+  .skill-header .size { font-size: 12px; color: #94a3b8; }
+  .skill-body textarea { width: 100%; border: none; padding: 16px; font-size: 12px; line-height: 1.7; font-family: 'Monaco', 'Menlo', monospace; resize: vertical; background: #fafafa; }
+
+  .feedback-card { background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 12px; padding: 16px 20px; }
+  .fb-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .fb-header .skill { font-weight: 600; color: #1e293b; }
+  .fb-header .score { font-size: 20px; font-weight: 700; }
+  .fb-header .score.good { color: #16a34a; }
+  .fb-header .score.ok { color: #ca8a04; }
+  .fb-header .score.bad { color: #dc2626; }
+  .fb-meta { font-size: 12px; color: #94a3b8; margin-bottom: 8px; }
+  .fb-content { font-size: 13px; line-height: 1.6; }
+  .fb-content div { margin-bottom: 4px; }
+  .fb-content strong { color: #475569; }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: #94a3b8; }
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+  .loading { text-align: center; padding: 60px; color: #64748b; }
+
+  @media (max-width: 700px) { .diff-container { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
 <h1>🧬 Skill 自进化管理</h1>
+<p class="subtitle">AI 回复评分 → 三层记忆提取 → 修改建议审批 → 自动更新 Skill 文件</p>
+
+<div class="stats-bar" id="stats"></div>
 
 <div class="tabs">
-  <button class="tab active" onclick="showTab('pending')">📋 待审批</button>
+  <button class="tab active" onclick="showTab('pending')">📋 待审批 <span id="pending-count"></span></button>
   <button class="tab" onclick="showTab('approved')">✅ 已通过</button>
   <button class="tab" onclick="showTab('feedback')">📊 反馈日志</button>
+  <button class="tab" onclick="showTab('skills')">📁 Skill 文件</button>
 </div>
 
-<div id="stats" class="stats"></div>
 <div id="content"><div class="loading">加载中...</div></div>
 
 <script>
 let currentTab = 'pending';
 let suggestions = [];
 let feedbacks = [];
+let skills = [];
 
 async function loadData() {
   try {
-    const [sugRes, fbRes] = await Promise.all([
+    const [sugRes, fbRes, skRes] = await Promise.all([
       fetch('/feedback/api/suggestions'),
-      fetch('/feedback/api/feedbacks')
+      fetch('/feedback/api/feedbacks'),
+      fetch('/feedback/api/skills')
     ]);
     suggestions = await sugRes.json();
     feedbacks = await fbRes.json();
-    renderStats();
+    skills = await skRes.json();
+    updateStats();
     renderContent();
   } catch(e) {
-    document.getElementById('content').innerHTML = '<div class="error">加载失败: ' + e.message + '</div>';
+    document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">❌</div>加载失败: ' + e.message + '</div>';
   }
 }
 
-function renderStats() {
+function updateStats() {
   const pending = suggestions.filter(s => s.status === 'pending').length;
   const approved = suggestions.filter(s => s.status === 'approved').length;
   const avgScores = {};
@@ -86,19 +132,21 @@ function renderStats() {
   });
   const avgHtml = Object.entries(avgScores).map(([k, v]) => {
     const avg = (v.reduce((a,b)=>a+b,0)/v.length).toFixed(1);
-    return `<div class="stat-card"><div class="num">${avg}</div><div class="label">${k} 平均分</div></div>`;
+    return `<div class="stat"><div class="num">${avg}</div><div class="lbl">${k} 平均分</div></div>`;
   }).join('');
   document.getElementById('stats').innerHTML = `
-    <div class="stat-card"><div class="num">${pending}</div><div class="label">待审批</div></div>
-    <div class="stat-card"><div class="num">${approved}</div><div class="label">已通过</div></div>
+    <div class="stat"><div class="num">${pending}</div><div class="lbl">待审批</div></div>
+    <div class="stat"><div class="num">${approved}</div><div class="lbl">已通过</div></div>
+    <div class="stat"><div class="num">${feedbacks.length}</div><div class="lbl">总反馈</div></div>
     ${avgHtml}
   `;
+  document.getElementById('pending-count').textContent = pending > 0 ? `(${pending})` : '';
 }
 
 function showTab(tab) {
   currentTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  event.target.classList.add('active');
+  event.target.closest('.tab').classList.add('active');
   renderContent();
 }
 
@@ -106,76 +154,119 @@ function renderContent() {
   if (currentTab === 'pending') {
     const pending = suggestions.filter(s => s.status === 'pending');
     if (!pending.length) {
-      document.getElementById('content').innerHTML = '<div class="empty">暂无待审批建议</div>';
+      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">📋</div>暂无待审批建议</div>';
       return;
     }
     document.getElementById('content').innerHTML = pending.map(sg => renderSuggestion(sg)).join('');
   } else if (currentTab === 'approved') {
     const approved = suggestions.filter(s => s.status === 'approved');
     if (!approved.length) {
-      document.getElementById('content').innerHTML = '<div class="empty">暂无已通过建议</div>';
+      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">✅</div>暂无已通过建议</div>';
       return;
     }
     document.getElementById('content').innerHTML = approved.map(sg => renderSuggestion(sg)).join('');
-  } else {
-    if (!feedbacks.length) {
-      document.getElementById('content').innerHTML = '<div class="empty">暂无反馈记录</div>';
+  } else if (currentTab === 'skills') {
+    if (!skills.length) {
+      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">📁</div>暂无 Skill 文件</div>';
       return;
     }
-    document.getElementById('content').innerHTML = feedbacks.slice(0, 50).map(fb => `
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <strong>${fb.skill_name}</strong>
-          <span style="font-size:20px">${fb.score != null ? '🟢🟡🔴'.split('')[Math.ceil(fb.score/3.5)-1] : '❓'} ${fb.score ?? '?'}/10</span>
+    document.getElementById('content').innerHTML = skills.map(sk => `
+      <div class="skill-card">
+        <div class="skill-header">
+          <h3>📄 ${sk.name}.md</h3>
+          <span class="size">${sk.size} bytes</span>
         </div>
-        <div style="color:#666;font-size:13px;margin:8px 0">${fb.created_at ? fb.created_at.slice(0,19) : ''}</div>
-        <div><strong>用户问题：</strong>${fb.user_question || '-'}</div>
-        <div><strong>AI 回答：</strong>${fb.ai_answer || '-'}</div>
-        <div><strong>Bobby 正确回复：</strong>${fb.bobby_corrected_answer || '-'}</div>
-        <div><strong>建议：</strong>${fb.bobby_suggestion || '-'}</div>
+        <div class="skill-body">
+          <textarea readonly onclick="this.style.height=this.scrollHeight+'px'"">${sk.content}</textarea>
+        </div>
       </div>
     `).join('');
+  } else if (currentTab === 'feedback') {
+    if (!feedbacks.length) {
+      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">📊</div>暂无反馈记录</div>';
+      return;
+    }
+    document.getElementById('content').innerHTML = feedbacks.slice(0, 50).map(fb => {
+      const scoreClass = fb.score >= 7 ? 'good' : fb.score >= 4 ? 'ok' : 'bad';
+      const emoji = fb.score >= 7 ? '🟢' : fb.score >= 4 ? '🟡' : '🔴';
+      return `
+      <div class="feedback-card">
+        <div class="fb-header">
+          <span class="skill">${fb.skill_name}</span>
+          <span class="score ${scoreClass}">${emoji} ${fb.score ?? '?'}/10</span>
+        </div>
+        <div class="fb-meta">${fb.created_at ? fb.created_at.slice(0,19) : ''}</div>
+        <div class="fb-content">
+          <div><strong>用户问题：</strong>${fb.user_question || '-'}</div>
+          <div><strong>AI 回答：</strong>${fb.ai_answer || '-'}</div>
+          <div><strong>Bobby 正确回复：</strong>${fb.bobby_corrected_answer || '-'}</div>
+          <div><strong>建议：</strong>${fb.bobby_suggestion || '-'}</div>
+        </div>
+      </div>`;
+    }).join('');
   }
 }
 
 function renderSuggestion(sg) {
-  const badge = sg.status === 'pending'
-    ? '<span class="badge badge-pending">待审批</span>'
-    : sg.status === 'approved' ? '<span class="badge badge-approved">已通过</span>'
-    : '<span class="badge badge-rejected">已否决</span>';
+  const statusLabel = sg.status === 'pending' ? '待审批' : sg.status === 'approved' ? '已通过' : '已否决';
+  const statusClass = sg.status === 'pending' ? 'status-pending' : sg.status === 'approved' ? 'status-approved' : 'status-rejected';
   let sourceHtml = '';
   if (sg.source_examples) {
     try {
       const src = JSON.parse(sg.source_examples);
-      sourceHtml = `<div class="source-examples">
-        <strong>来源：</strong>用户问题: ${src.user_question || '-'} | AI回答: ${src.ai_answer || '-'} | 评分: ${src.score}/10
+      sourceHtml = `<div class="sg-source">
+        <div class="src-row"><span class="src-label">用户问题</span><span>${src.user_question || '-'}</span></div>
+        <div class="src-row"><span class="src-label">AI 回答</span><span>${src.ai_answer || '-'}</span></div>
+        <div class="src-row"><span class="src-label">评分</span><span>${src.score ?? '?'}/10</span></div>
       </div>`;
     } catch(e) {}
   }
   return `
-  <div class="suggestion">
-    <div class="suggestion-header">
-      <h3>${sg.skill_name} · ${sg.suggestion_type} ${badge}</h3>
-      <span style="color:#999;font-size:12px">${sg.created_at ? sg.created_at.slice(0,19) : ''}</span>
-    </div>
-    <div class="diff-grid">
-      <div class="diff-section deleted">
-        <h4>🔴 已删除</h4>
-        <pre>${sg.deleted_content || '(无删除)'}</pre>
+  <div class="suggestion-card">
+    <div class="sg-header">
+      <div class="sg-title">
+        <h3>${sg.skill_name}</h3>
+        <span class="skill-badge">${sg.skill_name}</span>
+        <span class="type-badge">${sg.suggestion_type}</span>
       </div>
-      <div class="diff-section added">
-        <h4>🟢 已新增</h4>
-        <pre>${sg.added_content || '(无新增)'}</pre>
+      <div class="sg-meta">
+        <span>${sg.created_at ? sg.created_at.slice(0,19) : ''}</span>
+        <span class="status-badge ${statusClass}">${statusLabel}</span>
       </div>
     </div>
-    <div class="reason"><strong>💡 改动理由：</strong>${sg.reason || '无说明'}</div>
-    ${sourceHtml}
+    <div class="sg-body">
+      <div class="sg-reason">
+        <strong>💡 改动理由</strong>
+        ${sg.reason || '无说明'}
+      </div>
+      <div class="diff-container">
+        <div class="diff-panel deleted">
+          <h4>🔴 已删除内容</h4>
+          <pre>${escapeHtml(sg.deleted_content || '(无删除)')}</pre>
+        </div>
+        <div class="diff-panel added">
+          <h4>🟢 已新增内容</h4>
+          <pre>${escapeHtml(sg.added_content || '(无新增)')}</pre>
+        </div>
+      </div>
+      <div class="diff-panel full" style="margin-bottom:16px">
+        <h4>📄 完整 Skill 内容预览（前500字）</h4>
+        <pre>${escapeHtml((sg.full_skill_content || '').slice(0, 500) + ((sg.full_skill_content || '').length > 500 ? '...' : ''))}</pre>
+      </div>
+      ${sourceHtml}
+    </div>
     ${sg.status === 'pending' ? `
-    <div class="actions">
-      <button class="btn btn-approve" onclick="approve(${sg.id}, this)">✅ 通过</button>
+    <div class="sg-actions">
+      <button class="btn btn-approve" onclick="approve(${sg.id}, this)">✅ 通过（更新 Skill 文件并推送）</button>
       <button class="btn btn-reject" onclick="reject(${sg.id}, this)">❌ 否决</button>
     </div>` : ''}
   </div>`;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 async function approve(id, btn) {

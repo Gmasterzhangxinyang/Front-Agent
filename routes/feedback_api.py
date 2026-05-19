@@ -127,6 +127,20 @@ async def reject_suggestion(suggestion_id: int):
         return {"status": "ok"}
 
 
+@router.get("/feedback/api/skills")
+async def list_skills():
+    """List all skill files with their content."""
+    skills_dir = Path(__file__).parent.parent / "skills"
+    result = []
+    for f in sorted(skills_dir.glob("*.md")):
+        result.append({
+            "name": f.stem,
+            "size": f.stat().st_size,
+            "content": f.read_text(encoding="utf-8"),
+        })
+    return result
+
+
 @router.get("/feedback/api/admin")
 async def admin_page():
     """Serve the admin dashboard HTML."""
