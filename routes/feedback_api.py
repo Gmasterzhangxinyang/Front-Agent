@@ -127,6 +127,23 @@ async def reject_suggestion(suggestion_id: int):
         return {"status": "ok"}
 
 
+@router.get("/feedback/api/diff/{skill_name}")
+async def get_skill_diff(skill_name: str, suggestion_id: int = 0):
+    """
+    返回 skill 的当前文件内容（from git HEAD），
+    配合 suggestion 的 full_skill_content 做对比。
+    """
+    import asyncio
+    proc = await asyncio.create_subprocess_shell(
+        f"git show origin/main:skills/{skill_name}.md 2>/dev/null || git show HEAD:skills/{skill_name}.md 2>/dev/null || echo ''",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    out, _ = await proc.communicate()
+    current = out.decode("utf-8", errors="replace")
+    return {"skill_name": skill_name, "current_content": current}
+
+
 @router.get("/feedback/api/skills")
 async def list_skills():
     """List all skill files with their content."""

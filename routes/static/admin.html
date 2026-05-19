@@ -24,8 +24,6 @@
   .sg-header { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap; gap: 8px; }
   .sg-title { display: flex; align-items: center; gap: 10px; }
   .sg-title h3 { margin: 0; font-size: 15px; color: #1e293b; }
-  .sg-title .skill-badge { background: #dbeafe; color: #1d4ed8; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-  .sg-title .type-badge { background: #f0fdf4; color: #166534; padding: 3px 10px; border-radius: 20px; font-size: 12px; }
   .sg-meta { display: flex; align-items: center; gap: 12px; font-size: 12px; color: #94a3b8; }
   .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
   .status-pending { background: #fef9c3; color: #854d0e; }
@@ -36,17 +34,21 @@
   .sg-reason { background: linear-gradient(135deg, #f0f9ff, #e0f2fe); border-left: 4px solid #3b82f6; padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 14px; color: #1e40af; margin-bottom: 16px; line-height: 1.6; }
   .sg-reason strong { display: block; margin-bottom: 4px; font-size: 12px; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.05em; }
 
-  .diff-container { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-  .diff-panel { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
-  .diff-panel h4 { margin: 0; padding: 10px 14px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-  .diff-panel.deleted h4 { background: #fef2f2; color: #dc2626; }
-  .diff-panel.added h4 { background: #f0fdf4; color: #16a34a; }
-  .diff-panel.full h4 { background: #fafafa; color: #475569; }
-  .diff-panel pre { margin: 0; padding: 14px; font-size: 12px; line-height: 1.6; max-height: 250px; overflow: auto; white-space: pre-wrap; word-break: break-word; background: #fafafa; }
-  .diff-panel.deleted pre { background: #fef2f2; }
-  .diff-panel.added pre { background: #f0fdf4; }
+  .diff-viewer { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
+  .diff-viewer h4 { margin: 0; padding: 10px 14px; font-size: 12px; font-weight: 600; background: #f8fafc; color: #475569; border-bottom: 1px solid #e2e8f0; }
+  .diff-content { margin: 0; font-size: 12px; line-height: 1.7; max-height: 400px; overflow: auto; background: #fafafa; font-family: 'Monaco', 'Menlo', 'Consolas', monospace; }
+  .diff-line { padding: 2px 14px; white-space: pre-wrap; word-break: break-word; }
+  .diff-line.deleted { background: #fef2f2; color: #dc2626; }
+  .diff-line.deleted::before { content: '- '; color: #f87171; font-weight: 700; }
+  .diff-line.added { background: #f0fdf4; color: #16a34a; }
+  .diff-line.added::before { content: '+ '; color: #4ade80; font-weight: 700; }
+  .diff-line.context { color: #64748b; }
+  .diff-line.context::before { content: '  '; color: #cbd5e1; font-weight: 700; }
+  .diff-line.header { color: #1e40af; font-weight: 600; background: #f0f9ff; }
+  .diff-line.header::before { content: ''; }
+  .diff-empty { padding: 20px; text-align: center; color: #94a3b8; font-size: 13px; }
 
-  .sg-source { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #64748b; }
+  .sg-source { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #64748b; margin-bottom: 12px; }
   .sg-source strong { color: #334155; }
   .sg-source .src-row { display: flex; gap: 8px; margin-bottom: 4px; }
   .sg-source .src-label { color: #94a3b8; min-width: 70px; }
@@ -57,13 +59,13 @@
   .btn-approve:hover { background: #15803d; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(22,163,74,0.3); }
   .btn-reject { background: #dc2626; color: white; }
   .btn-reject:hover { background: #b91c1c; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(220,38,38,0.3); }
-  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
 
   .skill-card { background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 16px; overflow: hidden; }
   .skill-header { padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; }
   .skill-header h3 { margin: 0; font-size: 16px; color: #1e293b; }
   .skill-header .size { font-size: 12px; color: #94a3b8; }
-  .skill-body textarea { width: 100%; border: none; padding: 16px; font-size: 12px; line-height: 1.7; font-family: 'Monaco', 'Menlo', monospace; resize: vertical; background: #fafafa; }
+  .skill-body textarea { width: 100%; border: none; padding: 16px; font-size: 12px; line-height: 1.7; font-family: 'Monaco', 'Menlo', monospace; resize: vertical; background: #fafafa; min-height: 200px; }
 
   .feedback-card { background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 12px; padding: 16px 20px; }
   .fb-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
@@ -81,7 +83,7 @@
   .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
   .loading { text-align: center; padding: 60px; color: #64748b; }
 
-  @media (max-width: 700px) { .diff-container { grid-template-columns: 1fr; } }
+  @media (max-width: 700px) { .diff-viewer { } }
 </style>
 </head>
 <body>
@@ -100,6 +102,52 @@
 <div id="content"><div class="loading">加载中...</div></div>
 
 <script>
+// ── Diff engine ─────────────────────────────────────────────────────────────────
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// LCS-based line diff
+function diffLines(oldText, newText) {
+  const o = (oldText || '').split('\n');
+  const n = (newText || '').split('\n');
+  const m = o.length, nn = n.length;
+  const dp = Array(m+1).fill(null).map(() => Array(nn+1).fill(0));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= nn; j++)
+      dp[i][j] = o[i-1] === n[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1]);
+  const res = [];
+  let i = m, j = nn;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && o[i-1] === n[j-1]) {
+      res.unshift({ type: 'context', text: o[i-1] });
+      i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) {
+      res.unshift({ type: 'added', text: n[j-1] });
+      j--;
+    } else {
+      res.unshift({ type: 'deleted', text: o[i-1] });
+      i--;
+    }
+  }
+  return res;
+}
+
+function renderDiff(diff) {
+  if (!diff || !diff.length) {
+    return '<div class="diff-empty">文件无变化</div>';
+  }
+  let html = '';
+  diff.forEach(line => {
+    html += '<div class="diff-line ' + line.type + '">' + escapeHtml(line.text) + '</div>';
+  });
+  return html;
+}
+
+// ── State ────────────────────────────────────────────────────────────────────────
 let currentTab = 'pending';
 let suggestions = [];
 let feedbacks = [];
@@ -152,62 +200,40 @@ function showTab(tab) {
 
 function renderContent() {
   if (currentTab === 'pending') {
-    const pending = suggestions.filter(s => s.status === 'pending');
-    if (!pending.length) {
-      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">📋</div>暂无待审批建议</div>';
-      return;
-    }
-    document.getElementById('content').innerHTML = pending.map(sg => renderSuggestion(sg)).join('');
+    renderSuggestions(suggestions.filter(s => s.status === 'pending'), '待审批建议');
   } else if (currentTab === 'approved') {
-    const approved = suggestions.filter(s => s.status === 'approved');
-    if (!approved.length) {
-      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">✅</div>暂无已通过建议</div>';
-      return;
-    }
-    document.getElementById('content').innerHTML = approved.map(sg => renderSuggestion(sg)).join('');
+    renderSuggestions(suggestions.filter(s => s.status === 'approved'), '已通过建议');
   } else if (currentTab === 'skills') {
-    if (!skills.length) {
-      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">📁</div>暂无 Skill 文件</div>';
-      return;
-    }
-    document.getElementById('content').innerHTML = skills.map(sk => `
-      <div class="skill-card">
-        <div class="skill-header">
-          <h3>📄 ${sk.name}.md</h3>
-          <span class="size">${sk.size} bytes</span>
-        </div>
-        <div class="skill-body">
-          <textarea readonly onclick="this.style.height=this.scrollHeight+'px'"">${sk.content}</textarea>
-        </div>
-      </div>
-    `).join('');
-  } else if (currentTab === 'feedback') {
-    if (!feedbacks.length) {
-      document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">📊</div>暂无反馈记录</div>';
-      return;
-    }
-    document.getElementById('content').innerHTML = feedbacks.slice(0, 50).map(fb => {
-      const scoreClass = fb.score >= 7 ? 'good' : fb.score >= 4 ? 'ok' : 'bad';
-      const emoji = fb.score >= 7 ? '🟢' : fb.score >= 4 ? '🟡' : '🔴';
-      return `
-      <div class="feedback-card">
-        <div class="fb-header">
-          <span class="skill">${fb.skill_name}</span>
-          <span class="score ${scoreClass}">${emoji} ${fb.score ?? '?'}/10</span>
-        </div>
-        <div class="fb-meta">${fb.created_at ? fb.created_at.slice(0,19) : ''}</div>
-        <div class="fb-content">
-          <div><strong>用户问题：</strong>${fb.user_question || '-'}</div>
-          <div><strong>AI 回答：</strong>${fb.ai_answer || '-'}</div>
-          <div><strong>Bobby 正确回复：</strong>${fb.bobby_corrected_answer || '-'}</div>
-          <div><strong>建议：</strong>${fb.bobby_suggestion || '-'}</div>
-        </div>
-      </div>`;
-    }).join('');
+    renderSkills();
+  } else {
+    renderFeedbacks();
   }
 }
 
-function renderSuggestion(sg) {
+function renderSuggestions(list, title) {
+  if (!list.length) {
+    document.getElementById('content').innerHTML = `<div class="empty-state"><div class="icon">📋</div>暂无${title}</div>`;
+    return;
+  }
+  document.getElementById('content').innerHTML = list.map(sg => renderSuggestionCard(sg)).join('');
+  // After DOM inserted, fetch current skill content and compute diff
+  list.forEach(sg => fetchAndRenderDiff(sg));
+}
+
+function getCurrentSkillContent(skillName) {
+  const sk = skills.find(s => s.name === skillName);
+  return sk ? sk.content : '';
+}
+
+async function fetchAndRenderDiff(sg) {
+  const el = document.getElementById('diff-' + sg.id);
+  if (!el) return;
+  const currentContent = getCurrentSkillContent(sg.skill_name);
+  const diff = diffLines(currentContent, sg.full_skill_content || '');
+  el.innerHTML = renderDiff(diff);
+}
+
+function renderSuggestionCard(sg) {
   const statusLabel = sg.status === 'pending' ? '待审批' : sg.status === 'approved' ? '已通过' : '已否决';
   const statusClass = sg.status === 'pending' ? 'status-pending' : sg.status === 'approved' ? 'status-approved' : 'status-rejected';
   let sourceHtml = '';
@@ -215,19 +241,18 @@ function renderSuggestion(sg) {
     try {
       const src = JSON.parse(sg.source_examples);
       sourceHtml = `<div class="sg-source">
-        <div class="src-row"><span class="src-label">用户问题</span><span>${src.user_question || '-'}</span></div>
-        <div class="src-row"><span class="src-label">AI 回答</span><span>${src.ai_answer || '-'}</span></div>
+        <div class="src-row"><span class="src-label">用户问题</span><span>${escapeHtml(src.user_question || '-')}</span></div>
+        <div class="src-row"><span class="src-label">AI 回答</span><span>${escapeHtml(src.ai_answer || '-')}</span></div>
         <div class="src-row"><span class="src-label">评分</span><span>${src.score ?? '?'}/10</span></div>
       </div>`;
     } catch(e) {}
   }
   return `
-  <div class="suggestion-card">
+  <div class="suggestion-card" id="sg-${sg.id}">
     <div class="sg-header">
       <div class="sg-title">
-        <h3>${sg.skill_name}</h3>
-        <span class="skill-badge">${sg.skill_name}</span>
-        <span class="type-badge">${sg.suggestion_type}</span>
+        <h3>${sg.skill_name}.md</h3>
+        <span style="background:#dbeafe;color:#1d4ed8;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">${sg.suggestion_type}</span>
       </div>
       <div class="sg-meta">
         <span>${sg.created_at ? sg.created_at.slice(0,19) : ''}</span>
@@ -237,42 +262,72 @@ function renderSuggestion(sg) {
     <div class="sg-body">
       <div class="sg-reason">
         <strong>💡 改动理由</strong>
-        ${sg.reason || '无说明'}
+        ${escapeHtml(sg.reason || '无说明')}
       </div>
-      <div class="diff-container">
-        <div class="diff-panel deleted">
-          <h4>🔴 已删除内容</h4>
-          <pre>${escapeHtml(sg.deleted_content || '(无删除)')}</pre>
-        </div>
-        <div class="diff-panel added">
-          <h4>🟢 已新增内容</h4>
-          <pre>${escapeHtml(sg.added_content || '(无新增)')}</pre>
+
+      <div class="diff-viewer">
+        <h4>📄 ${sg.skill_name}.md — 改动对比（当前版本 vs 建议版本）</h4>
+        <div class="diff-content" id="diff-${sg.id}">
+          <div class="diff-line context">加载中，与服务器同步...</div>
         </div>
       </div>
-      <div class="diff-panel full" style="margin-bottom:16px">
-        <h4>📄 完整 Skill 内容预览（前500字）</h4>
-        <pre>${escapeHtml((sg.full_skill_content || '').slice(0, 500) + ((sg.full_skill_content || '').length > 500 ? '...' : ''))}</pre>
-      </div>
+
       ${sourceHtml}
     </div>
-    ${sg.status === 'pending' ? `
     <div class="sg-actions">
-      <button class="btn btn-approve" onclick="approve(${sg.id}, this)">✅ 通过（更新 Skill 文件并推送）</button>
-      <button class="btn btn-reject" onclick="reject(${sg.id}, this)">❌ 否决</button>
-    </div>` : ''}
+      <button class="btn btn-approve" onclick="approve(${sg.id}, this)" ${sg.status !== 'pending' ? 'disabled' : ''}>✅ 通过</button>
+      <button class="btn btn-reject" onclick="reject(${sg.id}, this)" ${sg.status !== 'pending' ? 'disabled' : ''}>❌ 否决</button>
+    </div>
   </div>`;
 }
 
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+function renderSkills() {
+  if (!skills.length) {
+    document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">📁</div>暂无 Skill 文件</div>';
+    return;
+  }
+  document.getElementById('content').innerHTML = skills.map(sk => `
+    <div class="skill-card">
+      <div class="skill-header">
+        <h3>📄 ${sk.name}.md</h3>
+        <span class="size">${sk.size} bytes</span>
+      </div>
+      <div class="skill-body">
+        <textarea readonly onclick="this.style.height=this.scrollHeight+'px'">${escapeHtml(sk.content)}</textarea>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderFeedbacks() {
+  if (!feedbacks.length) {
+    document.getElementById('content').innerHTML = '<div class="empty-state"><div class="icon">📊</div>暂无反馈记录</div>';
+    return;
+  }
+  document.getElementById('content').innerHTML = feedbacks.slice(0, 50).map(fb => {
+    const scoreClass = fb.score >= 7 ? 'good' : fb.score >= 4 ? 'ok' : 'bad';
+    const emoji = fb.score >= 7 ? '🟢' : fb.score >= 4 ? '🟡' : '🔴';
+    return `
+    <div class="feedback-card">
+      <div class="fb-header">
+        <span class="skill">${fb.skill_name}</span>
+        <span class="score ${scoreClass}">${emoji} ${fb.score ?? '?'}/10</span>
+      </div>
+      <div class="fb-meta">${fb.created_at ? fb.created_at.slice(0,19) : ''}</div>
+      <div class="fb-content">
+        <div><strong>用户问题：</strong>${escapeHtml(fb.user_question || '-')}</div>
+        <div><strong>AI 回答：</strong>${escapeHtml(fb.ai_answer || '-')}</div>
+        <div><strong>Bobby 正确回复：</strong>${escapeHtml(fb.bobby_corrected_answer || '-')}</div>
+        <div><strong>建议：</strong>${escapeHtml(fb.bobby_suggestion || '-')}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 async function approve(id, btn) {
   btn.disabled = true;
   try {
-    const r = await fetch(`/feedback/api/suggestions/${id}/approve`, { method: 'POST' });
+    const r = await fetch('/feedback/api/suggestions/' + id + '/approve', { method: 'POST' });
     const d = await r.json();
     if (d.status === 'ok') {
       await loadData();
@@ -289,7 +344,7 @@ async function approve(id, btn) {
 async function reject(id, btn) {
   btn.disabled = true;
   try {
-    const r = await fetch(`/feedback/api/suggestions/${id}/reject`, { method: 'POST' });
+    const r = await fetch('/feedback/api/suggestions/' + id + '/reject', { method: 'POST' });
     const d = await r.json();
     if (d.status === 'ok') {
       await loadData();
