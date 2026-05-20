@@ -3,7 +3,8 @@
 - [feat] 区域路由 Skill 更新：重写 `skills/partnership.md`，支持插件模板/日本/CN&APAC/EU 四种分类和对应转发（skills/partnership.md）
 - [fix] Partnership/Community 都不自动回复用户：只创建转发草稿供 Bobby 审核后手动发送（skills/partnership.md）
 - [feat] 新增 Marketing 分类：新增 `front_forward_to_marketing` 工具，marketing 类邮件移动到 marketing inbox（agent/tool_registry.py, skills/classify.md, skills/marketing.md）
-- [feat] Front inbox 移动功能：新增 `move_conversation_to_inbox` 函数，通过 inbox email 地址移动对话到指定 inbox（tools/front.py）
+- [feat] Front inbox 移动功能：新增 `move_conversation_to_inbox` 函数，通过 inbox name 移动对话到指定 inbox（tools/front.py）
+- [fix] 分类确认后追加 example 到 git：`_append_classify_example` 改为调用 `update_skill_file` 推送到 GitHub，持久化 Bobby 纠正的分类样本（webhooks/feishu_card.py）
 
 ## 2026-05-15
 - [fix] Sandbox 用户技术支持免责：明确告知 AI 回复仅供参考，付费用户享有优先技术支持（skills/technical.md）

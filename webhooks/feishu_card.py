@@ -422,9 +422,9 @@ async def _get_state_summary(conversation_id: str) -> str:
 
 
 async def _append_classify_example(email_summary: str, category: str, sub_type: str | None) -> None:
-    """Append a new confirmed example to classify.md to improve future accuracy."""
+    """Append a new confirmed example to classify.md and push to GitHub."""
     from pathlib import Path
-    import json
+    from services.file_git import update_skill_file
     classify_path = Path(__file__).parent.parent / "skills" / "classify.md"
     if not classify_path.exists():
         return
@@ -446,9 +446,12 @@ async def _append_classify_example(email_summary: str, category: str, sub_type: 
     # Insert before the Categories table
     insert_marker = "## Categories and Sub-types"
     if insert_marker in content:
-        content = content.replace(insert_marker, example + "\n" + insert_marker)
-        classify_path.write_text(content, encoding="utf-8")
-        logger.info("Appended new classify example: %s/%s", category, sub_type)
+        new_content = content.replace(insert_marker, example + "\n" + insert_marker)
+        await update_skill_file(
+            "classify",
+            new_content,
+            f"feat(classify): add Bobby-Confirmed example for {category}/{sub_type}"
+        )
 
 
 async def _generate_closing_draft(conversation_id: str) -> None:
