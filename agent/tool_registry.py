@@ -150,6 +150,34 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "front_reply_with_template",
+            "description": "Reply to the user with the X template (pre-written template for technical support). Use this for ALL technical category emails. This sends the template directly without draft review.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "conversation_id": {"type": "string"},
+                },
+                "required": ["conversation_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "front_close_conversation",
+            "description": "Archive/close the conversation in Front after sending template reply",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "conversation_id": {"type": "string"},
+                },
+                "required": ["conversation_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "linear_create_ticket",
             "description": "Create a Linear ticket in the CUS project",
             "parameters": {
@@ -353,6 +381,35 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
     elif tool_name == "front_add_comment":
         ok = await front.add_comment(args["conversation_id"], args["body"])
         return "comment_added" if ok else "comment_failed"
+
+    elif tool_name == "front_reply_with_template":
+        conversation_id = args["conversation_id"]
+        template_body = """Dear Valued Customer,
+
+Thank you for your inquiry. We appreciate your interest in Dify and would like to provide guidance on our support processes.
+
+Priority technical support via "Contact Us" is available only for Dify Cloud Pro and Team subscribers.
+If you are on a Pro or Team plan, please submit your request through Settings → Support → Contact Us in your dashboard.
+When submitting the ticket, please do not remove the subscription verification details, as they are required for us to confirm your account status.
+
+For Sandbox (Free Tier) users, we recommend consulting our comprehensive documentation at docs.dify.ai or submitting technical issues via GitHub at github.com/langgenius/dify/issues.
+
+If you're interested in commercial collaboration or licensing, please email business@dify.ai with your company name, size, and specific use case. For verification purposes, kindly use your corporate email address when making business inquiries.
+
+Please note that your use of Dify is permitted without additional commercial licensing when following our open source license terms and not creating products that directly compete with Dify's services. While not required, we appreciate "Powered by Dify" attribution in your implementations.
+
+For efficient processing, we may be unable to respond to inquiries where the sender's identity cannot be verified. If you are a Dify partner, please contact us through your established partner channels.
+
+Best regards,
+
+The Dify Support Team"""
+        ok = await front.reply_to_conversation(conversation_id, template_body)
+        return "template_replied" if ok else "reply_failed"
+
+    elif tool_name == "front_close_conversation":
+        conversation_id = args["conversation_id"]
+        ok = await front.resolve_conversation(conversation_id)
+        return "conversation_closed" if ok else "close_failed"
 
     elif tool_name == "front_add_tag":
         ok = await front.add_tag(args["conversation_id"], args["tag_id"])
