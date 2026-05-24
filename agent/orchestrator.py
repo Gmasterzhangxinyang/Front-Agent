@@ -129,6 +129,7 @@ Use the tools available to you to handle the email completely.
                     {"label": "垃圾邮件(spam)", "category": "spam"},
                     {"label": "法律相关(legal)", "category": "legal"},
                     {"label": "产品路线(roadmap)", "category": "roadmap"},
+                    {"label": "投资融资(investment)", "category": "investment"},
                     {"label": "数据导出(data_export)", "category": "data_export"},
                     {"label": "无法分类(unclear)", "category": "unclear"},
                 ]

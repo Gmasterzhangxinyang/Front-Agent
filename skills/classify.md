@@ -154,6 +154,7 @@ Read the full email content (including any attachments) and return a JSON classi
 | spam | null | Promotional, advertising, unsolicited sales |
 | legal | null | Lawyer letter, legal threat, lawsuit |
 | roadmap | null | Asking about roadmap or feature release dates |
+| investment | fundraising | Investment inquiries, funding, VC, investor relations |
 | data_export | null | Requesting export of their personal data |
 | unclear | null | Cannot determine category with confidence |
 

@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     byron_email: str = ""               # CN & APAC byron@dify.ai
     xinruiliu_email: str = ""           # EU xinruiliu@dify.ai
 
+    # Investment / Investor Relations
+    claudia_email: str = ""             # 刘景媛 (Claudia) - claudia@dify.ai
+
     # Database — on Railway, use /data/email_automation.db (persistent volume)
     database_url: str = "sqlite+aiosqlite:////data/email_automation.db"
 

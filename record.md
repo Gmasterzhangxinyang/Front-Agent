@@ -69,3 +69,11 @@
 - [fix] 点击"已解决"触发两次问题：在 `webhooks/feishu_card.py` 中加入 `_check_and_set_resolved()` 原子性检查，防止 Feishu 双回调导致生成两份结案草稿
 - [refactor] 重写 `CLAUDE.md`，加入架构说明、强制 record.md 更新规则、环境变量列表
 - [fix] `skills/education.md` 中 feishu_notify_bobby 的消息模板，明确要求使用 linear_create_ticket 返回的真实 URL，不得使用占位符
+
+## 2026-05-24
+- [feat] 新增 investment 类别用于投资融资相关邮件，转发给 claudia@dify.ai (刘景媛)
+  - 创建 skills/investment.md - 投资融资处理流程
+  - 更新 skills/classify.md - 添加 investment 分类选项
+  - 更新 agent/tool_registry.py - 添加 front_forward_to_investment 工具
+  - 更新 agent/orchestrator.py - 低置信度时添加 investment 选项
+  - 更新 config.py - 添加 claudia_email 配置项
