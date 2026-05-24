@@ -5,7 +5,9 @@ Handle promotional, advertising, and unsolicited sales emails.
 
 ## Steps
 1. Do NOT reply
-2. Leave conversation open (Bobby will manually archive spam)
+2. Archive the conversation automatically using `front_close_conversation`
 
-## Note
-No reply is needed. Leave the conversation for manual review.
+## Important
+- No reply needed
+- No human review needed
+- Archive immediately
