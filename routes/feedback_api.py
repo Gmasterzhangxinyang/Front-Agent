@@ -3,12 +3,15 @@ Feedback API routes: list suggestions, approve/reject, feedbacks
 """
 import logging
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from database import AsyncSessionLocal
 from models import SkillSuggestion, SkillFeedback, SkillVersion
 from services.skill_analyzer import analyze_and_suggest
 from services.file_git import update_skill_file
 from pathlib import Path
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -46,8 +49,7 @@ async def submit_feedback(data: FeedbackSubmit):
 @router.get("/feedback/form")
 async def feedback_form(conv: str = "", category: str = ""):
     """Serve the standalone feedback form HTML."""
-    from fastapi.responses import FileResponse
-    return FileResponse(Path(__file__).parent / "static" / "feedback.html")
+    return FileResponse(STATIC_DIR / "feedback.html")
 
 
 @router.get("/feedback/api/suggestions")
@@ -177,8 +179,7 @@ async def update_skill(skill_name: str, content: str = ""):
 @router.get("/feedback/api/admin")
 async def admin_page():
     """Serve the admin dashboard HTML."""
-    from fastapi.responses import FileResponse
-    return FileResponse(Path(__file__).parent / "static" / "admin.html")
+    return FileResponse(STATIC_DIR / "admin.html")
 
 
 def _suggestion_to_dict(r) -> dict:
