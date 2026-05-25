@@ -10,7 +10,11 @@ from tools.front import get_conversation_messages
 from agent.tool_registry import TOOL_SCHEMAS, execute_tool_call
 
 logger = logging.getLogger(__name__)
-client = AsyncOpenAI(api_key=settings.openai_api_key)
+_base_url = settings.minimax_base_url if settings.minimax_api_key else None
+client = AsyncOpenAI(
+    api_key=settings.minimax_api_key or settings.openai_api_key,
+    base_url=_base_url,
+)
 SKILLS_DIR = Path(__file__).parent.parent / "skills"
 
 
@@ -111,44 +115,65 @@ Use the tools available to you to handle the email completely.
     # If classifying, do a two-step: first classify, then load skill and act
     if not existing_state or existing_state.step in ("initial", "done"):
         classification = await _classify(conversation_text, message_body, sender_email, attachment_content)
-        if classification:
-            category = classification.get("category", "unclear")
-            confidence = classification.get("confidence", 1.0)
+        if not classification:
+            return
 
-            # If confidence is low, ask Bobby to confirm classification
-            if confidence < 0.75:
-                from tools.feishu import notify_bobby
-                options = [
-                    {"label": "技术问题(technical)", "category": "technical"},
-                    {"label": "账号问题(account)", "category": "account"},
-                    {"label": "购买咨询(purchase)", "category": "purchase"},
-                    {"label": "教育版(education)", "category": "education"},
-                    {"label": "账单退款(billing)", "category": "billing"},
-                    {"label": "合作洽谈(partnership)", "category": "partnership"},
-                    {"label": "安全问题(security)", "category": "security"},
-                    {"label": "垃圾邮件(spam)", "category": "spam"},
-                    {"label": "法律相关(legal)", "category": "legal"},
-                    {"label": "产品路线(roadmap)", "category": "roadmap"},
-                    {"label": "投资融资(investment)", "category": "investment"},
-                    {"label": "数据导出(data_export)", "category": "data_export"},
-                    {"label": "无法分类(unclear)", "category": "unclear"},
-                ]
-                await notify_bobby(
-                    f"⚠️ 分类置信度低 ({confidence:.0%})\n\n邮件摘要: {classification.get('summary')}\n\nAI 猜测: {category}/{classification.get('sub_type')}",
-                    conversation_id=conversation_id,
-                    card_type="classify",
-                    classification_options=options,
-                    email_summary=classification.get('summary'),
-                )
-                # Save the uncertain classification to state, wait for Bobby's confirmation
-                await state_tool.set_state(
-                    db, conversation_id, category, classification.get('sub_type'),
-                    "awaiting_classification_confirmation", {}, waiting=True, sender_email=sender_email
-                )
-                return  # Stop here, wait for Bobby to click button
+        category = classification.get("category", "unclear")
+        confidence = classification.get("confidence", 1.0)
+        sub_type = classification.get("sub_type", "")
+        summary = classification.get("summary", "").lower()
 
-            skill_md = load_skill(category)
-            system_prompt = f"""You are a Dify support email automation agent.
+        # Spam-like keywords in summary = auto archive (unsolicited cold outreach)
+        spam_keywords = [
+            "seo", "advertising", "广告", "推广", "sponsor", "pricelist", "price list",
+            "pricing list", "视频合作",
+        ]
+        if any(kw in summary for kw in spam_keywords):
+            await state_tool.set_state(db, conversation_id, "spam", None, "done", {}, waiting=False, sender_email=sender_email)
+            from agent.tool_registry import execute_tool_call
+            await execute_tool_call("front_close_conversation", {"conversation_id": conversation_id}, db)
+            return
+
+        # Unclear = auto archive (AI can't determine category)
+        if category == "unclear":
+            await state_tool.set_state(db, conversation_id, "unclear", None, "done", {}, waiting=False, sender_email=sender_email)
+            from agent.tool_registry import execute_tool_call
+            await execute_tool_call("front_close_conversation", {"conversation_id": conversation_id}, db)
+            return
+
+        # Truly uncertain (confidence < 0.3) = notify Bobby
+        if confidence < 0.3:
+            from tools.feishu import notify_bobby
+            options = [
+                {"label": "技术问题(technical)", "category": "technical"},
+                {"label": "账号问题(account)", "category": "account"},
+                {"label": "购买咨询(purchase)", "category": "purchase"},
+                {"label": "教育版(education)", "category": "education"},
+                {"label": "账单退款(billing)", "category": "billing"},
+                {"label": "合作洽谈(partnership)", "category": "partnership"},
+                {"label": "安全问题(security)", "category": "security"},
+                {"label": "垃圾邮件(spam)", "category": "spam"},
+                {"label": "法律相关(legal)", "category": "legal"},
+                {"label": "产品路线(roadmap)", "category": "roadmap"},
+                {"label": "投资融资(investment)", "category": "investment"},
+                {"label": "数据导出(data_export)", "category": "data_export"},
+                {"label": "无法分类(unclear)", "category": "unclear"},
+            ]
+            await notify_bobby(
+                f"🤷 实在无法分类 ({confidence:.0%})\n\n邮件摘要: {classification.get('summary')}\n\nAI 猜测: {category}/{classification.get('sub_type')}",
+                conversation_id=conversation_id,
+                card_type="classify",
+                classification_options=options,
+                email_summary=classification.get('summary'),
+            )
+            await state_tool.set_state(
+                db, conversation_id, category, classification.get('sub_type'),
+                "awaiting_classification_confirmation", {}, waiting=True, sender_email=sender_email
+            )
+            return
+
+        skill_md = load_skill(category)
+        system_prompt = f"""You are a Dify support email automation agent.
 
 This email has been classified as:
 - Category: {category}
@@ -168,26 +193,42 @@ Conversation ID: {conversation_id}
 Sender email: {sender_email}
 {user_history_text}
 """
-            # Handle special flags before main flow
-            flags = classification.get("flags", [])
-            if "emotional" in flags or "legal_threat" in flags:
-                from tools.feishu import notify_bobby
-                await notify_bobby(f"⚠️ 特殊邮件需关注 - 发件人: {sender_email}, 标记: {flags}, 摘要: {classification.get('summary')}")
+        # Handle special flags before main flow
+        flags = classification.get("flags", [])
+        if "emotional" in flags or "legal_threat" in flags:
+            from tools.feishu import notify_bobby
+            await notify_bobby(f"⚠️ 特殊邮件需关注 - 发件人: {sender_email}, 标记: {flags}, 摘要: {classification.get('summary')}")
 
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_content},
-    ]
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ]
 
-    await _run_agent_loop(messages, db, sender_email=sender_email, message_body=message_body)
+        await _run_agent_loop(messages, db, sender_email=sender_email, message_body=message_body)
 
-    # After agent loop, send feedback comment to Front for Bobby to rate the response
-    await _send_feedback_comment(
-        conversation_id=conversation_id,
-        sender_email=sender_email,
-        category=category,
-        all_messages=messages,
-    )
+        # After agent loop, send feedback comment
+        await _send_feedback_comment(
+            conversation_id=conversation_id,
+            sender_email=sender_email,
+            category=category,
+            all_messages=messages,
+        )
+    else:
+        # Continuing conversation with existing state
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ]
+
+        await _run_agent_loop(messages, db, sender_email=sender_email, message_body=message_body)
+
+        # After agent loop, send feedback comment
+        await _send_feedback_comment(
+            conversation_id=conversation_id,
+            sender_email=sender_email,
+            category=existing_state.category,
+            all_messages=messages,
+        )
 
 
 async def _should_fetch_history(conversation_text: str, latest_message: str, sender_email: str) -> bool:
@@ -219,6 +260,7 @@ Answer with only YES or NO."""
 
 
 async def _classify(conversation_text: str, latest_message: str, sender_email: str, attachments: list) -> dict | None:
+    import re
     classify_md = load_skill("classify")
     content = [{"type": "text", "text": f"Classify this support email.\n\nSender: {sender_email}\n\nConversation:\n{conversation_text}\n\nLatest message:\n{latest_message}\n\nReturn ONLY valid JSON matching the output format in the skill instructions."}]
     content.extend(attachments)
@@ -229,13 +271,22 @@ async def _classify(conversation_text: str, latest_message: str, sender_email: s
             {"role": "system", "content": classify_md},
             {"role": "user", "content": content},
         ],
-        response_format={"type": "json_object"},
         temperature=0,
     )
+    raw = response.choices[0].message.content
+    # Try direct JSON parse first
     try:
-        return json.loads(response.choices[0].message.content)
+        return json.loads(raw)
     except Exception:
-        return None
+        pass
+    # MiniMax may wrap JSON in markdown code blocks or add extra text
+    try:
+        match = re.search(r'\{[^{}]*\}', raw.replace('\n', ''))
+        if match:
+            return json.loads(match.group())
+    except Exception:
+        pass
+    return None
 
 
 async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int = 10, sender_email: str = "", message_body: str = "") -> None:

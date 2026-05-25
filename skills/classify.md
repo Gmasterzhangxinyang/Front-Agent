@@ -113,6 +113,19 @@ Read the full email content (including any attachments) and return a JSON classi
 }
 ```
 
+
+### Bobby-Confirmed Example
+**Email summary:** User requesting refund (message in Chinese: 需要退款)
+
+**Classification:**
+```json
+{
+  "category": "billing",
+  "sub_type": "null",
+  "confidence": 1.0
+}
+```
+
 ## Categories and Sub-types
 
 | category | sub_type | When to use |

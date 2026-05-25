@@ -9,7 +9,11 @@ from openai import AsyncOpenAI
 from config import settings
 
 logger = logging.getLogger(__name__)
-client = AsyncOpenAI(api_key=settings.openai_api_key)
+_base_url = settings.minimax_base_url if settings.minimax_api_key else None
+client = AsyncOpenAI(
+    api_key=settings.minimax_api_key or settings.openai_api_key,
+    base_url=_base_url,
+)
 
 SKILL_ANALYZER_PROMPT = """你是 Dify 邮件系统的 Skill 学习引擎。
 
@@ -120,9 +124,14 @@ Bobby 评分：{score}/10
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
-            response_format={"type": "json_object"},
         )
-        result = json.loads(response.choices[0].message.content)
+        raw = response.choices[0].message.content
+        try:
+            result = json.loads(raw)
+        except Exception:
+            import re
+            match = re.search(r'\{[^{}]*\}', raw.replace('\n', ''))
+            result = json.loads(match.group()) if match else {}
     except Exception as e:
         logger.error("Skill analyzer LLM call failed: %s", e)
         result = {

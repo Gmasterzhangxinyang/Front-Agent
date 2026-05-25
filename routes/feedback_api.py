@@ -95,7 +95,7 @@ async def approve_suggestion(suggestion_id: int):
                 f"feat(skills): update {sg.skill_name}.md via skill evolution"
             )
             if not success:
-                return {"status": "error", "message": f"Git push failed: {msg}"}
+                return {"status": "error", "message": f"Write failed: {msg}"}
 
         sg.status = "approved"
         sg.reviewed_by = "bobby"
@@ -161,12 +161,12 @@ async def list_skills():
 
 
 @router.put("/feedback/api/skills/{skill_name}")
-async def update_skill(skill_name: str, content: str = ""):
-    """直接更新 skill 文件并推送到 GitHub"""
+async def update_skill(skill_name: str, body: dict):
+    """直接更新 skill 文件"""
+    content = body.get("content", "")
     skill_path = Path(__file__).parent.parent / "skills" / f"{skill_name}.md"
     if not skill_path.exists():
         raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
-    skill_path.write_text(content, encoding="utf-8")
     success, msg = await update_skill_file(
         skill_name, content,
         f"edit: manual update {skill_name}.md via admin UI"

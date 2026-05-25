@@ -407,7 +407,7 @@ function renderSkills() {
         <div style="background:white">
           <div class="edit-toolbar">
             <span class="title">编辑中...</span>
-            <button class="e-btn save" onclick="saveSkillEdit()">保存并推送</button>
+            <button class="e-btn save" onclick="saveSkillEdit()">保存</button>
             <button class="e-btn cancel" onclick="cancelSkillEdit()">取消</button>
           </div>
           <textarea class="edit-textarea" id="skill-edit-area" autofocus style="min-height:400px">${esc(content)}</textarea>
@@ -473,11 +473,11 @@ async function saveSkillEdit() {
       await load();
     } else {
       alert('保存失败: ' + (d.message || d.error));
-      if (btn) { btn.disabled = false; btn.textContent = '保存并推送'; }
+      if (btn) { btn.disabled = false; btn.textContent = '保存'; }
     }
   } catch(e) {
     alert('保存失败: ' + e.message);
-    if (btn) { btn.disabled = false; btn.textContent = '保存并推送'; }
+    if (btn) { btn.disabled = false; btn.textContent = '保存'; }
   }
 }
 

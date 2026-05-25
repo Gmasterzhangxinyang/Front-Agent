@@ -46,7 +46,7 @@ Handle questions about purchasing Dify plans, pricing, and reseller/agent inquir
 
 ### reseller
 1. Call `front_create_draft` with "forwarding to partnerships team" template
-2. Call `front_forward_to_partnerships` with conversation_id and summary (1-2 sentence summary of the user's inquiry) — this creates a draft email to the partnerships team (赵晗青 + 赵雅雯) for Bobby to review before sending
+2. Call `front_forward_to_partnerships` with conversation_id and summary (1-2 sentence summary of the user's inquiry)
 
 ## Reply Templates
 
@@ -82,5 +82,39 @@ Thank you for your interest in Dify's paid plans!
 You can find a full comparison of our plans on our pricing page:
 👉 https://dify.ai/pricing
 
-...
+If you have specific questions about which plan might suit your needs best, feel free to reply and let us know a bit more about your use case — we'll be happy to advise.
+
+Best regards,
+Dify Support Team
+```
+
+### No promo code available
+```
+Dear [User's Name / Valued Customer],
+
+Thank you for reaching out!
+
+At this time, we don't have promotional codes available for Dify plans. However, we do offer the following options:
+
+- **Free Sandbox plan**: You can explore Dify at no cost to get started
+- **Education discount**: If you're affiliated with a higher education institution, you may qualify for a 100% discount on the Pro plan — learn more and apply at https://dify.ai/pricing#education
+
+For other discount programs or special offers, please feel free to reply and we'll see what we can do.
+
+Best regards,
+Dify Support Team
+```
+
+### Reseller / agent inquiry
+```
+Dear [User's Name / Valued Customer],
+
+Thank you for reaching out about partnership or reseller opportunities with Dify!
+
+We've received your inquiry and have forwarded it to our partnerships team for review. A team member will be in touch with you shortly.
+
+If you have any immediate questions in the meantime, feel free to reply.
+
+Best regards,
+Dify Support Team
 ```

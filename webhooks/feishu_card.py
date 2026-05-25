@@ -422,9 +422,8 @@ async def _get_state_summary(conversation_id: str) -> str:
 
 
 async def _append_classify_example(email_summary: str, category: str, sub_type: str | None) -> None:
-    """Append a new confirmed example to classify.md and push to GitHub."""
+    """Append a new confirmed example to classify.md (local only, no git push)."""
     from pathlib import Path
-    from services.file_git import update_skill_file
     classify_path = Path(__file__).parent.parent / "skills" / "classify.md"
     if not classify_path.exists():
         return
@@ -443,15 +442,11 @@ async def _append_classify_example(email_summary: str, category: str, sub_type: 
 ```
 """
     content = classify_path.read_text(encoding="utf-8")
-    # Insert before the Categories table
     insert_marker = "## Categories and Sub-types"
     if insert_marker in content:
         new_content = content.replace(insert_marker, example + "\n" + insert_marker)
-        await update_skill_file(
-            "classify",
-            new_content,
-            f"feat(classify): add Bobby-Confirmed example for {category}/{sub_type}"
-        )
+        classify_path.write_text(new_content, encoding="utf-8")
+        logger.info(f"Appended classify example: {category}/{sub_type}")
 
 
 async def _generate_closing_draft(conversation_id: str) -> None:
@@ -464,9 +459,13 @@ async def _generate_closing_draft(conversation_id: str) -> None:
     all_messages = await get_conversation_messages(conversation_id)
     conversation_text = build_conversation_text(all_messages)
 
-    client = AsyncOpenAI(api_key=settings.openai_api_key)
+    _base_url = settings.minimax_base_url if settings.minimax_api_key else None
+    client = AsyncOpenAI(
+        api_key=settings.minimax_api_key or settings.openai_api_key,
+        base_url=_base_url,
+    )
     resp = await client.chat.completions.create(
-        model="gpt-4o",
+        model=settings.openai_model,
         messages=[
             {
                 "role": "system",

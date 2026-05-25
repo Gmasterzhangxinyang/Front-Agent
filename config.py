@@ -6,9 +6,11 @@ class Settings(BaseSettings):
     front_api_token: str
     front_webhook_secret: str = ""
 
-    # OpenAI
+    # OpenAI / MiniMax (OpenAI-compatible)
     openai_api_key: str
     openai_model: str = "gpt-4o"
+    minimax_api_key: str = ""
+    minimax_base_url: str = "https://api.minimax.chat/v1"
 
     # Linear
     linear_api_key: str
@@ -45,8 +47,11 @@ class Settings(BaseSettings):
     # Marketing inbox (use inbox name from Front, e.g. "Marketing")
     marketing_inbox_name: str = ""    # 市场团队邮箱
 
+    # Security inbox (e.g. "Security")
+    security_inbox_name: str = ""    # 安全团队邮箱
+
     # Community / Partnership regional routing
-    yawen_email: str = ""                # 赵雅雯邮箱（亚太区接口人）
+    yawen_email: str = ""                # 赵雅雯邮箱（亚太区接口人）yawen@dify.ai
     marudan_kj_email: str = ""          # 日本区 marudan.kj@dify.ai
     lushachen_email: str = ""            # CN & APAC lushachen@dify.ai
     byron_email: str = ""               # CN & APAC byron@dify.ai

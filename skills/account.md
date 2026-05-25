@@ -1,5 +1,6 @@
 # Skill: Account Issues
 
+
 ## Purpose
 Handle account-related requests: login issues, account deletion, transfer, email change, anomalies, hacked accounts, and merge requests.
 

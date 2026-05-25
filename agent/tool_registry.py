@@ -105,6 +105,20 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "front_forward_to_security",
+            "description": "Move the conversation to the security inbox in Front. Use the inbox name as shown in Front (e.g. 'Security'). This is for security-related reports and concerns.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "conversation_id": {"type": "string"},
+                },
+                "required": ["conversation_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "front_forward_to_investment",
             "description": "Create a draft email forwarding the conversation to Claudia Liu (刘景媛) for investment/investor relations inquiries. The draft will be created for Bobby to review before sending.",
             "parameters": {
@@ -405,6 +419,21 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
                 f"[AI] Marketing type email - moved to marketing inbox. Summary: {summary}"
             )
         return "moved_to_marketing" if ok else "move_failed"
+
+    elif tool_name == "front_forward_to_security":
+        conversation_id = args["conversation_id"]
+        if not settings.security_inbox_name:
+            return "forward_failed: security_inbox_name not configured"
+        ok = await front.move_conversation_to_inbox(
+            conversation_id,
+            settings.security_inbox_name
+        )
+        if ok:
+            await front.add_comment(
+                conversation_id,
+                f"[AI] Security concern - moved to security inbox."
+            )
+        return "moved_to_security" if ok else "move_failed"
 
     elif tool_name == "front_add_comment":
         ok = await front.add_comment(args["conversation_id"], args["body"])

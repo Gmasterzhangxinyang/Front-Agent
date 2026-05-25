@@ -77,3 +77,19 @@
   - 更新 agent/tool_registry.py - 添加 front_forward_to_investment 工具
   - 更新 agent/orchestrator.py - 低置信度时添加 investment 选项
   - 更新 config.py - 添加 claudia_email 配置项
+
+## 2026-05-25
+- [fix] start.sh now loads .env with `set -a/source` before starting uvicorn, supports local (PORT defaults to 8000) and Railway (PORT from env)
+- [fix] 切换 OpenAI → MiniMax：服务器在上海无法访问 OpenAI，改为使用 MiniMax OpenAI兼容API (agent/orchestrator.py, services/skill_analyzer.py, webhooks/feishu_card.py, config.py, .env)
+  - MiniMax API: https://api.minimax.chat/v1, 模型: MiniMax-M2.7
+  - 当 MINIMAX_API_KEY 配置时优先使用 MiniMax，否则回退 OpenAI
+- [fix] category 未定义报错：`_send_feedback_comment` 调用移到分类分支内，非初始状态的对话从 existing_state 读取 category（agent/orchestrator.py）
+- [fix] 附件 MIME 类型错误：非图片附件（PDF/Word等）不再传给 LLM，只处理图片类型（tools/attachments.py）
+- [fix] MiniMax JSON 解析：去掉 `response_format=json_object`，添加 markdown JSON 提取兼容（agent/orchestrator.py, services/skill_analyzer.py）
+- [feat] 配置公网 URL STREAMLIT_URL=http://124.220.5.97:8080，feedback 链接不再跳 localhost
+- [fix] 低置信 spam/unclear 邮件直接 archive，不跑 agent loop 也不打扰 Bobby（agent/orchestrator.py）
+- [fix] purchase.md 截断修复：补全 pro_team/no_promo_code/reseller 模板（skills/purchase.md）
+- [fix] education.md 逻辑修复：K-12 分支补 state_set done，no_discount 补 awaiting_school_info 后续步骤（skills/education.md）
+- [refactor] 自进化系统去掉 git push：update_skill_file/rollback_skill_file 只写本地文件（services/file_git.py）
+- [fix] 置信度 < 0.3 才通知 Bobby（极低才打扰），其余全自动处理（agent/orchestrator.py）
+- [fix] unclear 分类也直接 archive（agent/orchestrator.py）

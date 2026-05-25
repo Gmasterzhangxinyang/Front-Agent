@@ -63,6 +63,7 @@ Handle education plan applications, rejections, and discount issues.
      - Call `state_set` with step="ticket_created"
    - **K-12 or unaccredited:**
      - Call `front_create_draft` with "not eligible" template
+     - Call `state_set` with step="done"
 
 ### no_discount (edu verified but discount not showing)
 
@@ -70,10 +71,13 @@ Handle education plan applications, rejections, and discount issues.
 1. Check if user mentions they can see the "edu" badge in their account
 2. If they see the edu badge but no discount:
    - Call `front_create_draft` with billing guidance template
+   - Call `state_set` with step="done"
 3. If they don't see the edu badge (not verified):
    - Call `front_create_draft` with "please provide school info" template
    - Call `state_set` with step="awaiting_school_info", waiting=true
-   - Continue with the same logic as `rejected` flow: assess school type, create ticket if eligible, reject if not
+
+**Step: awaiting_school_info** (user replied with school info after no_discount)
+- Follow the same logic as `rejected` → `awaiting_school_info` step above
 
 ## Reply Templates
 
