@@ -120,6 +120,21 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "front_forward_to_legal",
+            "description": "Create a draft email forwarding the conversation to 葛岩 (geyan@dify.ai) for legal threats, lawyer letters, or lawsuit inquiries. The draft will be created for Bobby to review before sending.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "conversation_id": {"type": "string"},
+                    "summary": {"type": "string", "description": "Brief summary of the legal issue (1-2 sentences)"},
+                },
+                "required": ["conversation_id", "summary"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "front_add_comment",
             "description": "Add an internal comment/note to the conversation (not visible to user)",
             "parameters": {
@@ -355,7 +370,20 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         ok = await front.forward_conversation(
             conversation_id,
             settings.claudia_email,
-            None,  # No CC for investment inquiries
+            None,
+            summary
+        )
+        return "forward_draft_created" if ok else "forward_failed"
+
+    elif tool_name == "front_forward_to_legal":
+        conversation_id = args["conversation_id"]
+        summary = args.get("summary", "")
+        if not settings.geyan_email:
+            return "forward_failed: geyan_email not configured"
+        ok = await front.forward_conversation(
+            conversation_id,
+            settings.geyan_email,
+            None,
             summary
         )
         return "forward_draft_created" if ok else "forward_failed"

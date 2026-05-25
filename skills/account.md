@@ -3,14 +3,25 @@
 ## Purpose
 Handle account-related requests: login issues, account deletion, transfer, email change, anomalies, hacked accounts, and merge requests.
 
+## SaaS vs Self-hosted Detection
+- If email footer shows `Current Plan: premium` → self-hosted user
+- If no footer or shows pro/team/sandbox → SaaS user
+- If unclear → assume SaaS
+
+---
+
 ## Steps by Sub-type
 
 ### cant_login (can't log in / not receiving verification code)
-1. Call `front_create_draft` with the "investigating" template
-2. Call `feishu_notify_bobby` with message: "账号登录问题，请联系李敏查询。用户邮箱: {the actual sender email address from the conversation}. 对话ID: {the actual conversation_id}"
-   - IMPORTANT: You MUST substitute the real sender email and conversation_id values — do NOT leave placeholders
-3. Call `state_set` with step="notified_bobby", payload={"sender_email": sender_email}
-4. Leave conversation open (Bobby will follow up manually)
+
+**SaaS user:**
+1. Call `linear_create_ticket` with title "Account login issue - [email]" and description
+2. Call `front_reply_with_template`
+3. Call `front_close_conversation`
+
+**Self-hosted user:**
+1. Call `front_reply_with_template`
+2. Call `front_close_conversation`
 
 ### delete_account
 **Step: initial**
@@ -21,16 +32,12 @@ Handle account-related requests: login issues, account deletion, transfer, email
 **Step: awaiting_identity_verification** (user has replied)
 1. Check if user's reply confirms identity (sent from original email, or provided proof)
 2. If confirmed:
-   - Call `linear_create_ticket` with conversation_id, title "Account deletion request - [email]" and description including account email, reason, user's explanation summary
-   - Use the URL returned from `linear_create_ticket` in the next step
-   - Call `feishu_notify_bobby` with: "请转告张婉清处理账号删除工单。用户: [email]. Linear: [url from previous step]"
+   - Call `linear_create_ticket` with conversation_id, title "Account deletion request - [email]" and description
    - Call `front_create_draft` with "received, forwarded to team" template
    - Call `state_set` with step="ticket_created"
 3. If not confirmed: Call `front_create_draft` asking again politely
 
-**Note on refund**: If user also mentions refund, after creating the Linear ticket, also follow billing/refund steps (ask for refund details, then assign to 徐小茜)
-
-### transfer_account
+### transfer_account / change_email
 **Step: initial**
 1. First check if user mentions they can still log in to their account:
    - **If user can log in**: Call `front_create_draft` with self-service transfer template
@@ -39,37 +46,41 @@ Handle account-related requests: login issues, account deletion, transfer, email
 **Step: awaiting_identity_verification**
 1. If confirmed:
    - Call `linear_create_ticket` with conversation_id, title "Account transfer request - [original email] → [new email]" and description
-   - Use the URL returned from `linear_create_ticket` in the next step
-   - Call `feishu_notify_bobby` with: "请转告张婉清处理账号转移工单。原邮箱: [email]. Linear: [url from previous step]"
    - Call `front_create_draft` with "received, forwarded to team" template
    - Call `state_set` with step="ticket_created"
 
-### change_email → handled by transfer_account flow (same process)
-
 ### account_anomaly (quota wrong, plan changed unexpectedly)
-1. Call `linear_create_ticket` with conversation_id, title "Account anomaly - [email]" and description including email, issue description, time
-2. Use the URL returned from `linear_create_ticket` in the next step
-3. Call `feishu_notify_bobby` with: "请转告张婉清处理账号异常工单。用户: [email]. Linear: [url from previous step]"
-3. Call `front_create_draft` with "received, forwarded to team" template
-4. Call `state_set` with step="ticket_created"
+
+**SaaS user:**
+1. Call `linear_create_ticket` with conversation_id, title "Account anomaly - [email]" and description
+2. Call `front_create_draft` with "received, forwarded to team" template
+3. Call `state_set` with step="ticket_created"
+
+**Self-hosted user:**
+1. Call `front_reply_with_template`
+2. Call `front_close_conversation`
 
 ### account_hacked
+
+**SaaS user:**
 1. Call `linear_create_ticket` with conversation_id, title "Account compromised - [email]" and description
-2. Use the URL returned from `linear_create_ticket` in the next step
-3. Call `feishu_notify_bobby` with: "⚠️ 账号被盗报告，请立即关注。用户: [email]. Linear: [url from previous step]"
-3. Call `front_create_draft` with "received, investigating urgently" template
-4. Call `state_set` with step="ticket_created"
+2. Call `front_create_draft` with "received, investigating urgently" template
+3. Call `state_set` with step="ticket_created"
+
+**Self-hosted user:**
+1. Call `front_reply_with_template`
+2. Call `front_close_conversation`
 
 ### merge_accounts
 1. Call `front_create_draft` explaining this feature is not currently available
-2. Call `linear_create_ticket` with title "Feature request: account merge - [email]"
-3. Call `feishu_notify_bobby` with: "用户请求合并账号功能（目前不支持）。已建工单记录需求。"
+
+---
 
 ## Reply Templates
 
 ### Delete account self-service (user can log in)
 ```
-Dear [User's Name / Valued Customer],
+Dear Valued Customer,
 
 Thank you for reaching out.
 
@@ -85,7 +96,7 @@ Dify Support Team
 
 ### Transfer/Change email self-service (user can log in)
 ```
-Dear [User's Name / Valued Customer],
+Dear Valued Customer,
 
 Thank you for reaching out.
 
@@ -98,9 +109,8 @@ Dify Support Team
 ```
 
 ### Identity verification request
-⚠️ 需确认: 验证方式描述是否准确？
 ```
-Dear [User's Name / Valued Customer],
+Dear Valued Customer,
 
 Thank you for contacting Dify Support.
 
@@ -117,24 +127,9 @@ Best regards,
 Dify Support Team
 ```
 
-### Investigating (cant_login)
-⚠️ 需确认: 语气是否合适？
-```
-Dear [User's Name / Valued Customer],
-
-Thank you for reaching out. We're sorry to hear you're having trouble accessing your account.
-
-We've received your request and our team is looking into this for you. We'll get back to you as soon as we have an update.
-
-In the meantime, please also check your spam/junk folder in case the verification email was filtered there.
-
-Best regards,
-Dify Support Team
-```
-
 ### Received, forwarded to team
 ```
-Dear [User's Name / Valued Customer],
+Dear Valued Customer,
 
 Thank you for confirming. We've received your request and have forwarded it to our account management team for processing.
 
@@ -146,15 +141,15 @@ Best regards,
 Dify Support Team
 ```
 
-### Change email self-service
+### Merge accounts — not available
 ```
-Dear [User's Name / Valued Customer],
+Dear Valued Customer,
 
 Thank you for reaching out.
 
-You can change your account email directly within Dify. Please click on your profile avatar → Account → Change Email, and follow the steps provided.
+Unfortunately, account merging is not currently a supported feature on Dify. We've noted your request and will pass it along to our product team for consideration.
 
-If you encounter any issues during the process, feel free to reply and we'll assist you.
+If there's anything else we can help you with, please don't hesitate to ask.
 
 Best regards,
 Dify Support Team
@@ -162,27 +157,13 @@ Dify Support Team
 
 ### Account hacked — urgent acknowledgment
 ```
-Dear [User's Name / Valued Customer],
+Dear Valued Customer,
 
 Thank you for alerting us. We take account security very seriously.
 
 We've escalated your case to our security team and will investigate this urgently. Please also consider changing your password immediately if you still have access to your account.
 
 We'll be in touch as soon as possible.
-
-Best regards,
-Dify Support Team
-```
-
-### Merge accounts — not available
-```
-Dear [User's Name / Valued Customer],
-
-Thank you for reaching out.
-
-Unfortunately, account merging is not currently a supported feature on Dify. We've noted your request and will pass it along to our product team for consideration.
-
-If there's anything else we can help you with, please don't hesitate to ask.
 
 Best regards,
 Dify Support Team
