@@ -55,8 +55,8 @@ class Settings(BaseSettings):
     # Investment / Investor Relations
     claudia_email: str = ""             # 刘景媛 (Claudia) - claudia@dify.ai
 
-    # Database — on Railway, use /data/email_automation.db (persistent volume)
-    database_url: str = "sqlite+aiosqlite:////data/email_automation.db"
+    # Database
+    database_url: str = "sqlite+aiosqlite:////tmp/email_automation.db"
 
     # Base URL for feedback form (set in Railway env vars)
     streamlit_url: str = "http://localhost:8000"

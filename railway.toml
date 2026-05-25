@@ -7,5 +7,3 @@ healthcheckPath = "/health"
 healthcheckTimeout = 120
 restartPolicyType = "on_failure"
 
-[[volumes]]
-mountPath = "/data"
