@@ -376,11 +376,6 @@ function renderFeedbacks() {
         <span class="fb-score ${sc}">${em} ${fb.score??'?'}/10</span>
       </div>
       <div class="fb-date">${fb.created_at?fb.created_at.slice(0,16):''}</div>
-      <div class="fb-text">
-        <div><strong>用户问题：</strong>${esc(fb.user_question||'-')}</div>
-        <div><strong>AI 回答：</strong>${esc(fb.ai_answer||'-')}</div>
-        <div><strong>Bobby 正确回复：</strong>${esc(fb.bobby_corrected_answer||'-')}</div>
-      </div>
     </div>`;
   }).join('');
 }

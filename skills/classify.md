@@ -151,6 +151,7 @@ Read the full email content (including any attachments) and return a JSON classi
 | purchase | reseller | Wants to become reseller or agent |
 | education | rejected | Education plan application rejected |
 | education | no_discount | Edu verified but discount not showing |
+| education | cancel_subscription | Education plan user wants to cancel/not renew |
 | billing | refund | Wants a refund |
 | billing | duplicate_charge | Charged twice |
 | billing | downgrade | Wants to downgrade or cancel subscription |
@@ -168,6 +169,7 @@ Read the full email content (including any attachments) and return a JSON classi
 | legal | null | Lawyer letter, legal threat, lawsuit |
 | roadmap | null | Asking about roadmap or feature release dates |
 | investment | fundraising | Investment inquiries, funding, VC, investor relations |
+| business | enterprise_inquiry | Enterprise plan, sales, business development, demo requests |
 | data_export | null | Requesting export of their personal data |
 | unclear | null | Cannot determine category with confidence |
 

@@ -40,7 +40,13 @@ async def create_draft(conversation_id: str, body: str, author_id: str = None) -
             ri = await c.get(f"{BASE_URL}/conversations/{conversation_id}/inboxes", headers=HEADERS)
             if ri.status_code == 200:
                 results = ri.json().get("_results", [])
-                if results:
+                # Prefer support or hello inbox
+                for r in results:
+                    send_as = r.get("send_as", "")
+                    if send_as in ("support@dify.ai", "hello@dify.ai"):
+                        channel_id = f"alt:address:{send_as}"
+                        break
+                if not channel_id and results:
                     address = results[0].get("address") or results[0].get("send_as")
                     if address:
                         channel_id = f"alt:address:{address}"
@@ -76,20 +82,45 @@ async def create_draft(conversation_id: str, body: str, author_id: str = None) -
 
 async def reply_to_conversation(conversation_id: str, body: str, author_id: str = None) -> bool:
     import logging
+    sender_email = ""
+    channel_id = None
+
     try:
         conv = await get_conversation(conversation_id)
         recipient = conv.get("recipient", {})
         sender_email = recipient.get("handle", "")
-    except Exception:
-        sender_email = ""
+    except Exception as e:
+        logging.error("reply_to_conversation: failed to get conversation: %s", e)
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as c:
+            ri = await c.get(f"{BASE_URL}/conversations/{conversation_id}/inboxes", headers=HEADERS)
+            if ri.status_code == 200:
+                results = ri.json().get("_results", [])
+                # Prefer the inbox with support@dify.ai or hello@dify.ai send_as
+                for r in results:
+                    send_as = r.get("send_as", "")
+                    if send_as in ("support@dify.ai", "hello@dify.ai"):
+                        channel_id = f"alt:address:{send_as}"
+                        break
+                # Fallback to first inbox
+                if not channel_id and results:
+                    address = results[0].get("address") or results[0].get("send_as")
+                    if address:
+                        channel_id = f"alt:address:{address}"
+    except Exception as e:
+        logging.error("reply_to_conversation: failed to get channel_id: %s", e)
 
     html_body = body.replace("\n", "<br>")
     payload = {"body": html_body, "type": "email"}
     if sender_email:
         payload["to"] = [sender_email]
+    if channel_id:
+        payload["channel_id"] = channel_id
     if author_id:
         payload["author_id"] = author_id
-    async with httpx.AsyncClient() as client:
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
         r = await client.post(
             f"{BASE_URL}/conversations/{conversation_id}/messages",
             headers=HEADERS,
@@ -216,7 +247,13 @@ async def forward_conversation_direct(conversation_id: str, to_email: str, cc_em
                 ri = await c.get(f"{BASE_URL}/conversations/{conversation_id}/inboxes", headers=HEADERS)
                 if ri.status_code == 200:
                     results = ri.json().get("_results", [])
-                    if results:
+                    # Prefer support or hello inbox
+                    for r in results:
+                        send_as = r.get("send_as", "")
+                        if send_as in ("support@dify.ai", "hello@dify.ai"):
+                            channel_id = f"alt:address:{send_as}"
+                            break
+                    if not channel_id and results:
                         address = results[0].get("address") or results[0].get("send_as")
                         if address:
                             channel_id = f"alt:address:{address}"

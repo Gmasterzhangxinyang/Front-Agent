@@ -16,10 +16,12 @@ Never skip this step.
 ## Running the server
 
 ```bash
-uvicorn main:app --reload --port 8000
+./start.sh
+# Or manually:
+source .venv/bin/activate && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}
 ```
 
-Deployed on Railway (auto-deploy from GitHub `main` branch). Push to main to deploy.
+Server is self-hosted on a cloud VM (124.220.5.97). PORT is set via .env (default 8080).
 
 ## Architecture
 
@@ -57,6 +59,6 @@ FastAPI app that receives Front webhook events, classifies emails with GPT-4o, a
 - `feishu_notify_bobby` is deduplicated per conversation per agent loop run (only first call goes through)
 - `resolved` action is deduplicated via `_check_and_set_resolved()` to prevent double closing drafts
 
-## Environment variables (set in Railway)
+## Environment variables (set in .env)
 
-`FRONT_API_TOKEN`, `OPENAI_API_KEY`, `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, `FEISHU_BOT_CHAT_ID`, `FEISHU_WEBHOOK_BOBBY`, `FEISHU_WEBHOOK_YONGLE`, `LINEAR_API_KEY`, `LINEAR_TEAM_ID`, `LINEAR_PROJECT_ID`
+`FRONT_API_TOKEN`, `OPENAI_API_KEY`, `MINIMAX_API_KEY`, `MINIMAX_BASE_URL`, `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, `FEISHU_BOT_CHAT_ID`, `FEISHU_WEBHOOK_BOBBY`, `LINEAR_API_KEY`, `LINEAR_TEAM_ID`, `PORT`

@@ -16,12 +16,12 @@ Determine if this is:
 ### 2. Forward based on type
 
 #### For community types (plugins_templates / japan / cn_apac / eu):
-- Call `front_forward_to_community` — creates a forward draft for Bobby to review and send
+- Call `front_forward_to_community` — forwards directly to the appropriate team member
 
 #### For partnership type:
-- Call `front_forward_to_partnerships` — creates a forward draft for Bobby to review and send
+- Call `front_forward_to_partnerships` — forwards directly to 赵晗青 (cc 赵雅雯)
 
-**Important**: Do NOT call `front_create_draft` to reply to the user. Only create the forward draft.
+**Important**: Do NOT call `front_create_draft` to reply to the user. Only forward to the appropriate team member.
 
 ## Regional Routing
 
@@ -33,6 +33,5 @@ Determine if this is:
 | eu | EU | 赵雅雯 | xinruiliu@dify.ai |
 
 ## Bobby's Workflow
-1. AI creates forward draft (no action needed from you yet)
-2. You review and send the draft manually in Front
-3. No automatic reply sent to the user — you decide what to tell them after sending
+1. AI forwards directly to the appropriate team member (no action needed from you)
+2. No automatic reply sent to the user

@@ -35,6 +35,10 @@ async def feishu_card_callback(request: Request):
     if schema == "2.0":
         event_type = body.get("header", {}).get("event_type")
         event_id = body.get("header", {}).get("event_id", "")
+
+        # Handle group chat messages — currently disabled (no draft generation)
+        return {"code": 0}
+
         if event_type != "card.action.trigger":
             logger.info("Feishu non-card event body: %s", body)
             return {"code": 0}
@@ -268,7 +272,155 @@ async def feishu_card_callback(request: Request):
     return {"code": 0}
 
 
-async def _check_and_set_event_id(event_id: str) -> bool:
+# In-memory store for pending drafts awaiting Li Min confirmation
+# Key: chat_id + "_" + message_id, Value: draft body
+_pending_drafts: dict[str, dict] = {}
+
+
+async def _handle_limin_group_reply(chat_id: str, content: str, message_id: str) -> None:
+    """Handle Li Min's reply to bot in group chat."""
+    import json
+    from openai import AsyncOpenAI
+    from config import settings
+    from tools import state as state_tool
+
+    logger.info(f"Processing Li Min's group reply: {content[:200]}")
+
+    try:
+        # Parse content (it's JSON string)
+        msg_data = json.loads(content) if content.startswith('{') else {}
+        text = msg_data.get("text", "") if msg_data else content
+    except Exception:
+        text = content
+
+    # Check if this is a confirmation ("确认发送")
+    pending_key = f"{chat_id}_{message_id}"
+    if pending_key in _pending_drafts:
+        draft_info = _pending_drafts[pending_key]
+        if "确认" in text or "send" in text.lower() or "yes" in text.lower():
+            # Li Min confirmed - send the draft
+            conversation_id = draft_info.get("conversation_id", "")
+            draft_body = draft_info.get("draft", "")
+            if conversation_id and draft_body:
+                from tools.front import reply_to_conversation
+                await reply_to_conversation(conversation_id, draft_body)
+                await _send_group_message(chat_id, f"✅ 已发送回复给用户\n\n内容：\n{draft_body}")
+                del _pending_drafts[pending_key]
+                return
+
+    # Parse Li Min's instruction and find corresponding conversation
+    # She might say something like "帮用户回复：我已收到，请稍候"
+    conversation_id = await _find_conversation_from_limin_message(text)
+    if not conversation_id:
+        # Try to find from recent task notifications
+        await _send_group_message(chat_id, "⚠️ 无法确定对应用户对话，请告诉我用户的邮箱地址")
+        return
+
+    # Get conversation context
+    from tools.front import get_conversation_messages
+    all_messages = await get_conversation_messages(conversation_id)
+    from agent.orchestrator import build_conversation_text
+    conversation_text = build_conversation_text(all_messages)
+
+    # Get sender email
+    sender_email = ""
+    async with AsyncSessionLocal() as db:
+        state = await state_tool.get_state(db, conversation_id)
+        if state:
+            sender_email = state.sender_email or ""
+
+    # Use AI to understand Li Min's instruction and generate a draft
+    _base_url = settings.minimax_base_url if settings.minimax_api_key else None
+    client = AsyncOpenAI(
+        api_key=settings.minimax_api_key or settings.openai_api_key,
+        base_url=_base_url,
+    )
+    resp = await client.chat.completions.create(
+        model=settings.openai_model,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are a Dify customer support assistant. "
+                    "A colleague (李敏) has handled a support issue and wants you to draft a reply to the user. "
+                    f"Original user email: {sender_email}\n\n"
+                    "Based on 李敏's instructions and the conversation history, "
+                    "write a professional email reply in English. "
+                    "Return ONLY the email body text, no subject line. "
+                    "Keep it polite, clear, and under 5 sentences."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"李敏的指示：{text}\n\n对话历史：\n{conversation_text}",
+            },
+        ],
+        temperature=0.3,
+    )
+    draft_body = resp.choices[0].message.content.strip()
+
+    # Store pending draft for confirmation
+    _pending_drafts[pending_key] = {
+        "conversation_id": conversation_id,
+        "draft": draft_body,
+    }
+
+    # Send draft for confirmation
+    await _send_group_message(
+        chat_id,
+        f"📝 草稿已生成，请确认：\n\n{draft_body}\n\n回复「确认」后我将发送给用户。",
+    )
+
+
+async def _find_conversation_from_limin_message(text: str) -> str | None:
+    """Find conversation_id from Li Min's message. Extract email or conversation_id from text."""
+    import re
+    # Look for email pattern
+    email_pattern = r'[\w\.-]+@[\w\.-]+\.\w+'
+    emails = re.findall(email_pattern, text)
+    if emails:
+        email = emails[0]
+        # Look up conversation by email in state
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import select
+            result = await db.execute(
+                select(ConversationState).where(ConversationState.sender_email == email)
+            )
+            state = result.scalar_one_or_none()
+            if state:
+                return state.conversation_id
+    return None
+
+
+async def _send_group_message(chat_id: str, text: str, mentioned_user_ids: list[str] = None) -> bool:
+    """Send a message to the group chat."""
+    from tools.feishu import _get_tenant_token
+    import httpx
+    import json
+
+    token = await _get_tenant_token()
+    if not token:
+        return False
+
+    mentioned_user_ids = mentioned_user_ids or []
+
+    content = json.dumps({"text": text})
+    if mentioned_user_ids:
+        content = json.dumps({
+            "text": text,
+        })
+
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={
+                "receive_id": chat_id,
+                "msg_type": "text",
+                "content": json.dumps({"text": text}),
+            },
+        )
+        return r.status_code == 200
     """Returns True if this event_id was already processed (duplicate). Inserts it if new."""
     try:
         async with AsyncSessionLocal() as db:

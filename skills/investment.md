@@ -13,14 +13,19 @@ Determine if this is:
 - **media_press**: Press inquiries about funding or investment
 
 ### 2. Forward to Claudia
-- Call `front_forward_to_investment` — creates a forward draft to Claudia Liu (claudia@dify.ai) for Bobby to review and send
+- Call `front_forward_to_investment` — forwards directly to Claudia Liu (claudia@dify.ai)
 
-**Important**: Do NOT call `front_create_draft` to reply to the user. Only create the forward draft.
+### 3. Notify Bobby
+- Call `feishu_notify_bobby` with: "📬 投资类邮件已转发\n发件人: [sender_email]\n对话ID: [conversation_id]\n类型: investment\n\n已直接转发至 Claudia Liu (claudia@dify.ai)"
+
+### 4. Mark as done
+- Call `state_set` with step="done" to prevent re-classification
+
+**Important**: Do NOT call `front_create_draft` to reply to the user. Only forward to Claudia.
 
 ### 3. Bobby's Workflow
-1. AI creates forward draft (no action needed from you yet)
-2. You review and send the draft manually in Front
-3. No automatic reply sent to the user — you decide what to tell them after sending
+1. AI forwards directly to Claudia and notifies Bobby via Feishu
+2. No automatic reply sent to the user
 
 ## Routing
 

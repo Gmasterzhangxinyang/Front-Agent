@@ -336,6 +336,87 @@ async def notify_yongle(message: str, conversation_id: str = "") -> bool:
     return await notify_bobby(f"[紧急安全-转杨永乐] {message}", conversation_id=conversation_id, card_type="security")
 
 
+async def notify_limin(message: str, conversation_id: str = "") -> bool:
+    """Send a notification to Li Min in the group chat, with @ mention."""
+    if not settings.feishu_limin_open_id:
+        logger.warning("feishu_limin_open_id not configured")
+        return False
+    if not settings.feishu_group_chat_id:
+        logger.warning("feishu_group_chat_id not configured")
+        return False
+    token = await _get_tenant_token()
+    if not token:
+        return False
+
+    # Parse user email from message
+    email = ""
+    if "-" in message:
+        parts = message.split("-", 1)
+        if len(parts) > 1:
+            email = parts[1].strip()
+
+    task_title = message if not email else f"登录问题 - {email}"
+
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={
+                "receive_id": settings.feishu_group_chat_id,
+                "msg_type": "post",
+                "content": json.dumps({
+                    "zh_cn": {
+                        "title": f"📋 {task_title}",
+                        "content": [
+                            [{"tag": "text", "text": f"发件人: {email}"}] if email else [],
+                            [{"tag": "at", "user_id": settings.feishu_limin_open_id}],
+                        ]
+                    }
+                }),
+            },
+        )
+        if r.status_code == 200:
+            return True
+        logger.error("Failed to notify Li Min: %s", r.text)
+        return False
+
+
+async def notify_sybil(message: str) -> bool:
+    """Send a notification to Sybil in the education group, with @ mention."""
+    if not settings.feishu_sybil_open_id:
+        logger.warning("feishu_sybil_open_id not configured")
+        return False
+    if not settings.feishu_education_group_chat_id:
+        logger.warning("feishu_education_group_chat_id not configured")
+        return False
+    token = await _get_tenant_token()
+    if not token:
+        return False
+
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={
+                "receive_id": settings.feishu_education_group_chat_id,
+                "msg_type": "post",
+                "content": json.dumps({
+                    "zh_cn": {
+                        "title": f"📋 教育版通知",
+                        "content": [
+                            [{"tag": "text", "text": message}],
+                            [{"tag": "at", "user_id": settings.feishu_sybil_open_id}],
+                        ]
+                    }
+                }),
+            },
+        )
+        if r.status_code == 200:
+            return True
+        logger.error("Failed to notify Sybil: %s", r.text)
+        return False
+
+
 async def _send_webhook(webhook_url: str, message: str) -> bool:
     if not webhook_url:
         return False

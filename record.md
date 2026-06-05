@@ -1,3 +1,30 @@
+## 2026-06-02
+- [fix] 批量处理过去三天未处理邮件: SEO spam归档(1封)，YouTube合作通知Bobby+回复用户(1封)，教育版取消申请通知Bobby(3封)，跳过已分配给Bobby的技术问题(1封)，忽略Flippa销售类邮件(1封)
+- [fix] business category 邮件被多次处理: "done" 不应视为 reworkable，移除出 _REWORKABLE_STEPS (agent/orchestrator.py)
+
+## 2026-06-01
+
+## 2026-05-29
+- [fix] 修复 front_webhook.py 重复路由定义导致新邮件未处理 (webhooks/front_webhook.py)
+- [fix] reply_to_conversation/create_draft/forward_conversation_direct 优先使用 support/hello 邮箱，避免多 inbox 时用错 Business 地址 (tools/front.py)
+- [feat] investment/partnership/community 转发改用 forward_conversation_direct 直接发送，不再建草稿 (agent/tool_registry.py, skills/partnership.md, skills/investment.md)
+- [fix] handle_email 增加 reworkable 状态检查，防止同一对话被多次分类 (agent/orchestrator.py)
+- [feat] 新增 business category，对企业版/销售相关邮件直接移到 Business inbox，不做 AI 处理 (skills/business.md, skills/classify.md)
+- [feat] investment 转发后增加 feishu_notify_bobby 通知 Bobby (skills/investment.md)
+- [fix] 添加 CLAUDIA_EMAIL 到 .env，解决投资邮件转发失败问题
+- [feat] 自动回复模板增加"我们不会用用户数据训练，security 问题请联系 security@dify.ai" (agent/tool_registry.py)
+
+## 2026-05-27
+- [fix] 只处理发送到 hello@dify.ai 和 support@dify.ai 的邮件，其他收件箱忽略（webhooks/front_webhook.py, tasks/scheduler.py）
+
+- [fix] 将教育版通知人名从"张婉清"改为"张苑晴"（skills/education.md）
+
+## 2026-05-26
+- [fix] 禁用飞书群聊中李敏 @bob小的小猫处理功能（webhooks/feishu_card.py）
+- [fix] 修复飞书群消息处理：chat_type 在 message 对象里而非 event 对象（webhooks/feishu_card.py）
+- [feat] 新增教育版取消订阅处理：cancel_subscription 分类 + 不自动续费说明模板（skills/education.md, skills/classify.md）
+- [feat] 教育版通知改到教育版群 @sybil：新增 feishu_notify_sybil 工具，config.py/.env 配置群ID和sybil open_id（tools/feishu.py, agent/tool_registry.py, skills/education.md）
+
 ## 2026-05-20
 - [feat] 社区/合作区域路由：新增 `front_forward_to_community` 工具，支持 plugins_templates/japan/cn_apac/eu 四种区域路由（agent/tool_registry.py）
 - [feat] 区域路由 Skill 更新：重写 `skills/partnership.md`，支持插件模板/日本/CN&APAC/EU 四种分类和对应转发（skills/partnership.md）
@@ -79,6 +106,7 @@
   - 更新 config.py - 添加 claudia_email 配置项
 
 ## 2026-05-25
+- [fix] CLAUDE.md 更新：Railway部署改为自托管VM (124.220.5.97:8080)，运行命令改为 `./start.sh`，PORT 默认 8080
 - [fix] start.sh now loads .env with `set -a/source` before starting uvicorn, supports local (PORT defaults to 8000) and Railway (PORT from env)
 - [fix] 切换 OpenAI → MiniMax：服务器在上海无法访问 OpenAI，改为使用 MiniMax OpenAI兼容API (agent/orchestrator.py, services/skill_analyzer.py, webhooks/feishu_card.py, config.py, .env)
   - MiniMax API: https://api.minimax.chat/v1, 模型: MiniMax-M2.7

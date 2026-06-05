@@ -15,4 +15,4 @@ pkill -f "uvicorn main:app" 2>/dev/null || true
 sleep 1
 
 # Start uvicorn on $PORT (Railway) or default 8000 (local)
-exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
+exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --reload

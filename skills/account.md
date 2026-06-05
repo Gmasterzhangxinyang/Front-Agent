@@ -13,16 +13,56 @@ Handle account-related requests: login issues, account deletion, transfer, email
 
 ## Steps by Sub-type
 
-### cant_login (can't log in / not receiving verification code)
+### cant_login (can't log in)
 
-**SaaS user:**
-1. Call `linear_create_ticket` with title "Account login issue - [email]" and description
-2. Call `front_reply_with_template`
-3. Call `front_close_conversation`
+**Step: initial**
+1. Check if user is an education/school email user (e.g., .ac.jp, .edu, .edu.cn, .ac.uk, etc.)
+2. If user IS an edu user AND mentions can't receive verification code:
+   - Call `front_create_draft` with "edu email expired check" template (ask if school email has expired, e.g. graduated)
+   - Call `state_set` with step="awaiting_email_expired_confirmation", sub_type="cant_login"
+3. If user mentions they are a Pro/Team user (non-edu):
+   - Call `front_create_draft` with "processing, please wait" template
+   - Call `feishu_notify_limin` with message "付费用户登录问题 - [email]"
+   - Call `state_set` with step="bobby_forwarded", sub_type="cant_login"
+4. If user is NOT paid or unclear:
+   - Call `front_create_draft` asking if they are a Pro/Team user, noting this is a paid feature
+   - Call `state_set` with step="awaiting_paid_confirmation", sub_type="cant_login"
 
-**Self-hosted user:**
-1. Call `front_reply_with_template`
-2. Call `front_close_conversation`
+**Step: awaiting_email_expired_confirmation** (edu user replied about email expiration)
+1. Check user's reply — did they confirm their school email has expired (e.g., graduated)?
+2. If YES (email expired):
+   - Call `front_create_draft` with identity verification request template (need proof of original email ownership)
+   - Call `state_set` with step="awaiting_identity_verification", sub_type="email_expired_graduated"
+3. If NO (email still works, issue is elsewhere):
+   - Call `feishu_notify_limin` with message "edu用户登录问题(非邮箱过期) - [email]"
+   - Call `state_set` with step="bobby_forwarded", sub_type="cant_login"
+
+**Step: awaiting_paid_confirmation** (user replied about paid status)
+1. Check user's reply — do they confirm they are a Pro/Team user?
+2. If YES (paid user):
+   - Call `front_create_draft` with "processing, please wait" template
+   - Call `feishu_notify_limin` with message "付费用户登录问题 - [email]"
+   - Call `state_set` with step="bobby_forwarded", sub_type="cant_login"
+3. If NO (free user):
+   - Check if email footer shows `Current Plan: premium` → self-hosted user:
+     - Call `front_create_draft` with self-hosted can't help template
+     - Call `state_set` with step="done", sub_type="cant_login"
+   - Otherwise → SaaS free user:
+     - Call `front_create_draft` with "processing, please wait" template
+     - Call `feishu_notify_limin` with message "免费SaaS用户登录问题 - [email]"
+     - Call `state_set` with step="bobby_forwarded", sub_type="cant_login"
+
+**登录问题可能的原因 (for AI to determine sub-type):**
+- 收不到验证码
+- 忘记密码
+- 邮箱过期/失效（毕业等）
+- 账号被封/黑名单
+- 技术故障
+
+**For email expiration issues (邮箱过期/失效):**
+- 需要用户证明原邮箱是本人的（发送确认邮件或提供证明）
+- 验证后建 Linear 工单：title "邮箱失效/过期 - [原邮箱] → [新邮箱]", type: account transfer
+- 通知 Bobby
 
 ### delete_account
 **Step: initial**
@@ -151,6 +191,47 @@ Thank you for reaching out.
 Unfortunately, account merging is not currently a supported feature on Dify. We've noted your request and will pass it along to our product team for consideration.
 
 If there's anything else we can help you with, please don't hesitate to ask.
+
+Best regards,
+Dify Support Team
+```
+
+### Self-hosted can't help
+```
+Dear Valued Customer,
+
+Thank you for reaching out. For self-hosted deployments, account and login issues need to be managed by your own team as Dify does not have access to your self-hosted instance.
+
+If you have any other questions, feel free to reach out.
+
+Best regards,
+Dify Support Team
+```
+
+### Login troubleshooting (SaaS user - not verification code)
+```
+Dear Valued Customer,
+
+Thank you for reaching out. To help you with your login issue, please try the following:
+
+1. Check your spam/junk folder for any emails from Dify
+2. Make sure you're using the correct email address associated with your Dify account
+3. Try clearing your browser cache and cookies, then attempt to log in again
+4. If you're using a corporate email, make sure Dify emails aren't blocked by your organization's email filter
+
+If the issue persists after trying these steps, please let us know and we'll assist you further.
+
+Best regards,
+Dify Support Team
+```
+
+### Processing, please wait (for SaaS users)
+```
+Dear Valued Customer,
+
+Thank you for contacting us. We're looking into your account issue and will get back to you shortly.
+
+Please note that our team may need to verify your account status. We appreciate your patience.
 
 Best regards,
 Dify Support Team

@@ -217,6 +217,7 @@ TOOL_SCHEMAS = [
                     "body": {"type": "string", "description": "Ticket description in Chinese, include all relevant details"},
                     "sender_email": {"type": "string", "description": "The sender's email address"},
                     "original_message": {"type": "string", "description": "The original email body from the user"},
+                    "attachment_content": {"type": "string", "description": "Attachment content for PDF/Word files (base64 encoded if image, otherwise text extracted from PDF/Word). For images, provide the base64 string. For PDF/Word, provide extracted text content."},
                 },
                 "required": ["conversation_id", "title", "body"],
             },
@@ -242,6 +243,30 @@ TOOL_SCHEMAS = [
         "function": {
             "name": "feishu_notify_yongle",
             "description": "Send an urgent Feishu notification to 杨永乐 (security emergencies)",
+            "parameters": {
+                "type": "object",
+                "properties": {"message": {"type": "string"}},
+                "required": ["message"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "feishu_notify_limin",
+            "description": "Send a Feishu notification to 李敏 (account verification, blacklist queries)",
+            "parameters": {
+                "type": "object",
+                "properties": {"message": {"type": "string"}},
+                "required": ["message"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "feishu_notify_sybil",
+            "description": "Send a Feishu notification to Sybil in the education group (education plan notifications)",
             "parameters": {
                 "type": "object",
                 "properties": {"message": {"type": "string"}},
@@ -336,13 +361,13 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         summary = args.get("summary", "")
         if not settings.zhaohq_email:
             return "forward_failed: zhaohq_email not configured"
-        ok = await front.forward_conversation(
+        ok = await front.forward_conversation_direct(
             conversation_id,
             settings.zhaohq_email,
             settings.zhaoyawen_email if settings.zhaoyawen_email else None,
             summary
         )
-        return "forward_draft_created" if ok else "forward_failed"
+        return "forwarded" if ok else "forward_failed"
 
     elif tool_name == "front_forward_to_community":
         conversation_id = args["conversation_id"]
@@ -373,21 +398,21 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         if not to_email:
             return f"forward_failed: to_email not configured for region {region}"
 
-        ok = await front.forward_conversation(conversation_id, to_email, cc_email, summary)
-        return "forward_draft_created" if ok else "forward_failed"
+        ok = await front.forward_conversation_direct(conversation_id, to_email, cc_email, summary)
+        return "forwarded" if ok else "forward_failed"
 
     elif tool_name == "front_forward_to_investment":
         conversation_id = args["conversation_id"]
         summary = args.get("summary", "")
         if not settings.claudia_email:
             return "forward_failed: claudia_email not configured"
-        ok = await front.forward_conversation(
+        ok = await front.forward_conversation_direct(
             conversation_id,
             settings.claudia_email,
             None,
             summary
         )
-        return "forward_draft_created" if ok else "forward_failed"
+        return "forwarded" if ok else "forward_failed"
 
     elif tool_name == "front_forward_to_legal":
         conversation_id = args["conversation_id"]
@@ -457,6 +482,8 @@ Please note that your use of Dify is permitted without additional commercial lic
 
 For efficient processing, we may be unable to respond to inquiries where the sender's identity cannot be verified. If you are a Dify partner, please contact us through your established partner channels.
 
+Regarding data privacy: Dify does not use any user data or conversation content to train our models. If you have any security-related questions or concerns, please contact security@dify.ai directly.
+
 Best regards,
 
 The Dify Support Team"""
@@ -476,12 +503,15 @@ The Dify Support Team"""
         body = args["body"]
         sender_email = args.get("sender_email", "")
         original_message = args.get("original_message", "")
-        if sender_email or original_message:
+        attachment_content = args.get("attachment_content", "")
+        if sender_email or original_message or attachment_content:
             body += "\n\n---"
             if sender_email:
                 body += f"\n\n**发件人：** {sender_email}"
             if original_message:
                 body += f"\n\n**邮件原文：**\n{original_message}"
+            if attachment_content:
+                body += f"\n\n**附件内容：**\n{attachment_content}"
         result = await linear.create_ticket(args["title"], body)
         if result:
             url, identifier = result
@@ -502,6 +532,14 @@ The Dify Support Team"""
             args["message"],
             conversation_id=args.get("conversation_id", ""),
         )
+        return "notified" if ok else "notify_failed"
+
+    elif tool_name == "feishu_notify_limin":
+        ok = await feishu.notify_limin(args["message"])
+        return "notified" if ok else "notify_failed"
+
+    elif tool_name == "feishu_notify_sybil":
+        ok = await feishu.notify_sybil(args["message"])
         return "notified" if ok else "notify_failed"
 
     elif tool_name == "state_set":

@@ -5,7 +5,7 @@ from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 from config import settings
 from tools import state as state_tool
-from tools.attachments import fetch_attachments_as_base64
+from tools.attachments import fetch_attachments_as_base64, fetch_attachments_as_text
 from tools.front import get_conversation_messages
 from agent.tool_registry import TOOL_SCHEMAS, execute_tool_call
 
@@ -41,9 +41,20 @@ async def handle_email(
 ) -> None:
     existing_state = await state_tool.get_state(db, conversation_id)
 
-    # Terminal states set by Bobby via Feishu card — do not re-process.
-    # A subsequent Front webhook (e.g. a reply notification) must not overwrite
-    # a forwarded/resolved state or trigger a new Feishu card notification.
+    # Only re-work if conversation is truly new (initial) or waiting for user input (awaiting_*)
+    # "done" is terminal — a conversation that finished processing should not be
+    # re-triggered simply because Front generated a new event_id (e.g. after
+    # moving to another inbox).
+    # Note: awaiting_classification_confirmation IS reworkable because Bobby's
+    # confirmation needs to resume the agent loop.
+    _REWORKABLE_STEPS = {"initial", "awaiting_classification_confirmation"}
+    if existing_state and existing_state.step not in _REWORKABLE_STEPS:
+        logger.info(
+            "Skipping handle_email for conv %s — already in step '%s' (category=%s)",
+            conversation_id, existing_state.step, existing_state.category,
+        )
+        return
+
     _TERMINAL_STEPS = {"bobby_forwarded", "bobby_resolved", "bobby_security_forwarded"}
     if existing_state and existing_state.step in _TERMINAL_STEPS:
         logger.info(
@@ -56,8 +67,10 @@ async def handle_email(
     all_messages = await get_conversation_messages(conversation_id)
     conversation_text = build_conversation_text(all_messages)
 
-    # Download attachments for vision
+    # Download attachments for vision (images) and text extraction (PDF/Word)
     attachment_content = await fetch_attachments_as_base64(attachments)
+    doc_attachments = await fetch_attachments_as_text(attachments)
+    doc_text = "\n".join([f"[附件: {d['filename']}]\n{d['text']}" for d in doc_attachments]) if doc_attachments else ""
 
     # Check if we need user history (only for new conversations)
     user_history_text = ""
@@ -110,6 +123,8 @@ Use the tools available to you to handle the email completely.
 
     # Build user message content
     user_content = [{"type": "text", "text": f"Full conversation history:\n\n{conversation_text}\n\nLatest message from user:\n{message_body}"}]
+    if doc_text:
+        user_content.append({"type": "text", "text": f"\n\n[Document attachments text:]\n{doc_text}"})
     user_content.extend(attachment_content)
 
     # If classifying, do a two-step: first classify, then load skill and act
@@ -213,6 +228,17 @@ Sender email: {sender_email}
             category=category,
             all_messages=messages,
         )
+
+        # Ensure state is saved even if skill never called state_set
+        # (e.g. billing/refund flow that only uses front_* tools)
+        _current_state = await state_tool.get_state(db, conversation_id)
+        if _current_state is None:
+            await state_tool.set_state(
+                db, conversation_id, category,
+                classification.get("sub_type") if classification else None,
+                "done", {}, waiting=False, sender_email=sender_email,
+            )
+
     else:
         # Continuing conversation with existing state
         messages = [
@@ -371,12 +397,7 @@ async def _send_feedback_comment(
     # Use FastAPI-based feedback form (no Streamlit dependency)
     feedback_url = f"{base_url}/feedback/form?conv={conversation_id}&category={category}"
 
-    comment_body = f"""📋 请评价这条 AI 回复：
-
-用户问题：{last_user_question[:200] if last_user_question else 'N/A'}
-AI 回复：{last_ai_reply[:300] if last_ai_reply else 'N/A'}
-
-👉 [点击评分]({feedback_url})"""
+    comment_body = f"""👉 [点击评分]({feedback_url})"""
     try:
         await front.add_comment(conversation_id, comment_body)
     except Exception as e:

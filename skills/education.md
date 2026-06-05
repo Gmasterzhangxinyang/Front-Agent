@@ -32,7 +32,7 @@ Handle education plan applications, rejections, and discount issues.
          **AI 评估：** <your actual assessment, e.g. "Higher education institution, government-accredited" or "Likely accredited university">
          ```
        - WAIT for `linear_create_ticket` to return the URL before proceeding
-       - Call `feishu_notify_bobby` with: "请转告张婉清审核教育版申请。学校: [school name], 域名: [domain]. Linear: [actual URL returned above]" — replace [actual URL returned above] with the real URL from the previous tool result, never use placeholder text
+       - Call `feishu_notify_sybil` with: "请转告张苑晴审核教育版申请。学校: [school name], 域名: [domain]. Linear: [actual URL returned above]" — replace [actual URL returned above] with the real URL from the previous tool result, never use placeholder text
        - Call `front_create_draft` with "received, forwarding to team" template
        - Call `state_set` with step="ticket_created"
      - **K-12 or unaccredited:**
@@ -58,7 +58,7 @@ Handle education plan applications, rejections, and discount issues.
        **AI 评估：** <your actual assessment, e.g. "Higher education institution, government-accredited" or "Likely accredited university">
        ```
      - WAIT for `linear_create_ticket` to return the URL before proceeding
-     - Call `feishu_notify_bobby` with: "请转告张婉清审核教育版申请。学校: [school name], 域名: [domain]. Linear: [actual URL returned above]" — replace [actual URL returned above] with the real URL from the previous tool result, never use placeholder text
+     - Call `feishu_notify_sybil` with: "请转告张苑晴审核教育版申请。学校: [school name], 域名: [domain]. Linear: [actual URL returned above]" — replace [actual URL returned above] with the real URL from the previous tool result, never use placeholder text
      - Call `front_create_draft` with "received, forwarding to team" template
      - Call `state_set` with step="ticket_created"
    - **K-12 or unaccredited:**
@@ -78,6 +78,38 @@ Handle education plan applications, rejections, and discount issues.
 
 **Step: awaiting_school_info** (user replied with school info after no_discount)
 - Follow the same logic as `rejected` → `awaiting_school_info` step above
+
+### email_expired_graduated (graduated, school email no longer works)
+
+**Step: initial**
+1. User mentions they graduated or their school email is no longer accessible
+2. Call `front_create_draft` with identity verification request template (need proof the original email was theirs)
+3. Call `state_set` with step="awaiting_identity_verification", sub_type="email_expired_graduated", waiting=true
+
+**Step: awaiting_identity_verification** (user replied with proof)
+1. Check if user's reply provides sufficient proof (sent from original email, or provided other proof of identity)
+2. If confirmed:
+   - Call `linear_create_ticket` with conversation_id, title "教育版邮箱失效/毕业 - [原邮箱] → [新邮箱]", sender_email (the user's email address), original_message (the user's original email text), and description:
+     ```
+     **原邮箱：** <original school email that no longer works>
+
+     **新邮箱：** <user's new email>
+
+     **原因：** 毕业/邮箱失效
+
+     **证明：** <summary of proof provided by user>
+     ```
+   - Call `feishu_notify_sybil` with message "教育版用户邮箱失效（毕业）- 原邮箱: [原邮箱], 新邮箱: [新邮箱]. 请转交张苑晴处理. Linear: [URL]"
+   - Call `front_create_draft` with "received, forwarding to team" template
+   - Call `state_set` with step="ticket_created"
+3. If not confirmed: Call `front_create_draft` asking again politely for proof
+
+### cancel_subscription (education plan user wants to cancel)
+
+**Step: initial**
+1. User mentions they want to cancel their education plan / subscription
+2. Call `front_create_draft` with no-auto-renew explanation template
+3. Call `state_set` with step="done", sub_type="cancel_subscription"
 
 ## Reply Templates
 
@@ -165,6 +197,39 @@ To apply your education discount, please follow these steps:
 Please note that the discount only applies to the Pro plan with annual billing. If you've selected monthly billing, the discount will not show.
 
 If you've followed these steps and still don't see the discount, please reply and let us know — we'll be happy to investigate further.
+
+Best regards,
+Dify Support Team
+```
+
+### Identity verification request (for email expired / graduated)
+```
+Dear [User's Name / Valued Customer],
+
+Thank you for reaching out. We're sorry to hear that your school email is no longer accessible.
+
+To help you with your account, we need to verify that the school email was previously associated with your Dify account. Could you please provide one of the following:
+
+1. A screenshot or confirmation showing your Dify account was registered with your school email, or
+2. Any other proof that the school email belonged to you
+
+Once we've verified your identity, we'll assist you in updating your account email.
+
+Thank you for your patience and understanding.
+
+Best regards,
+Dify Support Team
+```
+
+### No-auto-renew explanation (for education plan cancel request)
+```
+Dear [User's Name / Valued Customer],
+
+Thank you for reaching out regarding your education plan subscription.
+
+We'd like to confirm that your Dify education plan will NOT automatically renew after its current term ends. There is no need to take any action to cancel — your subscription will simply expire at the end of the billing period without any further charges.
+
+If you have any other questions, please don't hesitate to reach out.
 
 Best regards,
 Dify Support Team

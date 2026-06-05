@@ -39,6 +39,16 @@ class Settings(BaseSettings):
     front_teammate_zhaohq: str = ""     # 赵晗青
     front_teammate_zhaoyawen: str = ""  # 赵雅雯 (cc)
 
+    # 李敏 (账号验证、黑名单查询)
+    feishu_limin_open_id: str = ""
+
+    # Sybil (教育版群)
+    feishu_sybil_open_id: str = ""
+    feishu_education_group_chat_id: str = ""
+
+    # 飞书群聊 ID (任务通知群)
+    feishu_group_chat_id: str = ""
+
     # Partner emails for forwarding
     # ⚠️ 需填写
     zhaohq_email: str = ""             # 赵晗青邮箱
@@ -71,6 +81,7 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 
 settings = Settings()

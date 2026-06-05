@@ -22,6 +22,9 @@ def verify_signature(body: bytes, signature: str) -> bool:
     return hmac.compare_digest(expected_b64, signature)
 
 
+ALLOWED_INBOX_IDS = {"inb_f9fvf"}  # Support only
+
+
 @router.post("/webhook/front")
 async def front_webhook(request: Request):
     body = await request.body()
@@ -58,7 +61,18 @@ async def front_webhook(request: Request):
         sender_email = sender.get("handle") or sender.get("email") or ""
         attachments = message.get("attachments") or []
 
-        logger.info(f"Processing conversation {conversation_id} from {sender_email}")
+        # Check which inboxes this conversation is in - must be in Support/Hello inboxes
+        import httpx
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            ri = await client.get(f"https://api2.frontapp.com/conversations/{conversation_id}/inboxes",
+                                  headers={"Authorization": f"Bearer {settings.front_api_token}"})
+            if ri.status_code == 200:
+                inbox_ids = [i.get("id") for i in ri.json().get("_results", [])]
+                if not any(iid in ALLOWED_INBOX_IDS for iid in inbox_ids):
+                    logger.info(f"Ignoring conversation {conversation_id} - not in Support/Hello inboxes (inboxes: {inbox_ids})")
+                    return {"status": "ignored", "reason": f"conversation not in allowed inbox"}
+            else:
+                logger.warning(f"Could not check inboxes for {conversation_id}, proceeding anyway")
 
         try:
             await handle_email(
