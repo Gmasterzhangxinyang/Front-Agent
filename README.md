@@ -2,38 +2,61 @@
 
 Front 收件箱的邮件自动化处理系统。新邮件到达时，AI 自动分类、回复、创建 Linear 工单、飞书通知，Bobby 通过飞书卡片按钮完成人工兜底。
 
+**核心思路：规则驱动，代码不动** — 所有邮件处理逻辑写在 `skills/` 目录下的 Markdown 文件里，新增分类或修改回复模板只需改 Markdown，无需改代码或重新部署。
+
 ---
 
-## 设计思路
+## 系统架构
 
-### 核心理念：规则驱动，代码不动
+### 技术栈
 
-所有邮件处理逻辑写在 `skills/` 目录下的 Markdown 文件里，而不是硬编码在 Python 中。新增分类、修改回复模板、调整处理流程，只需改 Markdown，不需要改代码或重新部署。
+| 组件 | 技术 |
+|---|---|
+| Web 框架 | FastAPI |
+| AI 模型 | OpenAI GPT-4o / MiniMax（OpenAI 兼容接口） |
+| 数据库 | SQLite（通过 aiosqlite 异步操作） |
+| 定时任务 | APScheduler |
+| 通讯 | 飞书交互卡片 + Front API |
 
 ### 处理流程
 
 ```
-Front 收到邮件
-    │
-    ▼
-/webhook/front  ← Front Rule 触发
-    │
-    ▼
-orchestrator.py
-    │
-    ├─ 1. 拉取完整对话历史（Front API）
-    ├─ 2. 下载附件（支持图片/PDF，传给 GPT-4o Vision）
-    ├─ 3. 分类（classify.md + GPT-4o）
-    │       ├─ 置信度 ≥ 75%  → 直接进入对应 skill 处理
-    │       └─ 置信度 < 75%  → 飞书卡片 12 按钮让 Bobby 选分类
-    │                              └─ Bobby 点击卡片按钮
-    │                                     └─ /webhook/feishu/card
-    │                                            └─ 重新走 skill 处理
-    │
-    ├─ 4. 加载对应 skill（skills/<category>.md）
-    ├─ 5. Agent loop（GPT-4o function calling，最多 10 轮）
-    │       └─ 调用工具：回复邮件 / 创建工单 / 飞书通知 / 转发 / resolve 等
-    └─ 6. 保存对话状态（SQLite）
+用户发送邮件 → Front 收到
+                    │
+                    ▼
+         /webhook/front  ← Front Rule 触发
+                    │
+                    ▼
+         orchestrator.py
+                    │
+        ┌─────────┴─────────┐
+         ▼                   ▼
+  1. 拉取对话历史      2. 下载附件（图片/PDF）
+  （Front API）        （转 base64 供 Vision 模型）
+         │ │
+         ▼                   ▼
+  3. 分类（classify.md + GPT-4o）
+         │
+         ├─ 置信度 ≥ 75%  → 直接加载对应 skill
+         └─ 置信度 < 75%  → 飞书卡片 12 按钮让 Bobby 选分类
+                                │
+                                ▼
+                    Bobby 点击卡片 → /webhook/feishu/card
+                                │
+                                ▼
+                        重新走 skill 处理
+         │
+         ▼
+  4. 加载对应 skill（skills/<category>.md）
+         │
+         ▼
+  5. Agent Loop（GPT-4o function calling，最多 10 轮）
+         │
+         ▼
+  6. 调用工具（回复邮件 / 创建工单 / 飞书通知 / 标记已处理）
+         │
+         ▼
+  7. 保存状态（SQLite）
 ```
 
 ### 多轮对话
@@ -42,44 +65,30 @@ orchestrator.py
 
 ### 10 天自动关闭
 
-等待用户回复超过 10 天的对话，定时任务（每 6 小时检查一次）自动 resolve。
+等待用户回复超过 10 天的对话，定时任务（每 6 小时检查一次）自动 resolve 并生成结案草稿。
 
 ---
 
-## 仓库结构
+## 目录结构
 
 ```
 .
 ├── main.py                  # FastAPI 入口，注册路由，启动定时任务
-├── config.py                # 所有环境变量（pydantic-settings）
+├── config.py                # 所有环境变量（pydantic-settings BaseSettings）
 ├── database.py              # SQLite 异步连接（aiosqlite）
-├── models.py                # 数据库模型（含 skill 相关表）
-├── app_ui.py                # Streamlit UI 入口
-├── pages/
-│   └── feedback.py          # Streamlit 评分表单页（/feedback 路由）
-├── routes/
-│   └── feedback.py         # /feedback/submit API 端点
-├── services/
-│   ├── skill_analyzer.py    # 三层架构分析（semantic/episodic/procedural）
-│   ├── skill_example_store.py
-│   ├── skill_feedback_store.py
-│   ├── skill_suggestion_store.py
-│   ├── skill_version_store.py
-│   └── file_git.py          # 写 skill 文件 + git commit+push
-├── webhooks/
-│   ├── front_webhook.py     # 接收 Front 事件，幂等处理，调用 orchestrator
-│   └── feishu_card.py       # 接收飞书卡片按钮点击，执行对应动作
+├── models.py                # 数据库模型（ConversationState、WebhookEvent 等）
 ├── agent/
 │   ├── orchestrator.py      # 主逻辑：分类 → 加载 skill → agent loop
 │   └── tool_registry.py     # GPT-4o function calling 工具定义 + 执行
+├── webhooks/
+│   ├── front_webhook.py     # 接收 Front 事件，幂等处理，调用 orchestrator
+│   └── feishu_card.py       # 接收飞书卡片按钮点击，执行对应动作
 ├── tools/
 │   ├── front.py             # Front API（回复、resolve、assign、forward、tag）
 │   ├── linear.py            # Linear API（创建工单）
-│   ├── feishu.py            # 飞书 API（发送/更新交互卡片、webhook fallback）
+│   ├── feishu.py            # 飞书 API（发送/更新交互卡片、通知）
 │   ├── state.py             # 对话状态读写（SQLite）
-│   ├── attachments.py       # 下载附件并转 base64（供 GPT-4o Vision）
-│   ├── docs_search.py       # 搜索 docs.dify.ai
-│   └── github.py            # 搜索 langgenius/dify GitHub issues
+│   └── attachments.py       # 下载附件并转 base64（供 GPT-4o Vision）
 ├── skills/                  # ← 修改处理规则只需改这里
 │   ├── classify.md          # 分类规则 + 输出格式（JSON）
 │   ├── technical.md         # 技术/Bug 类
@@ -88,36 +97,48 @@ orchestrator.py
 │   ├── education.md         # 教育版申请
 │   ├── purchase.md          # 购买/询价
 │   ├── partnership.md       # 市场合作/Plugin/代理商
+│   ├── marketing.md # 市场活动/合作
 │   ├── security.md          # 安全相关
 │   ├── legal.md             # 律师函/法律威胁
 │   ├── spam.md              # 广告/推销
 │   ├── roadmap.md           # Roadmap/功能上线咨询
 │   ├── data_export.md       # 数据导出请求
+│   ├── investment.md # 投资/融资咨询
+│   ├── business.md          # 企业版/销售/演示请求
 │   └── unclear.md           # 分类不确定（通用回复 + 通知 Bobby）
-└── tasks/
-    └── scheduler.py         # APScheduler：每 6 小时自动关闭 10 天无回复对话
+├── tasks/
+│   └── scheduler.py         # APScheduler：每 6 小时自动关闭 10 天无回复对话
+└── routes/
+    └── feedback.py          # 用户评分反馈 API
 ```
 
 ---
 
-## 数据库
+## 邮件分类体系
 
-SQLite（Railway 上挂载持久化 Volume 到 `/data/`）。
-
-| 表 | 用途 |
-|---|---|
-| `conversation_states` | 每个对话的分类、处理步骤、等待状态、附加数据 |
-| `webhook_events` | 已处理的 Front event ID，防止重复处理 |
-| `skill_examples` | Bobby 确认的分类例子，用于向量检索提升分类准确率 |
-| `skill_suggestions` | 待审批的 skill 修改建议（diff 格式） |
-| `skill_versions` | skill 文件版本快照，每 3 次更新存一个 |
-| `skill_feedback` | 原始反馈记录（用户问题、AI回答、Bobby纠正、评分），用于未来微调 |
+| category | sub_type | 说明 |
+|---|---|---|
+| technical | workflow_issue / bug_report / how_to / feasibility / api_issue / outage / data_privacy / self_hosted | 技术问题 |
+| account | cant_login / delete_account / transfer_account / change_email / account_anomaly / account_hacked / merge_accounts | 账户问题 |
+| purchase | enterprise / pro_team / promo_code / reseller | 购买询价 |
+| education | rejected / no_discount / cancel_subscription | 教育版 |
+| billing | refund / duplicate_charge / downgrade / invoice / other | 账单退款 |
+| partnership | plugin / marketplace / plugin_takedown | 插件/合作 |
+| marketing | campaign / collaboration / event | 市场活动 |
+| security | general / urgent | 安全事件 |
+| spam | — | 垃圾广告 |
+| legal | — | 法律威胁 |
+| roadmap | — | Roadmap 咨询 |
+| investment | fundraising | 投资咨询 |
+| business | enterprise_inquiry | 企业版/商务 |
+| data_export | — | 数据导出 |
+| unclear | — | 无法分类 |
 
 ---
 
 ## 飞书交互卡片
 
-Bobby 收到的飞书通知是可点击的交互卡片，点击后 POST 到 `/webhook/feishu/card`。
+Bobby 收到的飞书通知是**可点击的交互卡片**，点击后 POST 到 `/webhook/feishu/card`。
 
 | 卡片类型 | 触发场景 | 按钮 |
 |---|---|---|
@@ -128,58 +149,164 @@ Bobby 收到的飞书通知是可点击的交互卡片，点击后 POST 到 `/we
 
 Bobby 点击后，卡片自动更新为"已处理"状态，防止重复操作。
 
----
-
-## Skill 自进化 UI
-
-Bobby 可通过 Streamlit UI 管理 skill 进化和反馈审批。
-
-**功能页面**：
-- **待审批建议**：查看 AI 生成的 skill 修改建议，支持 diff 可视化对比，通过/否决
-- **Skill 列表**：浏览所有 skill 文件内容
-- **版本回退**：回滚到任意历史版本
-- **完整日志**：查看所有原始反馈记录和评分统计
-
-**数据流**：
-- AI 回复后 → Front 评论含评分链接 → Bobby 填评分+建议 → skill_analyzer 分析 → 写 skill_suggestions → UI 审批 → 自动 commit+push
+**卡片更新机制：**
+- Feishu 会发送两次回调（旧格式 + Schema 2.0），两次都会处理，但通过 event_id 幂等去重
+- 卡片 reload 时，系统根据数据库当前状态返回正确卡片，确保 UI 不回退
 
 ---
 
-## 本地启动
+## 数据库表
+
+| 表名 | 用途 |
+|---|---|
+| `conversation_states` | 每个对话的分类、处理步骤、等待状态、附加数据 |
+| `webhook_events` | 已处理的 Front event ID，防止重复处理 |
+| `skill_examples` | Bobby 确认的分类例子，用于向量检索提升分类准确率 |
+| `skill_suggestions` | 待审批的 skill 修改建议（diff 格式） |
+| `skill_versions` | skill 文件版本快照，每 3 次更新存一个 |
+| `skill_feedback` | 原始反馈记录（用户问题、AI回答、Bobby纠正、评分） |
+
+---
+
+## 环境变量
+
+所有配置通过 `.env` 文件注入，常用变量：
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+# Front
+FRONT_API_TOKEN= # Front API Token
+FRONT_WEBHOOK_SECRET=    # Front Webhook 验签密钥
+
+# AI（OpenAI 或 MiniMax）
+OPENAI_API_KEY=         # OpenAI API Key
+OPENAI_MODEL=gpt-4o # 模型名称
+MINIMAX_API_KEY=        # MiniMax API Key（可选）
+MINIMAX_BASE_URL=       # MiniMax API 地址
+
+# Linear
+LINEAR_API_KEY=         # Linear API Key
+LINEAR_TEAM_ID=         # Linear Team ID
+LINEAR_CUS_PROJECT_ID=   # 项目 ID
+
+# 飞书 App（Bobby的小猫）
+FEISHU_APP_ID=          # 飞书应用 ID
+FEISHU_APP_SECRET=      # 飞书应用密钥
+FEISHU_BOT_CHAT_ID=     # 你和机器人的单聊 chat_id
+FEISHU_WEBHOOK_BOBBY=   # Bobby 通知 Webhook
+
+# 飞书群聊 ID（任务通知群）
+FEISHU_GROUP_CHAT_ID=
+
+# 特定人员（用于转发和@通知）
+FEISHU_LIMIN_OPEN_ID=           # 李敏 open_id
+FEISHU_SYBIL_OPEN_ID=           # Sybil open_id（教育版群）
+FEISHU_EDUCATION_GROUP_CHAT_ID= # 教育版群 chat_id
+
+# Linear 成员 ID（用于 assignee）
+LINEAR_USER_YUANQING=    # 张苑晴
+LINEAR_USER_YONGLE=      # 杨永乐
+LINEAR_USER_XIAXI=      # 徐小茜
+
+# Front teammate ID
+FRONT_TEAMMATE_XIAXI=
+FRONT_TEAMMATE_ZHAOHQ=
+FRONT_TEAMMATE_ZHAOYAWEN=
+
+# 特定邮箱（转发用）
+ZHAOHQ_EMAIL=
+ZHAOYAWEN_EMAIL=
+
+# 市场/合作路由
+YAWEN_EMAIL=           # 赵雅雯（亚太区）
+MARUDAN_KJ_EMAIL=     # 日本区
+LUSHACHEN_EMAIL=       # CN & APAC
+BYRON_EMAIL=           # CN & APAC
+XINRUILIU_EMAIL=       # EU
+
+# 投资关系
+CLAUDIA_EMAIL=        # 刘景媛 claudia@dify.ai
+
+# 法律
+GEYAN_EMAIL=          # 葛岩 geyan@dify.ai
+
+# 数据库
+DATABASE_URL=sqlite+aiosqlite:////tmp/email_automation.db
+
+# 端口
+PORT=8080
+```
+
+---
+
+## 快速启动
+
+### 本地开发
+
+```bash
+# 1. 创建虚拟环境
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 2. 安装依赖
 pip install -r requirements.txt
+
+# 3. 配置环境变量
 cp .env.example .env
 # 编辑 .env 填入必填项
+
+# 4. 启动服务
 uvicorn main:app --reload --port 8000
 ```
 
-本地测试 webhook 用 ngrok：
+### 测试 Webhook（本地）
 
 ```bash
+# 用 ngrok 暴露本地端口
 ngrok http 8000
 # 把 https://xxxx.ngrok.io/webhook/front 填入 Front Rule
 ```
 
----
-
-## Railway 部署
+### 生产环境（Railway）
 
 1. 新建项目，连接 GitHub 仓库
-2. 添加 Volume，挂载到 `/data`
+2. 添加 Volume，挂载到 `/data`（持久化 SQLite 数据）
 3. 在 Variables 中填入所有 `.env` 变量
 4. 部署完成后，把 Railway 分配的域名 + `/webhook/front` 填入 Front Rule
 
+### 启动脚本
+
+```bash
+./start.sh
+# 等价于：加载 .env → pkill uvicorn → uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}
+```
+
 ---
 
-## 新增邮件分类
+## 新增或修改邮件分类
+
+### 新增分类
 
 1. 在 `skills/` 下新建 `<类别名>.md`，参考现有文件格式
 2. 在 `skills/classify.md` 的分类表中添加新类别
-3. 无需改代码，无需重新部署（Railway 会在下次 push 时自动更新）
+3. 无需改代码，Railway 会在下次 push 时自动更新
 
-## 修改回复模板
+### 修改回复模板
 
-直接编辑对应的 `skills/<类别>.md`。
+直接编辑对应的 `skills/<类别>.md`，AI 会立即使用新模板。
+
+### Skill 文件格式
+
+每个 skill 文件包含：
+
+- **Instructions**：AI代理的行为指令（用什么工具、如何回复）
+- **Reply Templates**：不同场景的标准回复文案
+- **Escalation Rules**：何时升级/通知人工
+
+---
+
+## 健康检查
+
+```bash
+curl http://<host>:<port>/health
+# 返回 {"status": "ok"}
+```
