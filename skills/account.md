@@ -22,7 +22,7 @@ Handle account-related requests: login issues, account deletion, transfer, email
    - Call `state_set` with step="awaiting_email_expired_confirmation", sub_type="cant_login"
 3. If user mentions they are a Pro/Team user (non-edu):
    - Call `front_create_draft` with "processing, please wait" template
-   - Call `feishu_notify_limin` (email notification compatibility tool) with message "付费用户登录问题 - [email]"
+   - Call `feishu_notify_limin` (Front forwarding compatibility tool) with conversation_id and message "付费用户登录问题 - [email]"
    - Call `state_set` with step="bobby_forwarded", sub_type="cant_login"
 4. If user is NOT paid or unclear:
    - Call `front_create_draft` asking if they are a Pro/Team user, noting this is a paid feature
@@ -34,14 +34,14 @@ Handle account-related requests: login issues, account deletion, transfer, email
    - Call `front_create_draft` with identity verification request template (need proof of original email ownership)
    - Call `state_set` with step="awaiting_identity_verification", sub_type="email_expired_graduated"
 3. If NO (email still works, issue is elsewhere):
-   - Call `feishu_notify_limin` (email notification compatibility tool) with message "edu用户登录问题(非邮箱过期) - [email]"
+   - Call `feishu_notify_limin` (Front forwarding compatibility tool) with conversation_id and message "edu用户登录问题(非邮箱过期) - [email]"
    - Call `state_set` with step="bobby_forwarded", sub_type="cant_login"
 
 **Step: awaiting_paid_confirmation** (user replied about paid status)
 1. Check user's reply — do they confirm they are a Pro/Team user?
 2. If YES (paid user):
    - Call `front_create_draft` with "processing, please wait" template
-   - Call `feishu_notify_limin` (email notification compatibility tool) with message "付费用户登录问题 - [email]"
+   - Call `feishu_notify_limin` (Front forwarding compatibility tool) with conversation_id and message "付费用户登录问题 - [email]"
    - Call `state_set` with step="bobby_forwarded", sub_type="cant_login"
 3. If NO (free user):
    - Check if email footer shows `Current Plan: premium` → self-hosted user:
@@ -49,7 +49,7 @@ Handle account-related requests: login issues, account deletion, transfer, email
      - Call `state_set` with step="done", sub_type="cant_login"
    - Otherwise → SaaS free user:
      - Call `front_create_draft` with "processing, please wait" template
-     - Call `feishu_notify_limin` (email notification compatibility tool) with message "免费SaaS用户登录问题 - [email]"
+     - Call `feishu_notify_limin` (Front forwarding compatibility tool) with conversation_id and message "免费SaaS用户登录问题 - [email]"
      - Call `state_set` with step="bobby_forwarded", sub_type="cant_login"
 
 **登录问题可能的原因 (for AI to determine sub-type):**

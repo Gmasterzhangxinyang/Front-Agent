@@ -86,6 +86,6 @@ async def front_webhook(request: Request):
             logger.error(f"Error handling email {conversation_id}: {e}", exc_info=True)
             # Notify Bobby on unexpected errors
             from tools.feishu import notify_bobby
-            await notify_bobby(f"❌ 邮件处理出错！对话ID: {conversation_id}, 错误: {str(e)[:200]}")
+            await notify_bobby(f"❌ 邮件处理出错！对话ID: {conversation_id}, 错误: {str(e)[:200]}", conversation_id=conversation_id)
 
     return {"status": "ok"}

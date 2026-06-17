@@ -276,7 +276,7 @@ async def add_comment(conversation_id: str, body: str, author_id: str = None) ->
         return r.status_code == 201
 
 
-async def forward_conversation(conversation_id: str, to_email: str, cc_email: str = None, summary: str = "") -> bool:
+async def forward_conversation(conversation_id: str, to_email: str, cc_email: str = None, summary: str = "", label: str = "partnership/community") -> bool:
     """Create a forward draft with the original Front thread included."""
     try:
         channel_id = None
@@ -296,7 +296,7 @@ async def forward_conversation(conversation_id: str, to_email: str, cc_email: st
         if not channel_id:
             logging.error("forward_conversation: channel_id is None, forward will likely fail")
 
-        body = await _build_forward_body(conversation_id, summary, "partnership/community")
+        body = await _build_forward_body(conversation_id, summary, label)
         payload = {
             "to": _email_list(to_email),
             "body": _plain_to_html(body),
@@ -322,7 +322,7 @@ async def forward_conversation(conversation_id: str, to_email: str, cc_email: st
         return False
 
 
-async def forward_conversation_direct(conversation_id: str, to_email: str, cc_email: str = None, summary: str = "") -> bool:
+async def forward_conversation_direct(conversation_id: str, to_email: str, cc_email: str = None, summary: str = "", label: str = "partnership/community") -> bool:
     """Send a forwarded email with the original Front thread included in the body."""
     try:
         channel_id = None
@@ -347,7 +347,7 @@ async def forward_conversation_direct(conversation_id: str, to_email: str, cc_em
         if not channel_id:
             logging.error("forward_conversation_direct: channel_id is None, forward will likely fail")
 
-        body = await _build_forward_body(conversation_id, summary, "partnership/community")
+        body = await _build_forward_body(conversation_id, summary, label)
         payload = {
             "to": _email_list(to_email),
             "body": _plain_to_html(body),

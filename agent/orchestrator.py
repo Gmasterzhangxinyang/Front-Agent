@@ -204,7 +204,7 @@ Sender email: {sender_email}
         flags = classification.get("flags", [])
         if "emotional" in flags or "legal_threat" in flags:
             from tools.feishu import notify_bobby
-            await notify_bobby(f"⚠️ 特殊邮件需关注 - 发件人: {sender_email}, 标记: {flags}, 摘要: {classification.get('summary')}")
+            await notify_bobby(f"⚠️ 特殊邮件需关注 - 发件人: {sender_email}, 标记: {flags}, 摘要: {classification.get('summary')}", conversation_id=conversation_id)
 
         messages = [
             {"role": "system", "content": system_prompt},

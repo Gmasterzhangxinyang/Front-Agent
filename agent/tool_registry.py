@@ -227,12 +227,12 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "feishu_notify_bobby",
-            "description": "Notify Bobby by email with the Front conversation link. No interactive button workflow is used.",
+            "description": "Forward the Front conversation to Bobby through Front with an internal summary.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "message": {"type": "string"},
-                    "conversation_id": {"type": "string", "description": "Front conversation ID, used to include the Front link in the email — REQUIRED, always pass this"},
+                    "conversation_id": {"type": "string", "description": "Front conversation ID, REQUIRED so Front can forward the original thread"},
                 },
                 "required": ["message", "conversation_id"],
             },
@@ -242,11 +242,14 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "feishu_notify_yongle",
-            "description": "Notify 杨永乐 by email for security emergencies.",
+            "description": "Forward the Front conversation to 杨永乐 through Front for security emergencies.",
             "parameters": {
                 "type": "object",
-                "properties": {"message": {"type": "string"}},
-                "required": ["message"],
+                "properties": {
+                    "message": {"type": "string"},
+                    "conversation_id": {"type": "string", "description": "Front conversation ID, REQUIRED so Front can forward the original thread"},
+                },
+                "required": ["message", "conversation_id"],
             },
         },
     },
@@ -254,11 +257,14 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "feishu_notify_limin",
-            "description": "Notify 李敏 by email for account verification or blacklist queries.",
+            "description": "Forward the Front conversation to 李敏 through Front for account verification or blacklist queries.",
             "parameters": {
                 "type": "object",
-                "properties": {"message": {"type": "string"}},
-                "required": ["message"],
+                "properties": {
+                    "message": {"type": "string"},
+                    "conversation_id": {"type": "string", "description": "Front conversation ID, REQUIRED so Front can forward the original thread"},
+                },
+                "required": ["message", "conversation_id"],
             },
         },
     },
@@ -266,11 +272,14 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "feishu_notify_sybil",
-            "description": "Notify Sybil by email for education plan notifications.",
+            "description": "Forward the Front conversation to Sybil through Front for education plan handoff.",
             "parameters": {
                 "type": "object",
-                "properties": {"message": {"type": "string"}},
-                "required": ["message"],
+                "properties": {
+                    "message": {"type": "string"},
+                    "conversation_id": {"type": "string", "description": "Front conversation ID, REQUIRED so Front can forward the original thread"},
+                },
+                "required": ["message", "conversation_id"],
             },
         },
     },
@@ -504,22 +513,28 @@ The Dify Support Team"""
         msg = args["message"]
         conv_id = args.get("conversation_id", "")
         ok = await feishu.notify_bobby(msg, conversation_id=conv_id)
-        return "notified" if ok else "notify_failed"
+        return "forwarded" if ok else "forward_failed"
 
     elif tool_name == "feishu_notify_yongle":
         ok = await feishu.notify_yongle(
             args["message"],
             conversation_id=args.get("conversation_id", ""),
         )
-        return "notified" if ok else "notify_failed"
+        return "forwarded" if ok else "forward_failed"
 
     elif tool_name == "feishu_notify_limin":
-        ok = await feishu.notify_limin(args["message"])
-        return "notified" if ok else "notify_failed"
+        ok = await feishu.notify_limin(
+            args["message"],
+            conversation_id=args.get("conversation_id", ""),
+        )
+        return "forwarded" if ok else "forward_failed"
 
     elif tool_name == "feishu_notify_sybil":
-        ok = await feishu.notify_sybil(args["message"])
-        return "notified" if ok else "notify_failed"
+        ok = await feishu.notify_sybil(
+            args["message"],
+            conversation_id=args.get("conversation_id", ""),
+        )
+        return "forwarded" if ok else "forward_failed"
 
     elif tool_name == "state_set":
         await state_tool.set_state(
