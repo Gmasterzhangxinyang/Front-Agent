@@ -4,6 +4,10 @@ Front-Agent 是一套面向 Dify 支持邮箱的自动化处理服务。它接�
 
 核心设计是把业务策略放在 `skills/*.md`，把外部系统调用放在 `tools/`，把编排逻辑放在 `agent/orchestrator.py`。日常新增分类、调整回复口径或改变升级规则，优先改 skill 文件，而不是改主流程代码。
 
+## 稳定版重构计划
+
+新版本的架构优化计划见 [`docs/stable-agent-v2-plan.md`](docs/stable-agent-v2-plan.md)。该计划合并了分类/skill/工具架构优化，以及最新的 Front 转发人工介入方案。
+
 ## 当前状态
 
 - 主分支：`main`
