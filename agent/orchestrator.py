@@ -152,10 +152,24 @@ This email has been classified as:
 - Flags: {classification.flags}
 - Summary: {classification.summary}
 
+Deterministic route policy selected by Python:
+- Route: {route.name}
+- Customer action policy: {route.customer_action}
+- Internal target: {route.internal_target}
+- Inbox target: {route.inbox_target}
+- State step if handled: {route.state_step}
+- Reason: {route.reason}
+
+Global safety rules:
+- Do not send direct customer replies unless the skill explicitly permits direct send for this exact case.
+- When unsure, create a Front draft or no customer reply; keep the conversation open.
+- Internal handoff must use dedicated allowlisted tools only; never invent recipients or use a generic forwarding tool.
+- Non-spam handoffs must use state step forwarded_keep_open or manual_review, not done.
+
 Skill instructions for this category:
 {skill_md}
 
-Follow the skill instructions exactly. Call the appropriate tools to handle this email.
+Follow the skill instructions within the global safety rules. Call the appropriate tools to handle this email.
 Always be polite, professional, and empathetic in all replies to users.
 Conversation ID: {conversation_id}
 Sender email: {sender_email}
@@ -182,14 +196,23 @@ Sender email: {sender_email}
             all_messages=messages,
         )
 
-        # Ensure state is saved even if skill never called state_set
-        # (e.g. billing/refund flow that only uses front_* tools)
+        # If a skill took actions but never saved state, do not mark the case done.
+        # Missing state means Bobby should review the route/tool outcome.
         _current_state = await state_tool.get_state(db, conversation_id)
         if _current_state is None:
             await state_tool.set_state(
-                db, conversation_id, category,
+                db,
+                conversation_id,
+                category,
                 classification.sub_type,
-                "done", {}, waiting=False, sender_email=sender_email,
+                "failed_needs_review",
+                {
+                    "route": route.name,
+                    "reason": "skill loop completed without state_set",
+                    "summary": classification.summary,
+                },
+                waiting=False,
+                sender_email=sender_email,
             )
 
     else:

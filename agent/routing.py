@@ -112,15 +112,86 @@ def decide_initial_route(
             reason="Marketplace, community, plugin ecosystem, and external cooperation route to marketing@dify.ai.",
         )
 
+    return _skill_route(category, sub_type)
+
+
+def _skill_route(category: str, sub_type: str | None) -> RouteDecision:
+    policies = {
+        "education": (
+            "education_skill_flow",
+            "draft",
+            "sybil@dify.ai",
+            "Education policy decides whether this is eligible review, not-eligible draft, or waiting for school info.",
+        ),
+        "account": (
+            "account_skill_flow",
+            "draft",
+            "bobby@dify.ai",
+            "Account policy may draft acknowledgement and hand off paid/login/blacklist cases to Bobby.",
+        ),
+        "legal": (
+            "legal_review_keep_open",
+            "none",
+            "legal/Bobby path",
+            "Legal policy must not auto-reply to customer; route for human review.",
+        ),
+        "investment": (
+            "investment_forwarded_keep_open",
+            "none",
+            "claudia@dify.ai",
+            "Investment policy forwards internally and keeps the conversation open.",
+        ),
+        "billing": (
+            "billing_skill_flow",
+            "draft",
+            None,
+            "Billing policy drafts or creates tickets; no direct reply by default.",
+        ),
+        "technical": (
+            "technical_skill_flow",
+            "draft",
+            None,
+            "Technical policy drafts by default unless a direct-send rule is explicitly approved.",
+        ),
+        "data_export": (
+            "data_export_skill_flow",
+            "draft",
+            None,
+            "Privacy/data export requests require draft or review by policy.",
+        ),
+        "roadmap": (
+            "roadmap_skill_flow",
+            "draft",
+            None,
+            "Roadmap questions should use draft policy unless explicitly approved.",
+        ),
+        "purchase": (
+            "purchase_skill_flow",
+            "draft",
+            None,
+            "Purchase policy decides whether to draft or route to business/partnership path.",
+        ),
+        "business": (
+            "business_skill_flow",
+            "none",
+            None,
+            "Business policy routes to the correct sales/business inbox without auto-closing.",
+        ),
+    }
+    route_name, customer_action, internal_target, reason = policies.get(
+        category,
+        ("skill_flow", "skill_policy", None, "Route requires skill-specific policy and templates."),
+    )
     return RouteDecision(
-        name="skill_flow",
+        name=route_name,
         handled_before_skill=False,
         state_category=category,
         state_sub_type=sub_type,
         state_step="skill_in_progress",
         keep_open=True,
-        customer_action="skill_policy",
-        reason="Route requires skill-specific policy and templates.",
+        customer_action=customer_action,
+        internal_target=internal_target,
+        reason=reason,
     )
 
 

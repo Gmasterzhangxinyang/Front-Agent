@@ -46,7 +46,8 @@ def test_low_confidence_does_not_control_route():
         "summary": "A technical question with low model confidence",
     })
     route = decide_initial_route(result, "cnv_test", "sender@example.com")
-    assert route.name == "skill_flow"
+    assert route.name == "technical_skill_flow"
+    assert route.customer_action == "draft"
     assert route.tool_name is None
     assert route.state_step == "skill_in_progress"
 
@@ -89,6 +90,56 @@ def test_partnership_forwards_to_marketing():
     assert route.tool_name == "front_forward_to_community"
     assert route.tool_args["summary"] == "Marketplace plugin cooperation request"
     assert route.state_step == "forwarded_keep_open"
+
+
+def test_account_route_has_explicit_policy():
+    result = normalize_classification({
+        "category": "account",
+        "sub_type": "cant_login",
+        "confidence": 0.8,
+        "summary": "Paid user cannot receive verification code",
+    })
+    route = decide_initial_route(result, "cnv_test", "sender@example.com")
+    assert route.name == "account_skill_flow"
+    assert route.customer_action == "draft"
+    assert route.internal_target == "bobby@dify.ai"
+
+
+def test_education_route_has_explicit_policy():
+    result = normalize_classification({
+        "category": "education",
+        "sub_type": "rejected",
+        "confidence": 0.8,
+        "summary": "University education plan review",
+    })
+    route = decide_initial_route(result, "cnv_test", "sender@example.com")
+    assert route.name == "education_skill_flow"
+    assert route.customer_action == "draft"
+    assert route.internal_target == "sybil@dify.ai"
+
+
+def test_handoff_rejects_external_recipient():
+    from tools.handoff import _is_allowed_internal_recipient
+
+    assert _is_allowed_internal_recipient("bobby@dify.ai")
+    assert not _is_allowed_internal_recipient("customer@example.com")
+
+
+def test_generic_front_forward_not_exposed():
+    source = Path("agent/tool_registry.py").read_text()
+    assert '"name": "front_forward"' not in source
+    assert 'tool_name == "front_forward"' not in source
+
+
+def test_tool_registry_does_not_send_direct_customer_replies():
+    source = Path("agent/tool_registry.py").read_text()
+    assert "reply_to_conversation" not in source
+
+
+def test_close_tool_is_not_exposed_to_model():
+    source = Path("agent/tool_registry.py").read_text()
+    schemas_source = source.split("async def execute_tool_call", 1)[0]
+    assert '"name": "front_close_conversation"' not in schemas_source
 
 
 def run_all():

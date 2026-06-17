@@ -46,7 +46,7 @@ Handle account-related requests: login issues, account deletion, transfer, email
 3. If NO (free user):
    - Check if email footer shows `Current Plan: premium` → self-hosted user:
      - Call `front_create_draft` with self-hosted can't help template
-     - Call `state_set` with step="done", sub_type="cant_login"
+     - Call `state_set` with step="draft_created", sub_type="cant_login"
    - Otherwise → SaaS free user:
      - Call `front_create_draft` with "processing, please wait" template
      - Call `front_forward_to_limin` with conversation_id and message "免费SaaS用户登录问题 - [email]"
@@ -98,8 +98,8 @@ Handle account-related requests: login issues, account deletion, transfer, email
 3. Call `state_set` with step="draft_created"
 
 **Self-hosted user:**
-1. Call `front_reply_with_template`
-2. Call `front_close_conversation`
+1. Call `front_create_draft` with self-hosted can't help template
+2. Call `state_set` with step="draft_created", sub_type="cant_login"
 
 ### account_hacked
 
@@ -109,8 +109,8 @@ Handle account-related requests: login issues, account deletion, transfer, email
 3. Call `state_set` with step="draft_created"
 
 **Self-hosted user:**
-1. Call `front_reply_with_template`
-2. Call `front_close_conversation`
+1. Call `front_create_draft` with self-hosted can't help template
+2. Call `state_set` with step="draft_created", sub_type="cant_login"
 
 ### merge_accounts
 1. Call `front_create_draft` explaining this feature is not currently available

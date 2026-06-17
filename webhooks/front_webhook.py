@@ -51,8 +51,6 @@ async def front_webhook(request: Request):
             existing = await db.execute(select(WebhookEvent).where(WebhookEvent.event_id == event_id))
             if existing.scalar_one_or_none():
                 return {"status": "already_processed"}
-            db.add(WebhookEvent(event_id=event_id))
-            await db.commit()
 
         # Extract message data
         message = payload.get("target", {}).get("data", {}) or {}
@@ -70,6 +68,9 @@ async def front_webhook(request: Request):
                 inbox_ids = [i.get("id") for i in ri.json().get("_results", [])]
                 if not any(iid in ALLOWED_INBOX_IDS for iid in inbox_ids):
                     logger.info(f"Ignoring conversation {conversation_id} - not in Support/Hello inboxes (inboxes: {inbox_ids})")
+                    if event_id:
+                        db.add(WebhookEvent(event_id=event_id))
+                        await db.commit()
                     return {"status": "ignored", "reason": f"conversation not in allowed inbox"}
             else:
                 logger.warning(f"Could not check inboxes for {conversation_id}, proceeding anyway")
@@ -85,7 +86,14 @@ async def front_webhook(request: Request):
         except Exception as e:
             logger.error(f"Error handling email {conversation_id}: {e}", exc_info=True)
             # Forward unexpected processing errors to Bobby through Front.
+            # Do not record the webhook event as processed; Front retries should
+            # still have a chance to recover from transient failures.
             from tools.handoff import forward_to_bobby
             await forward_to_bobby(f"❌ 邮件处理出错！对话ID: {conversation_id}, 错误: {str(e)[:200]}", conversation_id=conversation_id)
+            return {"status": "failed", "reason": "handler_error"}
+
+        if event_id:
+            db.add(WebhookEvent(event_id=event_id))
+            await db.commit()
 
     return {"status": "ok"}

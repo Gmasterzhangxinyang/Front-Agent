@@ -37,7 +37,7 @@ Handle education plan applications, rejections, and discount issues.
        - Call `state_set` with step="forwarded_keep_open"
      - **K-12 or unaccredited:**
        - Call `front_create_draft` with "not eligible" template
-       - Call `state_set` with step="done"
+       - Call `state_set` with step="draft_created"
 3. If school info is NOT provided:
    - Call `front_create_draft` with "please provide school info" template
    - Call `state_set` with step="awaiting_school_info", waiting=true
@@ -63,7 +63,7 @@ Handle education plan applications, rejections, and discount issues.
      - Call `state_set` with step="forwarded_keep_open"
    - **K-12 or unaccredited:**
      - Call `front_create_draft` with "not eligible" template
-     - Call `state_set` with step="done"
+     - Call `state_set` with step="draft_created"
 
 ### no_discount (edu verified but discount not showing)
 
@@ -71,7 +71,7 @@ Handle education plan applications, rejections, and discount issues.
 1. Check if user mentions they can see the "edu" badge in their account
 2. If they see the edu badge but no discount:
    - Call `front_create_draft` with billing guidance template
-   - Call `state_set` with step="done"
+   - Call `state_set` with step="draft_created"
 3. If they don't see the edu badge (not verified):
    - Call `front_create_draft` with "please provide school info" template
    - Call `state_set` with step="awaiting_school_info", waiting=true
@@ -109,7 +109,7 @@ Handle education plan applications, rejections, and discount issues.
 **Step: initial**
 1. User mentions they want to cancel their education plan / subscription
 2. Call `front_create_draft` with no-auto-renew explanation template
-3. Call `state_set` with step="done", sub_type="cancel_subscription"
+3. Call `state_set` with step="draft_created", sub_type="cancel_subscription"
 
 ## Reply Templates
 

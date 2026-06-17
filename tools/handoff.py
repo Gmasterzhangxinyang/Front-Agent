@@ -6,10 +6,8 @@ conversation plus an internal summary to configured Dify recipients.
 
 import logging
 
-from config import settings
-from tools import front
-
 logger = logging.getLogger(__name__)
+ALLOWED_INTERNAL_DOMAIN = "@dify.ai"
 
 
 def format_summary(message: str, linear_url: str | None = None, extra: str = "") -> str:
@@ -19,6 +17,11 @@ def format_summary(message: str, linear_url: str | None = None, extra: str = "")
     if extra:
         parts.extend(["", extra.strip()])
     return "\n".join(part for part in parts if part is not None).strip()
+
+
+def _is_allowed_internal_recipient(value: str) -> bool:
+    recipients = [item.strip().lower() for item in value.split(",") if item.strip()]
+    return bool(recipients) and all(item.endswith(ALLOWED_INTERNAL_DOMAIN) for item in recipients)
 
 
 async def forward_to_colleague(
@@ -33,6 +36,11 @@ async def forward_to_colleague(
     if not to_email:
         logger.warning("No colleague forwarding recipient configured for %s", label)
         return False
+    if not _is_allowed_internal_recipient(to_email):
+        logger.error("Refusing %s handoff to non-internal recipient: %s", label, to_email)
+        return False
+    from tools import front
+
     return await front.forward_conversation_direct(
         conversation_id,
         to_email,
@@ -56,6 +64,8 @@ async def forward_to_bobby(
     if email_summary:
         extra_parts.append(f"Email summary: {email_summary}")
 
+    from config import settings
+
     return await forward_to_colleague(
         conversation_id,
         settings.internal_forward_bobby_email,
@@ -65,6 +75,8 @@ async def forward_to_bobby(
 
 
 async def forward_to_limin(message: str, conversation_id: str = "") -> bool:
+    from config import settings
+
     return await forward_to_colleague(
         conversation_id,
         settings.internal_forward_limin_email or settings.internal_forward_bobby_email,
@@ -74,6 +86,8 @@ async def forward_to_limin(message: str, conversation_id: str = "") -> bool:
 
 
 async def forward_to_sybil(message: str, conversation_id: str = "") -> bool:
+    from config import settings
+
     return await forward_to_colleague(
         conversation_id,
         settings.internal_forward_sybil_email,

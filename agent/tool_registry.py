@@ -1,9 +1,12 @@
 import json
+import logging
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from tools import front, linear, handoff, state as state_tool, github, docs_search
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 # Tool schemas for GPT-4o function calling
 TOOL_SCHEMAS = [
@@ -40,22 +43,6 @@ TOOL_SCHEMAS = [
         },
     },
     # front_resolve removed — Bobby handles resolve manually
-    {
-        "type": "function",
-        "function": {
-            "name": "front_forward",
-            "description": "Forward the conversation to another email address",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "conversation_id": {"type": "string"},
-                    "to_email": {"type": "string"},
-                    "cc_email": {"type": "string"},
-                },
-                "required": ["conversation_id", "to_email"],
-            },
-        },
-    },
     {
         "type": "function",
         "function": {
@@ -120,7 +107,7 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "front_forward_to_investment",
-            "description": "Create a draft email forwarding the conversation to Claudia Liu (刘景媛) for investment/investor relations inquiries. The draft will be created for Bobby to review before sending.",
+            "description": "Forward the original Front conversation directly to Claudia Liu (刘景媛) for investment/investor relations inquiries. This is an internal handoff and never emails the customer.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -173,34 +160,6 @@ TOOL_SCHEMAS = [
                     "tag_id": {"type": "string"},
                 },
                 "required": ["conversation_id", "tag_id"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "front_reply_with_template",
-            "description": "Reply to the user with the X template (pre-written template for technical support). Use this for ALL technical category emails. This sends the template directly without draft review.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "conversation_id": {"type": "string"},
-                },
-                "required": ["conversation_id"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "front_close_conversation",
-            "description": "Archive/close the conversation in Front after sending template reply",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "conversation_id": {"type": "string"},
-                },
-                "required": ["conversation_id"],
             },
         },
     },
@@ -334,22 +293,12 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         return "draft_created" if ok else "draft_failed"
 
     if tool_name == "front_reply":
-        # Legacy direct-reply path; normal agent flow creates Front drafts for review
-        ok = await front.reply_to_conversation(args["conversation_id"], args["body"])
-        return "replied" if ok else "reply_failed"
+        logger.warning("Blocked deprecated direct customer reply tool: %s", tool_name)
+        return "blocked_deprecated_direct_reply_tool"
 
     elif tool_name == "front_assign":
         ok = await front.assign_conversation(args["conversation_id"], args["teammate_id"])
         return "assigned" if ok else "assign_failed"
-
-    elif tool_name == "front_forward":
-        ok = await front.forward_conversation(
-            args["conversation_id"],
-            args["to_email"],
-            args.get("cc_email"),
-            args.get("summary", "")
-        )
-        return "forwarded" if ok else "forward_failed"
 
     elif tool_name == "front_forward_to_partnerships":
         conversation_id = args["conversation_id"]
@@ -439,30 +388,8 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         return "comment_added" if ok else "comment_failed"
 
     elif tool_name == "front_reply_with_template":
-        conversation_id = args["conversation_id"]
-        template_body = """Dear Valued Customer,
-
-Thank you for your inquiry. We appreciate your interest in Dify and would like to provide guidance on our support processes.
-
-Priority technical support via "Contact Us" is available only for Dify Cloud Pro and Team subscribers.
-If you are on a Pro or Team plan, please submit your request through Settings → Support → Contact Us in your dashboard.
-When submitting the ticket, please do not remove the subscription verification details, as they are required for us to confirm your account status.
-
-For Sandbox (Free Tier) users, we recommend consulting our comprehensive documentation at docs.dify.ai or submitting technical issues via GitHub at github.com/langgenius/dify/issues.
-
-If you're interested in commercial collaboration or licensing, please email business@dify.ai with your company name, size, and specific use case. For verification purposes, kindly use your corporate email address when making business inquiries.
-
-Please note that your use of Dify is permitted without additional commercial licensing when following our open source license terms and not creating products that directly compete with Dify's services. While not required, we appreciate "Powered by Dify" attribution in your implementations.
-
-For efficient processing, we may be unable to respond to inquiries where the sender's identity cannot be verified. If you are a Dify partner, please contact us through your established partner channels.
-
-Regarding data privacy: Dify does not use any user data or conversation content to train our models. If you have any security-related questions or concerns, please contact security@dify.ai directly.
-
-Best regards,
-
-The Dify Support Team"""
-        ok = await front.reply_to_conversation(conversation_id, template_body)
-        return "template_replied" if ok else "reply_failed"
+        logger.warning("Blocked deprecated direct customer reply tool: %s", tool_name)
+        return "blocked_deprecated_direct_reply_tool"
 
     elif tool_name == "front_close_conversation":
         conversation_id = args["conversation_id"]

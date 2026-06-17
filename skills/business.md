@@ -21,6 +21,6 @@ Emails should be classified as `business` when they contain:
 1. Call `move_conversation_to_inbox` with target inbox "Business" to route the conversation to the Business team
 2. Do NOT reply to the user
 3. Do NOT create any drafts
-4. Call `state_set` with step="done" to mark as handled
+4. Call `state_set` with step="moved_inbox" to record the internal handoff while keeping the conversation open
 
-**Important**: This category requires no further agent action after routing.
+**Important**: This category requires no further agent action after routing, and the conversation remains open for the Business team.

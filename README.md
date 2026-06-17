@@ -155,9 +155,7 @@ LLM 不直接访问外部系统，只能通过 `agent/tool_registry.py` 暴露�
 | 工具 | 用途 |
 |---|---|
 | `front_create_draft` | 在 Front 创建草稿，并添加内部说明 |
-| `front_reply_with_template` | 发送固定技术支持模板 |
-| `front_close_conversation` | 关闭/归档 Front conversation |
-| `front_forward*` | 按合作、社区、投资、法律等路径转发；Marketplace/社区合作统一到 `marketing@dify.ai` |
+| 专用 `front_forward_to_*` | 按 allowlisted 路径转发；Marketplace/社区合作统一到 `marketing@dify.ai` |
 | `front_forward_to_bobby` | 通过 Front 将原始会话和摘要转发给 Bobby；不发送给客户 |
 | `front_forward_to_limin` | 账号/黑名单兼容路径，当前通过 Front 转发给 Bobby；不发送给客户 |
 | `front_forward_to_sybil` | 教育版审核 handoff，通过 Front 转发给 Sybil；不发送给客户 |
@@ -169,6 +167,8 @@ LLM 不直接访问外部系统，只能通过 `agent/tool_registry.py` 暴露�
 | `state_set` | 保存多轮会话状态 |
 | `github_search` | 检索 Dify GitHub issue/PR |
 | `docs_search` | 检索 Dify 官方文档 |
+
+`front_close_conversation` 不暴露给模型，只由 Python 确定性 spam/广告路由内部调用。
 
 ## 状态和定时任务
 
@@ -193,7 +193,7 @@ SQLite 由 SQLAlchemy async 管理，启动时会自动建表。
 
 新版本的人工兜底通知全部通过 Front forward 发送给同事。转发内容包含 AI 摘要、Linear 链接等关键信息，并附带原始 Front conversation 内容。
 
-active code 不再暴露 `feishu_notify_*` 工具名。内部 handoff 统一使用 `front_forward_to_bobby`、`front_forward_to_limin`、`front_forward_to_sybil`，实现位于 `tools/handoff.py`。
+active code 不再暴露 `feishu_notify_*` 工具名，也不再暴露泛用 `front_forward`。内部 handoff 只能走专用 allowlisted 工具：Bobby/Limin 兼容路径、Sybil 教育审核、Marketing 合作承接、Security inbox、Legal/Investment 专用路径。`tools/handoff.py` 对同事邮箱转发做 `@dify.ai` allowlist 校验。
 
 | 通知场景 | Front 转发方式 |
 |---|---|
