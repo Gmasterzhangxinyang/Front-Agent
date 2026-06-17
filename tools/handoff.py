@@ -98,5 +98,5 @@ async def forward_to_sybil(message: str, conversation_id: str = "", cc_email: st
         settings.internal_forward_sybil_email,
         message,
         "education/account handoff",
-        cc_email=cc_email,
+        cc_email=(cc_email or settings.internal_forward_bobby_email),
     )

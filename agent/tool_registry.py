@@ -318,7 +318,7 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         ok = await front.forward_conversation_direct(
             conversation_id,
             to_email,
-            None,
+            settings.internal_forward_bobby_email,
             summary,
         )
         return "forwarded_to_marketing" if ok else "forward_failed"
@@ -330,7 +330,7 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         ok = await front.forward_conversation_direct(
             conversation_id,
             to_email,
-            None,
+            settings.internal_forward_bobby_email,
             summary,
         )
         return "forwarded_to_marketing" if ok else "forward_failed"
@@ -343,7 +343,7 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         ok = await front.forward_conversation_direct(
             conversation_id,
             settings.claudia_email,
-            None,
+            settings.internal_forward_bobby_email,
             summary
         )
         return "forwarded" if ok else "forward_failed"
@@ -356,7 +356,7 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         ok = await front.forward_conversation_direct(
             conversation_id,
             settings.geyan_email,
-            None,
+            settings.internal_forward_bobby_email,
             summary,
             label="legal handoff",
         )
