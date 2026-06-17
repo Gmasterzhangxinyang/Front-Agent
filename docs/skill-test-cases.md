@@ -83,7 +83,7 @@ Current Plan: team
 
 ### ACC-01 cant_login paid user
 
-Expected: `account/cant_login`, draft "processing", Front forward to Bobby through the limin-compatible path, keep open.
+Expected: `account/cant_login`, create Linear ticket, Front forward to Bobby with Linear link, create "processing" draft, keep open.
 
 ```text
 Subject: Cannot log in to my Pro account
@@ -98,7 +98,7 @@ Current Plan: professional
 
 ### ACC-02 cant_login unclear paid status
 
-Expected: `account/cant_login`, draft asking whether they are Pro/Team, state waiting for paid confirmation, keep open.
+Expected: `account/cant_login`, draft asking whether they use Dify Cloud/SaaS or self-hosted and asking current plan, state `awaiting_deployment_and_plan_confirmation`, keep open.
 
 ```text
 Subject: Login verification code not received
@@ -692,14 +692,14 @@ It does not work. Please fix it.
 
 Use these only after creating the matching initial conversation above.
 
-### FOLLOW-01 account paid confirmation
+### FOLLOW-01 account SaaS plan confirmation
 
 Start with `ACC-02`, then reply in the same thread:
 
-Expected: detect previous state `awaiting_paid_confirmation`; draft processing, forward to Bobby through limin-compatible path, keep open.
+Expected: detect previous state `awaiting_deployment_and_plan_confirmation`; create Linear ticket, forward to Bobby with Linear link, create processing draft, keep open.
 
 ```text
-Yes, I am on the Pro plan. The login code still does not arrive.
+Yes, I am using Dify Cloud/SaaS on the Pro plan. The login code still does not arrive.
 Current Plan: professional
 ```
 

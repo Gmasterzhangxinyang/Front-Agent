@@ -128,6 +128,19 @@ def test_internal_forwarding_skill_targets_are_current():
 
 
 
+
+def test_account_login_requires_deployment_and_saas_handoff():
+    text = _skill_text("account")
+    for expected in [
+        "awaiting_deployment_and_plan_confirmation",
+        "Dify Cloud/SaaS",
+        "self-hosted",
+        "linear_create_ticket",
+        "front_forward_to_bobby",
+        "SaaS login issue",
+    ]:
+        assert expected in text, f"account.md missing {expected!r}"
+
 def test_technical_support_has_paid_and_non_paid_paths():
     text = _skill_text("technical")
     for expected in [

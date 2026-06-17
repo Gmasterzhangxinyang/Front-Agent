@@ -6,8 +6,8 @@ Handle account-related requests: login issues, account deletion, transfer, email
 
 ## SaaS vs Self-hosted Detection
 - If email footer shows `Current Plan: premium` → self-hosted user
-- If no footer or shows pro/team/sandbox → SaaS user
-- If unclear → assume SaaS
+- If footer shows pro/team/sandbox or user explicitly says Dify Cloud/SaaS → SaaS user
+- If unclear for login issues → do NOT assume SaaS; ask whether they use Dify Cloud/SaaS or self-hosted, and ask their plan
 
 ---
 
@@ -20,13 +20,18 @@ Handle account-related requests: login issues, account deletion, transfer, email
 2. If user IS an edu user AND mentions can't receive verification code:
    - Call `front_create_draft` with "edu email expired check" template (ask if school email has expired, e.g. graduated)
    - Call `state_set` with step="awaiting_email_expired_confirmation", sub_type="cant_login"
-3. If user mentions they are a Pro/Team user (non-edu):
+3. If the email clearly indicates self-hosted, Community Edition, open-source deployment, or `Current Plan: premium`:
+   - Call `front_create_draft` with self-hosted can't help template
+   - Call `state_set` with step="draft_created", sub_type="cant_login"
+4. If the email clearly indicates Dify Cloud/SaaS (for example `Current Plan: professional`, `Current Plan: team`, `Current Plan: sandbox`, or the user says they use cloud.dify.ai):
+   - Call `linear_create_ticket` with conversation_id, title "SaaS login issue - [email]", sender_email, original_message, and description containing plan, issue, and login email. Fill actual values.
+   - WAIT for `linear_create_ticket` to return the URL.
+   - Call `front_forward_to_bobby` with message "SaaS 登录问题，请查看。发件人: [email]. 计划: [plan]. Linear: [actual URL]".
    - Call `front_create_draft` with "processing, please wait" template
-   - Call `front_forward_to_limin` with conversation_id and message "付费用户登录问题 - [email]"
    - Call `state_set` with step="forwarded_keep_open", sub_type="cant_login"
-4. If user is NOT paid or unclear:
-   - Call `front_create_draft` asking if they are a Pro/Team user, noting this is a paid feature
-   - Call `state_set` with step="awaiting_paid_confirmation", sub_type="cant_login"
+5. If deployment type or plan is unclear:
+   - Call `front_create_draft` with "ask deployment and plan" template. Ask whether they use Dify Cloud/SaaS or self-hosted, and ask their current plan. Explain that Dify Support can investigate SaaS login issues, but cannot access self-hosted deployments.
+   - Call `state_set` with step="awaiting_deployment_and_plan_confirmation", sub_type="cant_login", waiting=true
 
 **Step: awaiting_email_expired_confirmation** (edu user replied about email expiration)
 1. Check user's reply — did they confirm their school email has expired (e.g., graduated)?
@@ -37,20 +42,22 @@ Handle account-related requests: login issues, account deletion, transfer, email
    - Call `front_forward_to_limin` with conversation_id and message "edu用户登录问题(非邮箱过期) - [email]"
    - Call `state_set` with step="forwarded_keep_open", sub_type="cant_login"
 
-**Step: awaiting_paid_confirmation** (user replied about paid status)
-1. Check user's reply — do they confirm they are a Pro/Team user?
-2. If YES (paid user):
+**Step: awaiting_deployment_and_plan_confirmation** (user replied with deployment type or plan)
+1. If the reply confirms self-hosted, Community Edition, open-source deployment, or `Current Plan: premium`:
+   - Call `front_create_draft` with self-hosted can't help template
+   - Call `state_set` with step="draft_created", sub_type="cant_login"
+2. If the reply confirms Dify Cloud/SaaS, Sandbox, Pro, Team, or cloud.dify.ai:
+   - Call `linear_create_ticket` with conversation_id, title "SaaS login issue - [email]", sender_email, original_message, and description containing plan, issue, and login email. Fill actual values.
+   - WAIT for `linear_create_ticket` to return the URL.
+   - Call `front_forward_to_bobby` with message "SaaS 登录问题，请查看。发件人: [email]. 计划: [plan]. Linear: [actual URL]".
    - Call `front_create_draft` with "processing, please wait" template
-   - Call `front_forward_to_limin` with conversation_id and message "付费用户登录问题 - [email]"
    - Call `state_set` with step="forwarded_keep_open", sub_type="cant_login"
-3. If NO (free user):
-   - Check if email footer shows `Current Plan: premium` → self-hosted user:
-     - Call `front_create_draft` with self-hosted can't help template
-     - Call `state_set` with step="draft_created", sub_type="cant_login"
-   - Otherwise → SaaS free user:
-     - Call `front_create_draft` with "processing, please wait" template
-     - Call `front_forward_to_limin` with conversation_id and message "免费SaaS用户登录问题 - [email]"
-     - Call `state_set` with step="forwarded_keep_open", sub_type="cant_login"
+3. If the reply still does not clarify SaaS vs self-hosted:
+   - Call `front_create_draft` asking again for deployment type and current plan
+   - Keep state as `awaiting_deployment_and_plan_confirmation`
+
+**Step: awaiting_paid_confirmation** (legacy state name)
+- Treat this exactly the same as `awaiting_deployment_and_plan_confirmation`.
 
 **登录问题可能的原因 (for AI to determine sub-type):**
 - 收不到验证码
@@ -203,6 +210,22 @@ Dear Valued Customer,
 Thank you for reaching out. For self-hosted deployments, account and login issues need to be managed by your own team as Dify does not have access to your self-hosted instance.
 
 If you have any other questions, feel free to reach out.
+
+Best regards,
+Dify Support Team
+```
+
+### Ask deployment and plan
+```
+Dear Valued Customer,
+
+Thank you for reaching out. To check this login issue correctly, could you please confirm the following?
+
+1. Are you using Dify Cloud/SaaS, or a self-hosted Dify deployment?
+2. What is your current plan? For example: Sandbox, Pro, Team, Premium, or Community Edition.
+3. What email address are you trying to log in with?
+
+Please note that Dify Support can investigate login issues for Dify Cloud/SaaS accounts. For self-hosted deployments, we cannot access your instance or account system, so login issues need to be handled by your own deployment administrator.
 
 Best regards,
 Dify Support Team
