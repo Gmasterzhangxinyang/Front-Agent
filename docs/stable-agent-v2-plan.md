@@ -125,7 +125,8 @@ Required decision fields:
 | partnership / marketplace | Marketplace/plugin/template/community ecosystem cooperation | `marketing_forwarded_keep_open` | `front_forward_to_community` or `front_forward_to_partnerships` | none by default | `marketing@dify.ai` | `forwarded_keep_open` | no |
 | education eligible review | Higher education application/rejection with school info | `education_sybil_forwarded_keep_open` | create Linear when needed, then `front_forward_to_sybil` | draft acknowledgement | `sybil@dify.ai` | `forwarded_keep_open` | no |
 | education not eligible | K-12, personal email only, or clearly not eligible | `education_draft_keep_open` | `front_create_draft` | draft rejection/info request | none | `draft_created` | no |
-| account paid/login/blacklist | Paid login, verification, blacklist, account ownership | `account_bobby_forwarded_keep_open` | `front_forward_to_bobby` or account skill then handoff | draft acknowledgement when useful | `bobby@dify.ai` | `forwarded_keep_open` | no |
+| account SaaS issue with Linear | Login, deletion/transfer/compromise for verified SaaS accounts | `account_sybil_forwarded_keep_open` | create Linear, then `front_forward_to_bobby` | draft acknowledgement when useful | `bobby@dify.ai` | `forwarded_keep_open` | no |
+| account quota/plan anomaly | quota mismatch, plan changed unexpectedly | `account_anomaly_forwarded_keep_open` | create Linear, then `front_forward_to_sybil` with `cc_email=bobby@dify.ai` | draft acknowledgement when useful | `sybil@dify.ai`, CC `bobby@dify.ai` | `forwarded_keep_open` | no |
 | billing | Refund, invoice, duplicate charge, downgrade | `billing_skill_flow` | skill decides draft/ticket | draft by default | skill policy | `skill_in_progress` or final state | no by default |
 | legal | Legal threat, lawyer letter, lawsuit | `legal_forwarded_keep_open` | sent Front forward to `geyan@dify.ai` with original thread and summary | no automatic reply | Geyan | `forwarded_keep_open` | no |
 | investment | Investor/VC/fundraising | `investment_forwarded_keep_open` | forward to Claudia if configured | none by default | Claudia, optional Bobby visibility | `forwarded_keep_open` | no |
@@ -162,7 +163,7 @@ Preferred non-spam handoff state is `forwarded_keep_open`.
 | Marketplace / partnership | No automatic customer reply by default |
 | Education eligible review | Draft acknowledgement, not direct send |
 | Education not eligible | Draft explanation, not direct send |
-| Account paid/login/blacklist | Draft acknowledgement when helpful, then internal handoff |
+| Account paid/login/ops | Draft acknowledgement when helpful, then handoff to Bobby (quota/plan anomaly -> Sybil) |
 | Billing/refund/invoice | Draft by default unless policy explicitly permits otherwise |
 | Technical free | Approved template may direct-send only if skill allows |
 | Technical paid/Premium | Draft/ticket according to skill |
@@ -193,7 +194,7 @@ Current recipients:
 | Path | Recipient / Target |
 |---|---|
 | Bobby review | `bobby@dify.ai` |
-| Account / previous 李敏 path | `bobby@dify.ai` |
+| Account quota/plan anomaly with Linear | `sybil@dify.ai`, CC `bobby@dify.ai` (for anomaly only) |
 | Education review | `sybil@dify.ai` |
 | Marketplace/community/plugin ecosystem | `marketing@dify.ai` |
 | Security | Front inbox `Security` |
@@ -298,7 +299,7 @@ The system is stable only when:
 - security moves to `Security`
 - Marketplace/community/plugin cooperation goes to `marketing@dify.ai`
 - education eligible review goes only to Sybil
-- account/blacklist/previous 李敏 path goes to Bobby
+- account login/ops Linear handoff goes to Bobby; account quota/plan anomaly goes to Sybil with Bobby CC
 - all internal handoffs preserve original Front content
 - non-spam handoffs use `forwarded_keep_open`
 - deterministic tests pass

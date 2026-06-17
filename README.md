@@ -88,7 +88,7 @@ Forward 后 conversation 保持 open。非 spam 的 handoff 状态应该使用 `
 | 场景 | 目标 |
 |---|---|
 | 分类不确定 / manual review | `bobby@dify.ai` |
-| Account / 原 Limin 路径 | `bobby@dify.ai` |
+| Account 登录/删除/转移/被盗类建 Linear 后 handoff（非额度异常） | `bobby@dify.ai`；额度/计划异常另外走 `sybil@dify.ai` 并 CC `bobby@dify.ai` |
 | Education 审核 | `sybil@dify.ai` |
 | Marketplace / community / external cooperation | `marketing@dify.ai` |
 | Security report | Front inbox `Security` |

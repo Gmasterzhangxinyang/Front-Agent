@@ -29,6 +29,7 @@ async def forward_to_colleague(
     to_email: str,
     message: str,
     label: str,
+    cc_email: str = "",
 ) -> bool:
     if not conversation_id:
         logger.warning("Cannot forward colleague handoff without conversation_id")
@@ -39,11 +40,15 @@ async def forward_to_colleague(
     if not _is_allowed_internal_recipient(to_email):
         logger.error("Refusing %s handoff to non-internal recipient: %s", label, to_email)
         return False
+    if cc_email and not _is_allowed_internal_recipient(cc_email):
+        logger.error("Refusing %s handoff cc to non-internal recipient: %s", label, cc_email)
+        return False
     from tools import front
 
     return await front.forward_conversation_direct(
         conversation_id,
         to_email,
+        cc_email=cc_email or None,
         summary=message,
         label=label,
     )
@@ -85,12 +90,13 @@ async def forward_to_limin(message: str, conversation_id: str = "") -> bool:
     )
 
 
-async def forward_to_sybil(message: str, conversation_id: str = "") -> bool:
+async def forward_to_sybil(message: str, conversation_id: str = "", cc_email: str = "") -> bool:
     from config import settings
 
     return await forward_to_colleague(
         conversation_id,
         settings.internal_forward_sybil_email,
         message,
-        "education handoff",
+        "education/account handoff",
+        cc_email=cc_email,
     )

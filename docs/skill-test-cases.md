@@ -172,7 +172,7 @@ I cannot log in to change it myself.
 
 ### ACC-07 account_anomaly
 
-Expected: `account/account_anomaly`, create Linear ticket and Front draft, keep open.
+Expected: `account/account_anomaly`, create Linear ticket, Front forward to Sybil with Linear link and summary, CC Bobby, create Front draft, keep open.
 
 ```text
 Subject: My paid quota disappeared
@@ -740,7 +740,7 @@ I only have my Gmail address. Please approve my education plan with test-edu-gma
 | Area | Expected tool/action |
 |---|---|
 | Technical | `front_create_draft`, `state_set`, keep open |
-| Account | `front_create_draft`; paid/login legacy handoff goes to Bobby; some verified actions create Linear |
+| Account | For SaaS login/account-ops Linear cases: forward to Bobby with Linear link and summary; quota/plan anomaly: forward to Sybil with `cc_email=bobby@dify.ai` and summary; create customer draft; keep open |
 | Education eligible review | `linear_create_ticket` then `front_forward_to_sybil` then draft, keep open |
 | Education ineligible/missing info | `front_create_draft`, keep open |
 | Billing | `front_create_draft`, keep open |

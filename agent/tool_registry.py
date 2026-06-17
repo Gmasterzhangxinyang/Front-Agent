@@ -227,12 +227,13 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "front_forward_to_sybil",
-            "description": "Forward the original Front conversation to Sybil through Front for education plan handoff. This never emails the customer.",
+            "description": "Forward the original Front conversation to Sybil through Front for education or account handoff. Optional cc_email can CC Bobby. This never emails the customer.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "message": {"type": "string"},
                     "conversation_id": {"type": "string", "description": "Front conversation ID, REQUIRED so Front can forward the original thread"},
+                    "cc_email": {"type": "string", "description": "Optional internal CC recipient, e.g. bobby@dify.ai for account handoff"},
                 },
                 "required": ["message", "conversation_id"],
             },
@@ -450,6 +451,7 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         ok = await handoff.forward_to_sybil(
             args["message"],
             conversation_id=args.get("conversation_id", ""),
+            cc_email=args.get("cc_email", ""),
         )
         return "forwarded" if ok else "forward_failed"
 

@@ -141,6 +141,14 @@ def test_account_login_requires_deployment_and_saas_handoff():
     ]:
         assert expected in text, f"account.md missing {expected!r}"
 
+
+def test_sybil_forward_tool_supports_bobby_cc():
+    tool_source = Path("agent/tool_registry.py").read_text(encoding="utf-8")
+    handoff_source = Path("tools/handoff.py").read_text(encoding="utf-8")
+    assert "cc_email" in tool_source
+    assert 'cc_email=args.get("cc_email", "")' in tool_source
+    assert "cc_email=cc_email or None" in handoff_source
+
 def test_technical_support_has_paid_and_non_paid_paths():
     text = _skill_text("technical")
     for expected in [

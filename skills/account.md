@@ -26,7 +26,7 @@ Handle account-related requests: login issues, account deletion, transfer, email
 4. If the email clearly indicates Dify Cloud/SaaS (for example `Current Plan: professional`, `Current Plan: team`, `Current Plan: sandbox`, or the user says they use cloud.dify.ai):
    - Call `linear_create_ticket` with conversation_id, title "SaaS login issue - [email]", sender_email, original_message, and description containing plan, issue, and login email. Fill actual values.
    - WAIT for `linear_create_ticket` to return the URL.
-   - Call `front_forward_to_bobby` with message "SaaS 登录问题，请查看。发件人: [email]. 计划: [plan]. Linear: [actual URL]".
+   - Call `front_forward_to_bobby` with conversation_id and message "SaaS 登录问题，请处理。发件人: [email]. 计划: [plan]. 摘要: [brief summary]. Linear: [actual URL]".
    - Call `front_create_draft` with "processing, please wait" template
    - Call `state_set` with step="forwarded_keep_open", sub_type="cant_login"
 5. If deployment type or plan is unclear:
@@ -39,7 +39,7 @@ Handle account-related requests: login issues, account deletion, transfer, email
    - Call `front_create_draft` with identity verification request template (need proof of original email ownership)
    - Call `state_set` with step="awaiting_identity_verification", sub_type="email_expired_graduated"
 3. If NO (email still works, issue is elsewhere):
-   - Call `front_forward_to_limin` with conversation_id and message "edu用户登录问题(非邮箱过期) - [email]"
+   - Call `front_forward_to_bobby` with conversation_id and message "edu用户登录问题(非邮箱过期) - [email]"
    - Call `state_set` with step="forwarded_keep_open", sub_type="cant_login"
 
 **Step: awaiting_deployment_and_plan_confirmation** (user replied with deployment type or plan)
@@ -49,7 +49,7 @@ Handle account-related requests: login issues, account deletion, transfer, email
 2. If the reply confirms Dify Cloud/SaaS, Sandbox, Pro, Team, or cloud.dify.ai:
    - Call `linear_create_ticket` with conversation_id, title "SaaS login issue - [email]", sender_email, original_message, and description containing plan, issue, and login email. Fill actual values.
    - WAIT for `linear_create_ticket` to return the URL.
-   - Call `front_forward_to_bobby` with message "SaaS 登录问题，请查看。发件人: [email]. 计划: [plan]. Linear: [actual URL]".
+   - Call `front_forward_to_bobby` with conversation_id and message "SaaS 登录问题，请处理。发件人: [email]. 计划: [plan]. 摘要: [brief summary]. Linear: [actual URL]".
    - Call `front_create_draft` with "processing, please wait" template
    - Call `state_set` with step="forwarded_keep_open", sub_type="cant_login"
 3. If the reply still does not clarify SaaS vs self-hosted:
@@ -69,7 +69,7 @@ Handle account-related requests: login issues, account deletion, transfer, email
 **For email expiration issues (邮箱过期/失效):**
 - 需要用户证明原邮箱是本人的（发送确认邮件或提供证明）
 - 验证后建 Linear 工单：title "邮箱失效/过期 - [原邮箱] → [新邮箱]", type: account transfer
-- 通知 Bobby
+- 建 Linear 后通过 `front_forward_to_bobby` 转给 Bobby，message 必须包含 Linear 链接和摘要
 
 ### delete_account
 **Step: initial**
@@ -81,8 +81,10 @@ Handle account-related requests: login issues, account deletion, transfer, email
 1. Check if user's reply confirms identity (sent from original email, or provided proof)
 2. If confirmed:
    - Call `linear_create_ticket` with conversation_id, title "Account deletion request - [email]" and description
+   - WAIT for `linear_create_ticket` to return the URL.
+   - Call `front_forward_to_bobby` with conversation_id and message "账号删除请求，请处理。发件人: [email]. 摘要: [brief summary]. Linear: [actual URL]".
    - Call `front_create_draft` with "received, forwarded to team" template
-   - Call `state_set` with step="draft_created"
+   - Call `state_set` with step="forwarded_keep_open", sub_type="delete_account"
 3. If not confirmed: Call `front_create_draft` asking again politely
 
 ### transfer_account / change_email
@@ -94,30 +96,36 @@ Handle account-related requests: login issues, account deletion, transfer, email
 **Step: awaiting_identity_verification**
 1. If confirmed:
    - Call `linear_create_ticket` with conversation_id, title "Account transfer request - [original email] → [new email]" and description
+   - WAIT for `linear_create_ticket` to return the URL.
+   - Call `front_forward_to_bobby` with conversation_id and message "账号转移/换邮箱请求，请处理。原邮箱: [original email], 新邮箱: [new email]. 摘要: [brief summary]. Linear: [actual URL]".
    - Call `front_create_draft` with "received, forwarded to team" template
-   - Call `state_set` with step="draft_created"
+   - Call `state_set` with step="forwarded_keep_open", sub_type="transfer_account"
 
 ### account_anomaly (quota wrong, plan changed unexpectedly)
 
 **SaaS user:**
-1. Call `linear_create_ticket` with conversation_id, title "Account anomaly - [email]" and description
-2. Call `front_create_draft` with "received, forwarded to team" template
-3. Call `state_set` with step="draft_created"
+1. Call `linear_create_ticket` with conversation_id, title "Account anomaly - [email]", sender_email, original_message, and description containing plan, workspace, issue, and billing evidence. Fill actual values.
+2. WAIT for `linear_create_ticket` to return the URL.
+3. Call `front_forward_to_sybil` with conversation_id, cc_email="bobby@dify.ai", and message "账号额度/计划异常，请处理。发件人: [email]. 计划: [plan]. 摘要: [brief summary]. Linear: [actual URL]".
+4. Call `front_create_draft` with "received, forwarded to team" template.
+5. Call `state_set` with step="forwarded_keep_open", sub_type="account_anomaly".
 
 **Self-hosted user:**
 1. Call `front_create_draft` with self-hosted can't help template
-2. Call `state_set` with step="draft_created", sub_type="cant_login"
+2. Call `state_set` with step="draft_created", sub_type="account_anomaly"
 
 ### account_hacked
 
 **SaaS user:**
-1. Call `linear_create_ticket` with conversation_id, title "Account compromised - [email]" and description
-2. Call `front_create_draft` with "received, investigating urgently" template
-3. Call `state_set` with step="draft_created"
+1. Call `linear_create_ticket` with conversation_id, title "Account compromised - [email]", sender_email, original_message, and description containing compromise evidence and urgency. Fill actual values.
+2. WAIT for `linear_create_ticket` to return the URL.
+3. Call `front_forward_to_bobby` with conversation_id and message "账号疑似被盗/异常访问，请优先处理。发件人: [email]. 摘要: [brief summary]. Linear: [actual URL]".
+4. Call `front_create_draft` with "received, investigating urgently" template.
+5. Call `state_set` with step="forwarded_keep_open", sub_type="account_hacked".
 
 **Self-hosted user:**
 1. Call `front_create_draft` with self-hosted can't help template
-2. Call `state_set` with step="draft_created", sub_type="cant_login"
+2. Call `state_set` with step="draft_created", sub_type="account_hacked"
 
 ### merge_accounts
 1. Call `front_create_draft` explaining this feature is not currently available
