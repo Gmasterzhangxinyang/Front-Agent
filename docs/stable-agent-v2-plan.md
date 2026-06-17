@@ -97,7 +97,7 @@ After the new version is stable, rename them to clearer names:
 | Spam / ads / unsolicited promotion | Auto-close/archive after classification. No internal handoff required unless the classifier is uncertain. |
 | Education plan review | Create Linear when needed, then immediately Front-forward summary + Linear URL + original thread to `sybil@dify.ai` only. Keep the conversation open. |
 | Account verification / blacklist / paid login issue | Draft customer acknowledgement, then immediately Front-forward summary + original thread to Bobby for now. Keep the conversation open. |
-| Security emergency | Move the Front conversation from Support/Hello inbox to the Security inbox immediately. Do not separately forward to Yongle in V2. Keep open for review. |
+| Security emergency | Move the Front conversation from Support/Hello inbox to `Security` immediately. Do not separately forward to Yongle in V2. Keep open for review. |
 | Investment / IR | Forward to Claudia immediately, then Front-forward summary to Bobby if visibility is needed. Keep open unless explicitly classified as spam/ads. |
 | Legal threat | Do not auto-send customer reply unless safe; immediately Front-forward summary + original thread to Bobby/legal path. Keep open. |
 | Unclear classification | Draft generic acknowledgement only when appropriate, then immediately Front-forward to Bobby for manual judgment. Keep open. |
@@ -112,7 +112,7 @@ After the new version is stable, rename them to clearer names:
 | 3. Skill Cleanup | Make business routing explicit. | Update education/account/security/unclear/investment skills to pass `conversation_id` and concise summary. | Tool calls are deterministic and include required fields. |
 | 4. Classification Hardening | Improve intent detection. | Add evidence fields, confidence thresholds, mixed-intent handling, and “manual review” criteria. | Classification JSON is strict and repeatable; low confidence falls back safely. |
 | 5. Tool Naming Cleanup | Remove misleading legacy names. | Rename `feishu_notify_*` to `front_forward_to_*`; update skills and registry together. | No Feishu names remain except historical docs/record files. |
-| 6. Test Coverage | Prevent regressions. | Add tests for forward body, routing recipients, no-customer handoff, classification schema. | Tests run locally before merge/deploy. |
+| 6. Test Coverage | Prevent regressions. | Add tests for forward body, routing recipients, no-customer handoff, classification schema, and replay 50 historical conversations as a routing test set. | Tests run locally before merge/deploy; the 50-history replay must be reviewed before production cutover. |
 | 7. Deployment Review | Decide when to replace current service. | Review diffs, env vars, logs, and rollback plan. | User explicitly approves deploy/restart. |
 
 ## 7. Validation Checklist
@@ -133,7 +133,30 @@ Expected results:
 - Internal handoff recipients come only from `INTERNAL_FORWARD_*` config.
 - Customer sender email is never used as an internal handoff recipient.
 
-## 8. Current Branch Status
+## 8. Historical Test Set
+
+Before deployment, validate the new routing behavior against 50 historical Front conversations. The selected Support inbox test set is [`docs/support-inbox-test-set-50.md`](support-inbox-test-set-50.md). The test set should include:
+
+- spam / ads / unsolicited promotions
+- unclear classification cases
+- education plan review cases
+- account verification / login / blacklist cases
+- security reports
+- marketplace / community / plugin cooperation
+- legal, investment, and other manual-review cases
+
+Expected review output for each historical conversation:
+
+1. predicted category and confidence
+2. selected tool path
+3. whether the conversation would be closed or left open
+4. forwarding target or inbox target
+5. whether customer-facing reply is draft-only or direct-send
+6. pass/fail judgment and correction note
+
+The system is not ready to replace production until this 50-conversation replay shows stable routing and no customer-safety violations.
+
+## 9. Current Branch Status
 
 Current branch: `refactor/stable-agent-v2`
 
@@ -144,10 +167,11 @@ Relevant commits:
 
 The second commit corrects the handoff model: internal colleague handoffs go through Front forwarding, not SMTP.
 
-## 9. Final Decisions From Open Questions
+## 10. Final Decisions From Open Questions
 
 1. `INTERNAL_FORWARD_BOBBY_EMAIL`: `bobby@dify.ai`.
 2. `INTERNAL_FORWARD_LIMIN_EMAIL`: `bobby@dify.ai` for now; account/blacklist handoffs route to Bobby.
 3. Education handoff goes only to `sybil@dify.ai`; do not CC another education owner for V2.
-4. Internal Front forwards are sent immediately, not created as Bobby-review drafts.
-5. Auto-close policy: spam/ads/unsolicited promotions can be resolved automatically. All other handoff categories stay open so Bobby can verify they were routed to the right person or inbox.
+4. Security inbox: `Security`.
+5. Internal Front forwards are sent immediately, not created as Bobby-review drafts.
+6. Auto-close policy: spam/ads/unsolicited promotions can be resolved automatically. All other handoff categories stay open so Bobby can verify they were routed to the right person or inbox.
