@@ -197,6 +197,11 @@ def test_feedback_system_is_disabled_by_default_and_gated():
     assert "if not settings.enable_feedback_system:" in orchestrator_source
 
 
+def test_default_model_is_gpt_5_5():
+    assert 'openai_model: str = "gpt-5.5"' in Path("config.py").read_text()
+    assert "OPENAI_MODEL=gpt-5.5" in Path(".env.example").read_text()
+
+
 def run_all():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):

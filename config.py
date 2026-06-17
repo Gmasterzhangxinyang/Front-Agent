@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     # OpenAI / MiniMax (OpenAI-compatible)
     openai_api_key: str
-    openai_model: str = "gpt-4o"
+    openai_model: str = "gpt-5.5"
     minimax_api_key: str = ""
     minimax_base_url: str = "https://api.minimax.chat/v1"
 
