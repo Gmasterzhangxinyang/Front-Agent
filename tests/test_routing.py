@@ -187,6 +187,16 @@ def test_forward_tools_send_forward_with_original_thread_body():
     assert "Original Front conversation:" in front_source
 
 
+def test_feedback_system_is_disabled_by_default_and_gated():
+    config_source = Path("config.py").read_text()
+    main_source = Path("main.py").read_text()
+    orchestrator_source = Path("agent/orchestrator.py").read_text()
+    assert "enable_feedback_system: bool = False" in config_source
+    assert "if settings.enable_feedback_system:" in main_source
+    assert "from routes.feedback_api" not in main_source.split("if settings.enable_feedback_system:", 1)[0]
+    assert "if not settings.enable_feedback_system:" in orchestrator_source
+
+
 def run_all():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):

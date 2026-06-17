@@ -13,6 +13,7 @@ Front-Agent 是一套面向 Dify 支持邮箱的自动化处理服务。它接�
 - 主分支：`main`
 - 远端：`origin` 指向 GitHub 仓库
 - 服务入口：`main.py`
+- 反馈评分系统：默认关闭，设置 `ENABLE_FEEDBACK_SYSTEM=true` 才启用 `/feedback/*` 路由和 Front 评分评论
 - 生产启动：`bash start.sh`
 - 健康检查：`GET /health`
 - 当前主要服务形态：FastAPI + Front webhook + Front 转发通知 + SQLite 状态库
@@ -61,7 +62,7 @@ agent.handle_email()
 处理完成
   |
   |-- 写入或更新 conversation_states
-  |-- 在 Front 添加反馈评分链接
+  |-- 反馈评分系统默认关闭，不再自动添加评分链接
   |-- 等待后续邮件或人工动作
 ```
 
@@ -206,13 +207,15 @@ Front 转发通知不提供交互按钮能力；需要人工判断或审核时�
 
 ## 反馈和 Skill 迭代
 
-每次 agent loop 完成后，系统会在 Front conversation 添加内部反馈链接：
+反馈评分系统暂时默认关闭：`ENABLE_FEEDBACK_SYSTEM=false`。关闭时系统不会挂载 `/feedback/*` 路由，也不会在 Front conversation 自动添加“点击评分”评论。
+
+相关代码仍保留，后续需要恢复时设置 `ENABLE_FEEDBACK_SYSTEM=true` 即可重新启用：
 
 ```text
 /feedback/form?conv=<conversation_id>&category=<category>
 ```
 
-Bobby 提交评分、正确回复或修改建议后：
+启用后，Bobby 提交评分、正确回复或修改建议会进入原有流程：
 
 1. `routes/feedback.py` 或 `routes/feedback_api.py` 接收反馈。
 2. `services/skill_analyzer.py` 用 LLM 提取三层记忆：semantic、episodic、procedural。

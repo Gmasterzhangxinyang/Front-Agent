@@ -413,7 +413,12 @@ async def _send_feedback_comment(
     category: str,
     all_messages: list,
 ) -> None:
-    """After agent loop completes, send a private comment in Front with feedback link."""
+    """Optionally add a private Front comment with the feedback link."""
+    from config import settings
+
+    if not settings.enable_feedback_system:
+        return
+
     from tools import front
 
     # Extract the last AI reply from conversation history
@@ -430,7 +435,6 @@ async def _send_feedback_comment(
                 break
 
     # Get the base URL from config (Railway exposes PORT directly)
-    from config import settings
     base_url = getattr(settings, "streamlit_url", "http://localhost:8000").replace(":8501", ":8000")
     # Use FastAPI-based feedback form (no Streamlit dependency)
     feedback_url = f"{base_url}/feedback/form?conv={conversation_id}&category={category}"
