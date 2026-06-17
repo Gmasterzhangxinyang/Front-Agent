@@ -5,15 +5,11 @@ Skill Analyzer: 分析 Bobby 的反馈，生成 skill 修改建议（diff 格式
 import json
 import logging
 from typing import Dict, Any, Optional
-from openai import AsyncOpenAI
 from config import settings
+from agent.llm_client import chat_completion_kwargs, make_async_openai_client
 
 logger = logging.getLogger(__name__)
-_base_url = settings.minimax_base_url if settings.minimax_api_key else None
-client = AsyncOpenAI(
-    api_key=settings.minimax_api_key or settings.openai_api_key,
-    base_url=_base_url,
-)
+client = make_async_openai_client(settings)
 
 SKILL_ANALYZER_PROMPT = """你是 Dify 邮件系统的 Skill 学习引擎。
 
@@ -117,14 +113,14 @@ Bobby 评分：{score}/10
 """
 
     try:
-        response = await client.chat.completions.create(
-            model=settings.openai_model,
-            messages=[
+        response = await client.chat.completions.create(**chat_completion_kwargs(
+            settings.openai_model,
+            [
                 {"role": "system", "content": SKILL_ANALYZER_PROMPT},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
-        )
+        ))
         raw = response.choices[0].message.content
         try:
             result = json.loads(raw)

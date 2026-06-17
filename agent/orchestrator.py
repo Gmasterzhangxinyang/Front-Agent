@@ -1,22 +1,18 @@
 import json
 import logging
 from pathlib import Path
-from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 from config import settings
 from tools import state as state_tool
 from tools.attachments import fetch_attachments_as_base64, fetch_attachments_as_text
 from tools.front import get_conversation_messages
 from agent.classification import ClassificationResult, normalize_classification, parse_classification_json
+from agent.llm_client import chat_completion_kwargs, make_async_openai_client
 from agent.routing import RouteDecision, decide_initial_route
 from agent.tool_registry import TOOL_SCHEMAS, execute_tool_call
 
 logger = logging.getLogger(__name__)
-_base_url = settings.minimax_base_url if settings.minimax_api_key else None
-client = AsyncOpenAI(
-    api_key=settings.minimax_api_key or settings.openai_api_key,
-    base_url=_base_url,
-)
+client = make_async_openai_client(settings)
 SKILLS_DIR = Path(__file__).parent.parent / "skills"
 
 
@@ -252,12 +248,12 @@ Email: {latest_message}
 
 Answer with only YES or NO."""
 
-    response = await client.chat.completions.create(
-        model=settings.openai_model,
-        messages=[{"role": "user", "content": prompt}],
+    response = await client.chat.completions.create(**chat_completion_kwargs(
+        settings.openai_model,
+        [{"role": "user", "content": prompt}],
         temperature=0,
-        max_tokens=10,
-    )
+        max_tokens=100,
+    ))
     answer = response.choices[0].message.content.strip().upper()
     return "YES" in answer
 
@@ -267,14 +263,14 @@ async def _classify(conversation_text: str, latest_message: str, sender_email: s
     content = [{"type": "text", "text": f"Classify this support email.\n\nSender: {sender_email}\n\nConversation:\n{conversation_text}\n\nLatest message:\n{latest_message}\n\nReturn ONLY valid JSON matching the output format in the skill instructions."}]
     content.extend(attachments)
 
-    response = await client.chat.completions.create(
-        model=settings.openai_model,
-        messages=[
+    response = await client.chat.completions.create(**chat_completion_kwargs(
+        settings.openai_model,
+        [
             {"role": "system", "content": classify_md},
             {"role": "user", "content": content},
         ],
         temperature=0,
-    )
+    ))
     raw = response.choices[0].message.content
     parsed = parse_classification_json(raw)
     if parsed is None:
@@ -356,13 +352,13 @@ def _tool_result_failed(result: str) -> bool:
 async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int = 10, sender_email: str = "", message_body: str = "") -> None:
     notified_conversations: set[str] = set()  # deduplicate Bobby handoff forwards per conv
     for _ in range(max_iterations):
-        response = await client.chat.completions.create(
-            model=settings.openai_model,
-            messages=messages,
+        response = await client.chat.completions.create(**chat_completion_kwargs(
+            settings.openai_model,
+            messages,
             tools=TOOL_SCHEMAS,
             tool_choice="auto",
             temperature=0,
-        )
+        ))
         msg = response.choices[0].message
 
         if not msg.tool_calls:

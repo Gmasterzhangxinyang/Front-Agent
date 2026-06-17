@@ -202,6 +202,49 @@ def test_default_model_is_gpt_5_5():
     assert "OPENAI_MODEL=gpt-5.5" in Path(".env.example").read_text()
 
 
+def test_chat_completion_kwargs_are_gpt_5_compatible():
+    from agent.llm_client import chat_completion_kwargs
+
+    params = chat_completion_kwargs(
+        "gpt-5.5",
+        [{"role": "user", "content": "hi"}],
+        temperature=0,
+        max_tokens=10,
+    )
+    assert "temperature" not in params
+    assert "max_tokens" not in params
+    assert params["max_completion_tokens"] == 10
+
+
+def test_chat_completion_kwargs_preserve_legacy_model_params():
+    from agent.llm_client import chat_completion_kwargs
+
+    params = chat_completion_kwargs(
+        "gpt-4o",
+        [{"role": "user", "content": "hi"}],
+        temperature=0,
+        max_tokens=10,
+    )
+    assert params["temperature"] == 0
+    assert params["max_tokens"] == 10
+    assert "max_completion_tokens" not in params
+
+
+def test_openai_models_ignore_minimax_base_url():
+    from types import SimpleNamespace
+
+    from agent.llm_client import is_openai_model
+
+    settings = SimpleNamespace(openai_model="gpt-5.5", minimax_api_key="set")
+    assert is_openai_model(settings.openai_model)
+
+
+def test_non_openai_models_can_use_minimax_provider():
+    from agent.llm_client import is_openai_model
+
+    assert not is_openai_model("abab6.5-chat")
+
+
 def run_all():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):
