@@ -404,6 +404,9 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         return "blocked_deprecated_direct_reply_tool"
 
     elif tool_name == "front_close_conversation":
+        if not args.get("_allow_close"):
+            logger.warning("Blocked unauthorized front_close_conversation call. caller=%s", args.get("conversation_id"))
+            return "blocked_close_tool_call"
         conversation_id = args["conversation_id"]
         ok = await front.resolve_conversation(conversation_id)
         return "conversation_closed" if ok else "close_failed"

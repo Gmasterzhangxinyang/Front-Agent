@@ -42,7 +42,7 @@ def decide_initial_route(
             name="spam_auto_close",
             handled_before_skill=True,
             tool_name="front_close_conversation",
-            tool_args={"conversation_id": conversation_id},
+            tool_args={"conversation_id": conversation_id, "_allow_close": True},
             state_category="spam",
             state_sub_type=None,
             state_step="closed_spam",
