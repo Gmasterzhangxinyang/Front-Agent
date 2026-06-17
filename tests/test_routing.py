@@ -245,6 +245,16 @@ def test_non_openai_models_can_use_minimax_provider():
     assert not is_openai_model("abab6.5-chat")
 
 
+
+def test_front_webhook_has_concurrency_guards():
+    source = Path("webhooks/front_webhook.py").read_text()
+    assert "MAX_CONCURRENT_WEBHOOKS" in source
+    assert "asyncio.Semaphore" in source
+    assert "_conversation_locks" in source
+    assert "_get_conversation_lock" in source
+    assert "async with _webhook_semaphore" in source
+    assert "async with lock" in source
+
 def run_all():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):

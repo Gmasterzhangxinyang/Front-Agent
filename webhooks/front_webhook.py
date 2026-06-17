@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import logging
+import asyncio
 from fastapi import APIRouter, Request, HTTPException
 from sqlalchemy import select
 from database import AsyncSessionLocal
@@ -11,6 +12,18 @@ from config import settings
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+MAX_CONCURRENT_WEBHOOKS = 2
+_webhook_semaphore = asyncio.Semaphore(MAX_CONCURRENT_WEBHOOKS)
+_conversation_locks: dict[str, asyncio.Lock] = {}
+
+
+def _get_conversation_lock(conversation_id: str) -> asyncio.Lock:
+    lock = _conversation_locks.get(conversation_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _conversation_locks[conversation_id] = lock
+    return lock
+
 
 
 def verify_signature(body: bytes, signature: str) -> bool:
@@ -45,6 +58,13 @@ async def front_webhook(request: Request):
     if not conversation_id:
         return {"status": "ignored", "reason": "no conversation_id"}
 
+    async with _webhook_semaphore:
+        lock = _get_conversation_lock(conversation_id)
+        async with lock:
+            return await _process_front_webhook_event(payload, event_id, conversation_id)
+
+
+async def _process_front_webhook_event(payload: dict, event_id: str | None, conversation_id: str):
     # Idempotency check
     async with AsyncSessionLocal() as db:
         if event_id:
