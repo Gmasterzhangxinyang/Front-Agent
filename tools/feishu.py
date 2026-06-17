@@ -3,6 +3,7 @@ import time
 import httpx
 import logging
 from config import settings
+from tools import email_notify
 
 logger = logging.getLogger(__name__)
 
@@ -305,10 +306,34 @@ async def notify_bobby(
     email_summary: str | None = None,
 ) -> bool:
     """
-    Send Bobby a Feishu notification.
-    If app is configured → interactive card; otherwise → plain webhook text.
-    Returns True on success.
+    Notify Bobby through the configured channel.
+    Feishu supports interactive cards; email is notification-only and includes
+    the Front conversation link for manual handling.
     """
+    channel = (settings.notification_channel or "feishu").lower()
+    email_footer = ""
+    if card_type == "classify" and classification_options:
+        labels = [f"- {opt.get('label') or opt.get('category')}" for opt in classification_options]
+        email_footer = "Classification options that would have appeared as Feishu buttons:\n" + "\n".join(labels)
+    if card_type == "reply_needed":
+        email_footer = "This notification previously required Feishu button interaction. Please review and act in Front manually."
+
+    email_ok = False
+    if channel in ("email", "both"):
+        subject = "Dify support notification"
+        if card_type == "classify":
+            subject = "Dify support: classification needed"
+        elif card_type == "security":
+            subject = "Dify support: security notification"
+        email_ok = await email_notify.notify_bobby_email(
+            message,
+            conversation_id=conversation_id,
+            subject=subject,
+            footer=email_footer,
+        )
+        if channel == "email":
+            return email_ok
+
     if settings.feishu_app_id and settings.feishu_bot_chat_id:
         # For classify cards, embed email_summary into each option's value
         if card_type == "classify" and classification_options and email_summary:
@@ -327,26 +352,39 @@ async def notify_bobby(
         # fall through to webhook on failure
 
     # Fallback: plain webhook
-    return await _send_webhook(settings.feishu_webhook_bobby, message)
+    feishu_ok = await _send_webhook(settings.feishu_webhook_bobby, message)
+    return feishu_ok or email_ok
 
 
 async def notify_yongle(message: str, conversation_id: str = "") -> bool:
+    channel = (settings.notification_channel or "feishu").lower()
+    email_ok = False
+    if channel in ("email", "both"):
+        email_ok = await email_notify.notify_yongle_email(message, conversation_id=conversation_id)
+        if channel == "email":
+            return email_ok
     if settings.feishu_webhook_yongle:
-        return await _send_webhook(settings.feishu_webhook_yongle, message)
-    return await notify_bobby(f"[紧急安全-转杨永乐] {message}", conversation_id=conversation_id, card_type="security")
+        return await _send_webhook(settings.feishu_webhook_yongle, message) or email_ok
+    return await notify_bobby(f"[紧急安全-转杨永乐] {message}", conversation_id=conversation_id, card_type="security") or email_ok
 
 
 async def notify_limin(message: str, conversation_id: str = "") -> bool:
-    """Send a notification to Li Min in the group chat, with @ mention."""
+    """Send a notification to Li Min through the configured channel."""
+    channel = (settings.notification_channel or "feishu").lower()
+    email_ok = False
+    if channel in ("email", "both"):
+        email_ok = await email_notify.notify_limin_email(message, conversation_id=conversation_id)
+        if channel == "email":
+            return email_ok
     if not settings.feishu_limin_open_id:
         logger.warning("feishu_limin_open_id not configured")
-        return False
+        return email_ok
     if not settings.feishu_group_chat_id:
         logger.warning("feishu_group_chat_id not configured")
-        return False
+        return email_ok
     token = await _get_tenant_token()
     if not token:
-        return False
+        return email_ok
 
     # Parse user email from message
     email = ""
@@ -378,20 +416,26 @@ async def notify_limin(message: str, conversation_id: str = "") -> bool:
         if r.status_code == 200:
             return True
         logger.error("Failed to notify Li Min: %s", r.text)
-        return False
+        return email_ok
 
 
 async def notify_sybil(message: str) -> bool:
-    """Send a notification to Sybil in the education group, with @ mention."""
+    """Send a notification to Sybil through the configured channel."""
+    channel = (settings.notification_channel or "feishu").lower()
+    email_ok = False
+    if channel in ("email", "both"):
+        email_ok = await email_notify.notify_sybil_email(message)
+        if channel == "email":
+            return email_ok
     if not settings.feishu_sybil_open_id:
         logger.warning("feishu_sybil_open_id not configured")
-        return False
+        return email_ok
     if not settings.feishu_education_group_chat_id:
         logger.warning("feishu_education_group_chat_id not configured")
-        return False
+        return email_ok
     token = await _get_tenant_token()
     if not token:
-        return False
+        return email_ok
 
     async with httpx.AsyncClient() as client:
         r = await client.post(
@@ -414,7 +458,7 @@ async def notify_sybil(message: str) -> bool:
         if r.status_code == 200:
             return True
         logger.error("Failed to notify Sybil: %s", r.text)
-        return False
+        return email_ok
 
 
 async def _send_webhook(webhook_url: str, message: str) -> bool:

@@ -17,6 +17,24 @@ class Settings(BaseSettings):
     linear_team_id: str
     linear_cus_project_id: str = ""
 
+    # Notification routing
+    # feishu = current interactive Feishu cards/webhooks
+    # email = SMTP email notifications
+    # both = send email and Feishu when possible
+    notification_channel: str = "feishu"
+    notification_email_from: str = ""
+    notification_email_bobby: str = ""
+    notification_email_limin: str = ""
+    notification_email_sybil: str = ""
+    notification_email_yongle: str = ""
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+    front_app_base_url: str = "https://app.frontapp.com/open"
+
     # Feishu webhooks
     feishu_webhook_bobby: str
     feishu_webhook_yuanqing: str = ""

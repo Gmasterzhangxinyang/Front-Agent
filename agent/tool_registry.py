@@ -227,7 +227,7 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "feishu_notify_bobby",
-            "description": "Send a Feishu notification to Bobby (interactive card with action buttons)",
+            "description": "Notify Bobby through the configured notification channel. In Feishu mode this can be an interactive card; in email mode this sends an email with the Front conversation link.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -242,7 +242,7 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "feishu_notify_yongle",
-            "description": "Send an urgent Feishu notification to 杨永乐 (security emergencies)",
+            "description": "Notify 杨永乐 through the configured notification channel for security emergencies.",
             "parameters": {
                 "type": "object",
                 "properties": {"message": {"type": "string"}},
@@ -254,7 +254,7 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "feishu_notify_limin",
-            "description": "Send a Feishu notification to 李敏 (account verification, blacklist queries)",
+            "description": "Notify 李敏 through the configured notification channel for account verification or blacklist queries.",
             "parameters": {
                 "type": "object",
                 "properties": {"message": {"type": "string"}},
@@ -266,7 +266,7 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "feishu_notify_sybil",
-            "description": "Send a Feishu notification to Sybil in the education group (education plan notifications)",
+            "description": "Notify Sybil through the configured notification channel for education plan notifications.",
             "parameters": {
                 "type": "object",
                 "properties": {"message": {"type": "string"}},

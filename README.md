@@ -156,7 +156,7 @@ LLM 不直接访问外部系统，只能通过 `agent/tool_registry.py` 暴露�
 | `front_assign` | 分配给指定 Front teammate |
 | `front_add_comment` | 添加 Front 内部评论 |
 | `linear_create_ticket` | 创建 Linear CUS 工单 |
-| `feishu_notify_*` | 通知 Bobby、李敏、Sybil、杨永乐等 |
+| `feishu_notify_*` | 通知 Bobby、李敏、Sybil、杨永乐等；可通过 `NOTIFICATION_CHANNEL` 切换为邮件通知 |
 | `state_set` | 保存多轮会话状态 |
 | `github_search` | 检索 Dify GitHub issue/PR |
 | `docs_search` | 检索 Dify 官方文档 |
@@ -181,6 +181,12 @@ SQLite 由 SQLAlchemy async 管理，启动时会自动建表。
 代码里还保留了 `sync_missing_conversations`，用于扫描 Front 最近未处理会话，但当前没有启用。
 
 ## 飞书人工介入
+
+通知通道可通过 `NOTIFICATION_CHANNEL` 控制：
+
+- `feishu`：保持当前飞书卡片/群通知行为。
+- `email`：改用 SMTP 邮件通知，邮件里会包含 Front conversation 链接；交互按钮能力不再可用，需要人工到 Front 或后台处理。
+- `both`：同时发送邮件和飞书通知，适合灰度迁移。
 
 飞书卡片主要用于人工兜底和确认：
 
@@ -232,6 +238,23 @@ MINIMAX_BASE_URL=https://api.minimax.chat/v1
 LINEAR_API_KEY=
 LINEAR_TEAM_ID=
 LINEAR_CUS_PROJECT_ID=
+
+# Notification routing
+NOTIFICATION_CHANNEL=feishu  # feishu | email | both
+
+# Email notifications
+NOTIFICATION_EMAIL_FROM=
+NOTIFICATION_EMAIL_BOBBY=
+NOTIFICATION_EMAIL_LIMIN=
+NOTIFICATION_EMAIL_SYBIL=
+NOTIFICATION_EMAIL_YONGLE=
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USERNAME=
+SMTP_PASSWORD=
+SMTP_USE_TLS=true
+SMTP_USE_SSL=false
+FRONT_APP_BASE_URL=https://app.frontapp.com/open
 
 # Feishu
 FEISHU_WEBHOOK_BOBBY=
