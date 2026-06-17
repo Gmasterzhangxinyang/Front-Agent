@@ -28,3 +28,8 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+# macOS metadata
+__MACOSX/
+._*
+screenlog.*
