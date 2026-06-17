@@ -66,7 +66,7 @@ For education/account/security/manual review handoffs:
 Internal handoff recipients are configured with:
 
 ```env
-INTERNAL_FORWARD_BOBBY_EMAIL=
+INTERNAL_FORWARD_BOBBY_EMAIL=bobby@dify.ai
 INTERNAL_FORWARD_LIMIN_EMAIL=
 INTERNAL_FORWARD_SYBIL_EMAIL=sybil@dify.ai
 INTERNAL_FORWARD_YONGLE_EMAIL=
@@ -146,7 +146,7 @@ The second commit corrects the handoff model: internal colleague handoffs go thr
 
 ## 9. Open Questions Before Final Architecture Cleanup
 
-1. What exact email should `INTERNAL_FORWARD_BOBBY_EMAIL` use?
+1. `INTERNAL_FORWARD_BOBBY_EMAIL`: `bobby@dify.ai`
 2. What exact email should `INTERNAL_FORWARD_LIMIN_EMAIL` use?
 3. What exact email should `INTERNAL_FORWARD_YONGLE_EMAIL` use?
 4. Should education go directly to `sybil@dify.ai` only, or also CC another education owner?
