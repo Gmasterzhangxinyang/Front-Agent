@@ -16,7 +16,7 @@ Determine if this is:
 - Call `front_forward_to_investment` — forwards directly to Claudia Liu (claudia@dify.ai)
 
 ### 3. Notify Bobby
-- Call `feishu_notify_bobby` with: "📬 投资类邮件已转发\n发件人: [sender_email]\n对话ID: [conversation_id]\n类型: investment\n\n已直接转发至 Claudia Liu (claudia@dify.ai)"
+- Call `feishu_notify_bobby` (email notification compatibility tool) with: "📬 投资类邮件已转发\n发件人: [sender_email]\n对话ID: [conversation_id]\n类型: investment\n\n已直接转发至 Claudia Liu (claudia@dify.ai)"
 
 ### 4. Mark as done
 - Call `state_set` with step="done" to prevent re-classification
@@ -24,7 +24,7 @@ Determine if this is:
 **Important**: Do NOT call `front_create_draft` to reply to the user. Only forward to Claudia.
 
 ### 3. Bobby's Workflow
-1. AI forwards directly to Claudia and notifies Bobby via Feishu
+1. AI forwards directly to Claudia and notifies Bobby by email
 2. No automatic reply sent to the user
 
 ## Routing

@@ -227,12 +227,12 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "feishu_notify_bobby",
-            "description": "Notify Bobby through the configured notification channel. In Feishu mode this can be an interactive card; in email mode this sends an email with the Front conversation link.",
+            "description": "Notify Bobby by email with the Front conversation link. No interactive button workflow is used.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "message": {"type": "string"},
-                    "conversation_id": {"type": "string", "description": "Front conversation ID, used to link card actions back — REQUIRED, always pass this"},
+                    "conversation_id": {"type": "string", "description": "Front conversation ID, used to include the Front link in the email — REQUIRED, always pass this"},
                 },
                 "required": ["message", "conversation_id"],
             },
@@ -242,7 +242,7 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "feishu_notify_yongle",
-            "description": "Notify 杨永乐 through the configured notification channel for security emergencies.",
+            "description": "Notify 杨永乐 by email for security emergencies.",
             "parameters": {
                 "type": "object",
                 "properties": {"message": {"type": "string"}},
@@ -254,7 +254,7 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "feishu_notify_limin",
-            "description": "Notify 李敏 through the configured notification channel for account verification or blacklist queries.",
+            "description": "Notify 李敏 by email for account verification or blacklist queries.",
             "parameters": {
                 "type": "object",
                 "properties": {"message": {"type": "string"}},
@@ -266,7 +266,7 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "feishu_notify_sybil",
-            "description": "Notify Sybil through the configured notification channel for education plan notifications.",
+            "description": "Notify Sybil by email for education plan notifications.",
             "parameters": {
                 "type": "object",
                 "properties": {"message": {"type": "string"}},
@@ -339,7 +339,7 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         return "draft_created" if ok else "draft_failed"
 
     if tool_name == "front_reply":
-        # Legacy path — only used when Bobby approves from Feishu card
+        # Legacy direct-reply path; normal agent flow creates Front drafts for review
         ok = await front.reply_to_conversation(args["conversation_id"], args["body"])
         return "replied" if ok else "reply_failed"
 

@@ -32,7 +32,7 @@ Handle education plan applications, rejections, and discount issues.
          **AI 评估：** <your actual assessment, e.g. "Higher education institution, government-accredited" or "Likely accredited university">
          ```
        - WAIT for `linear_create_ticket` to return the URL before proceeding
-       - Call `feishu_notify_sybil` with: "请转告张苑晴审核教育版申请。学校: [school name], 域名: [domain]. Linear: [actual URL returned above]" — replace [actual URL returned above] with the real URL from the previous tool result, never use placeholder text
+       - Call `feishu_notify_sybil` (email notification compatibility tool) with: "请转告张苑晴审核教育版申请。学校: [school name], 域名: [domain]. Linear: [actual URL returned above]" — replace [actual URL returned above] with the real URL from the previous tool result, never use placeholder text
        - Call `front_create_draft` with "received, forwarding to team" template
        - Call `state_set` with step="ticket_created"
      - **K-12 or unaccredited:**
@@ -58,7 +58,7 @@ Handle education plan applications, rejections, and discount issues.
        **AI 评估：** <your actual assessment, e.g. "Higher education institution, government-accredited" or "Likely accredited university">
        ```
      - WAIT for `linear_create_ticket` to return the URL before proceeding
-     - Call `feishu_notify_sybil` with: "请转告张苑晴审核教育版申请。学校: [school name], 域名: [domain]. Linear: [actual URL returned above]" — replace [actual URL returned above] with the real URL from the previous tool result, never use placeholder text
+     - Call `feishu_notify_sybil` (email notification compatibility tool) with: "请转告张苑晴审核教育版申请。学校: [school name], 域名: [domain]. Linear: [actual URL returned above]" — replace [actual URL returned above] with the real URL from the previous tool result, never use placeholder text
      - Call `front_create_draft` with "received, forwarding to team" template
      - Call `state_set` with step="ticket_created"
    - **K-12 or unaccredited:**
@@ -99,7 +99,7 @@ Handle education plan applications, rejections, and discount issues.
 
      **证明：** <summary of proof provided by user>
      ```
-   - Call `feishu_notify_sybil` with message "教育版用户邮箱失效（毕业）- 原邮箱: [原邮箱], 新邮箱: [新邮箱]. 请转交张苑晴处理. Linear: [URL]"
+   - Call `feishu_notify_sybil` (email notification compatibility tool) with message "教育版用户邮箱失效（毕业）- 原邮箱: [原邮箱], 新邮箱: [新邮箱]. 请转交张苑晴处理. Linear: [URL]"
    - Call `front_create_draft` with "received, forwarding to team" template
    - Call `state_set` with step="ticket_created"
 3. If not confirmed: Call `front_create_draft` asking again politely for proof

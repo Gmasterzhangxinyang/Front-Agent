@@ -17,11 +17,7 @@ class Settings(BaseSettings):
     linear_team_id: str
     linear_cus_project_id: str = ""
 
-    # Notification routing
-    # feishu = current interactive Feishu cards/webhooks
-    # email = SMTP email notifications
-    # both = send email and Feishu when possible
-    notification_channel: str = "feishu"
+    # Email notifications
     notification_email_from: str = ""
     notification_email_bobby: str = ""
     notification_email_limin: str = ""
@@ -35,16 +31,6 @@ class Settings(BaseSettings):
     smtp_use_ssl: bool = False
     front_app_base_url: str = "https://app.frontapp.com/open"
 
-    # Feishu webhooks
-    feishu_webhook_bobby: str
-    feishu_webhook_yuanqing: str = ""
-    feishu_webhook_yongle: str = ""
-
-    # Feishu App (Bobby的小猫 - 交互卡片)
-    feishu_app_id: str = ""
-    feishu_app_secret: str = ""
-    feishu_bot_chat_id: str = ""  # 你和机器人的单聊 chat_id
-
     # Linear user IDs for assignment
     # ⚠️ 需填写: 在 Linear Settings → Members 查找各人的 User ID
     linear_user_yuanqing: str = ""   # 张苑晴
@@ -56,16 +42,6 @@ class Settings(BaseSettings):
     front_teammate_xiaxi: str = ""      # 徐小茜
     front_teammate_zhaohq: str = ""     # 赵晗青
     front_teammate_zhaoyawen: str = ""  # 赵雅雯 (cc)
-
-    # 李敏 (账号验证、黑名单查询)
-    feishu_limin_open_id: str = ""
-
-    # Sybil (教育版群)
-    feishu_sybil_open_id: str = ""
-    feishu_education_group_chat_id: str = ""
-
-    # 飞书群聊 ID (任务通知群)
-    feishu_group_chat_id: str = ""
 
     # Partner emails for forwarding
     # ⚠️ 需填写

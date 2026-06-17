@@ -1,470 +1,54 @@
-import json
-import time
-import httpx
-import logging
-from config import settings
+"""Email notification compatibility layer.
+
+The historical notification tool names and module path are kept for LLM schema
+and skill compatibility. New stable-agent code routes those calls to SMTP email
+notifications only.
+"""
+
 from tools import email_notify
 
-logger = logging.getLogger(__name__)
-
-# ── Tenant access token cache ──────────────────────────────────────────────
-_tenant_token: str | None = None
-_token_expires_at: float = 0.0
-
-
-async def _get_tenant_token() -> str | None:
-    global _tenant_token, _token_expires_at
-    if _tenant_token and time.time() < _token_expires_at - 60:
-        return _tenant_token
-    if not settings.feishu_app_id or not settings.feishu_app_secret:
-        return None
-    async with httpx.AsyncClient() as client:
-        r = await client.post(
-            "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
-            json={"app_id": settings.feishu_app_id, "app_secret": settings.feishu_app_secret},
-        )
-        data = r.json()
-        if data.get("code") == 0:
-            _tenant_token = data["tenant_access_token"]
-            _token_expires_at = time.time() + data.get("expire", 7200)
-            return _tenant_token
-    logger.error("Failed to get Feishu tenant token: %s", r.text)
-    return None
-
-
-# ── Send / update card messages ────────────────────────────────────────────
-
-async def send_card(card: dict) -> str | None:
-    """Send an interactive card to Bobby's chat. Returns message_id or None."""
-    if not settings.feishu_bot_chat_id:
-        logger.warning("feishu_bot_chat_id not configured")
-        return None
-    token = await _get_tenant_token()
-    if not token:
-        return None
-    async with httpx.AsyncClient() as client:
-        r = await client.post(
-            "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id",
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            json={
-                "receive_id": settings.feishu_bot_chat_id,
-                "msg_type": "interactive",
-                "content": json.dumps(card),
-            },
-        )
-        data = r.json()
-        if data.get("code") == 0:
-            return data["data"]["message_id"]
-        logger.error("Feishu send_card failed: %s", r.text)
-        return None
-
-
-async def update_card(message_id: str, card: dict) -> bool:
-    """Update an existing card (e.g. mark as handled after Bobby clicks)."""
-    import logging as _logging
-    _logger = _logging.getLogger(__name__)
-    token = await _get_tenant_token()
-    if not token:
-        _logger.error("update_card: failed to obtain tenant token, card NOT updated (msg=%s)", message_id)
-        return False
-    async with httpx.AsyncClient() as client:
-        r = await client.patch(
-            f"https://open.feishu.cn/open-apis/im/v1/messages/{message_id}",
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            json={"content": json.dumps(card)},
-        )
-        resp = r.json()
-        ok = resp.get("code") == 0
-        if ok:
-            _logger.info("update_card: successfully updated card for msg=%s", message_id)
-        else:
-            _logger.error(
-                "update_card: Feishu API returned error for msg=%s: code=%s msg=%s",
-                message_id, resp.get("code"), resp.get("msg"),
-            )
-        return ok
-
-
-# ── Card builders ──────────────────────────────────────────────────────────
-
-def _header(title: str, color: str = "blue") -> dict:
-    return {"title": {"tag": "plain_text", "content": title}, "template": color}
-
-
-def build_notify_card(
-    conversation_id: str,
-    summary: str,
-    linear_url: str | None = None,
-    card_type: str = "general",
-    ai_draft: str | None = None,
-    classification_options: list[dict] | None = None,
-) -> dict:
-    """
-    card_type:
-      general      → 已转告 / 已解决
-      security     → 已转安全团队 / 已解决
-      reply_needed → AI draft + 通过发送 / 我来改
-      classify     → 分类不确定，让 Bobby 选择
-    """
-    elements: list[dict] = [
-        {"tag": "div", "text": {"tag": "lark_md", "content": summary}},
-    ]
-
-    if linear_url:
-        elements.append({
-            "tag": "div",
-            "text": {"tag": "lark_md", "content": f"📋 Linear: {linear_url}"},
-        })
-
-    elements.append({"tag": "hr"})
-
-    if card_type == "classify" and classification_options:
-        elements.append({
-            "tag": "div",
-            "text": {"tag": "lark_md", "content": "**AI 不确定分类，请选择正确类别：**"},
-        })
-        actions = []
-        for opt in classification_options:
-            actions.append({
-                "tag": "button",
-                "text": {"tag": "plain_text", "content": opt["label"]},
-                "type": "default",
-                "value": {
-                    "action": "confirm_classification",
-                    "conversation_id": conversation_id,
-                    "category": opt["category"],
-                    "sub_type": opt.get("sub_type"),
-                    "email_summary": opt.get("email_summary", ""),
-                },
-            })
-    elif card_type == "reply_needed" and ai_draft:
-        elements.append({
-            "tag": "div",
-            "text": {"tag": "lark_md", "content": f"**AI 草稿：**\n{ai_draft}"},
-        })
-        elements.append({"tag": "hr"})
-        actions = [
-            {
-                "tag": "button",
-                "text": {"tag": "plain_text", "content": "✅ 通过，直接发送"},
-                "type": "primary",
-                "value": {"action": "approve_draft", "conversation_id": conversation_id, "draft": ai_draft},
-            },
-            {
-                "tag": "button",
-                "text": {"tag": "plain_text", "content": "✏️ 我来改"},
-                "type": "default",
-                "value": {"action": "rewrite_draft", "conversation_id": conversation_id},
-            },
-        ]
-    elif card_type == "security":
-        actions = [
-            {
-                "tag": "button",
-                "text": {"tag": "plain_text", "content": "🔒 已转安全团队"},
-                "type": "primary",
-                "value": {"action": "security_forwarded", "conversation_id": conversation_id},
-            },
-            {
-                "tag": "button",
-                "text": {"tag": "plain_text", "content": "✅ 已解决"},
-                "type": "default",
-                "value": {"action": "resolved", "conversation_id": conversation_id},
-            },
-        ]
-    else:
-        actions = [
-            {
-                "tag": "button",
-                "text": {"tag": "plain_text", "content": "✅ 已转告"},
-                "type": "primary",
-                "value": {"action": "forwarded", "conversation_id": conversation_id},
-            },
-            {
-                "tag": "button",
-                "text": {"tag": "plain_text", "content": "✅ 已解决"},
-                "type": "default",
-                "value": {"action": "resolved", "conversation_id": conversation_id},
-            },
-        ]
-
-    elements.append({"tag": "action", "actions": actions})
-
-    color_map = {"security": "red", "reply_needed": "wathet", "general": "blue", "classify": "yellow"}
-    title_map = {
-        "security": "⚠️ 安全事件",
-        "reply_needed": "💬 待确认回复",
-        "general": "📬 新工单通知",
-        "classify": "❓ 分类不确定",
-    }
-
-    return {
-        "config": {"wide_screen_mode": True},
-        "header": _header(title_map.get(card_type, "📬 新工单通知"), color_map.get(card_type, "blue")),
-        "elements": elements,
-    }
-
-
-def build_forwarded_card(conversation_id: str, original_summary: str) -> dict:
-    """Card shown after Bobby clicks 已转告 — shows forwarded status + keeps 已解决 button.
-
-    The 已转告 button is rendered in a disabled state so that even if Feishu
-    reverts the card UI, the button cannot be clicked again.
-    """
-    return {
-        "config": {"wide_screen_mode": True, "update_multi": False},
-        "header": _header("📬 已转告", "orange"),
-        "elements": [
-            {"tag": "div", "text": {"tag": "lark_md", "content": original_summary}},
-            {"tag": "hr"},
-            {"tag": "div", "text": {"tag": "lark_md", "content": f"**状态：** 已转告相关同事，等待处理完成"}},
-            {"tag": "hr"},
-            {
-                "tag": "action",
-                "actions": [
-                    {
-                        "tag": "button",
-                        "text": {"tag": "plain_text", "content": "✅ 已转告"},
-                        "type": "default",
-                        "disabled": True,
-                        "value": {"action": "forwarded", "conversation_id": conversation_id},
-                    },
-                    {
-                        "tag": "button",
-                        "text": {"tag": "plain_text", "content": "✅ 已解决"},
-                        "type": "primary",
-                        "value": {"action": "resolved", "conversation_id": conversation_id},
-                    },
-                ],
-            },
-        ],
-    }
-
-
-def build_handled_card(original_summary: str, action_label: str) -> dict:
-    """Card shown after Bobby clicks a button — replaces buttons with status."""
-    return {
-        "config": {"wide_screen_mode": True, "update_multi": False},
-        "header": _header("✅ 已处理", "green"),
-        "elements": [
-            {"tag": "div", "text": {"tag": "lark_md", "content": original_summary}},
-            {"tag": "hr"},
-            {"tag": "div", "text": {"tag": "lark_md", "content": f"**操作：** {action_label}"}},
-            {"tag": "div", "text": {"tag": "lark_md", "content": f"**完成时间：** {time.strftime('%Y-%m-%d %H:%M:%S')}"}},
-        ],
-    }
-
-
-def build_awaiting_reply_card(
-    conversation_id: str,
-    summary: str,
-    polished_draft: str,
-) -> dict:
-    """Card sent after AI polishes Bobby's custom reply — Bobby confirms before sending."""
-    elements = [
-        {"tag": "div", "text": {"tag": "lark_md", "content": summary}},
-        {"tag": "hr"},
-        {"tag": "div", "text": {"tag": "lark_md", "content": f"**整理后的回复：**\n{polished_draft}"}},
-        {"tag": "hr"},
-        {
-            "tag": "action",
-            "actions": [
-                {
-                    "tag": "button",
-                    "text": {"tag": "plain_text", "content": "✅ 确认发送"},
-                    "type": "primary",
-                    "value": {
-                        "action": "confirm_send",
-                        "conversation_id": conversation_id,
-                        "draft": polished_draft,
-                    },
-                },
-                {
-                    "tag": "button",
-                    "text": {"tag": "plain_text", "content": "❌ 取消"},
-                    "type": "danger",
-                    "value": {"action": "cancel_send", "conversation_id": conversation_id},
-                },
-            ],
-        },
-    ]
-    return {
-        "config": {"wide_screen_mode": True},
-        "header": _header("📝 请确认回复内容", "wathet"),
-        "elements": elements,
-    }
-
-
-# ── High-level notify helpers ──────────────────────────────────────────────
 
 async def notify_bobby(
     message: str,
     conversation_id: str = "",
     linear_url: str | None = None,
-    card_type: str = "general",
+    notification_type: str = "general",
     classification_options: list[dict] | None = None,
     email_summary: str | None = None,
 ) -> bool:
-    """
-    Notify Bobby through the configured channel.
-    Feishu supports interactive cards; email is notification-only and includes
-    the Front conversation link for manual handling.
-    """
-    channel = (settings.notification_channel or "feishu").lower()
-    email_footer = ""
-    if card_type == "classify" and classification_options:
+    footer_parts = []
+    if linear_url:
+        footer_parts.append(f"Linear: {linear_url}")
+    if notification_type == "classify" and classification_options:
         labels = [f"- {opt.get('label') or opt.get('category')}" for opt in classification_options]
-        email_footer = "Classification options that would have appeared as Feishu buttons:\n" + "\n".join(labels)
-    if card_type == "reply_needed":
-        email_footer = "This notification previously required Feishu button interaction. Please review and act in Front manually."
+        footer_parts.append("Classification options:\n" + "\n".join(labels))
+        footer_parts.append("Review and handle this conversation manually in Front.")
+    if notification_type == "reply_needed":
+        footer_parts.append("Review the draft and send or edit it manually in Front.")
+    if email_summary:
+        footer_parts.append(f"Email summary: {email_summary}")
 
-    email_ok = False
-    if channel in ("email", "both"):
-        subject = "Dify support notification"
-        if card_type == "classify":
-            subject = "Dify support: classification needed"
-        elif card_type == "security":
-            subject = "Dify support: security notification"
-        email_ok = await email_notify.notify_bobby_email(
-            message,
-            conversation_id=conversation_id,
-            subject=subject,
-            footer=email_footer,
-        )
-        if channel == "email":
-            return email_ok
+    subject = "Dify support notification"
+    if notification_type == "classify":
+        subject = "Dify support: classification needed"
+    elif notification_type == "security":
+        subject = "Dify support: security notification"
 
-    if settings.feishu_app_id and settings.feishu_bot_chat_id:
-        # For classify cards, embed email_summary into each option's value
-        if card_type == "classify" and classification_options and email_summary:
-            for opt in classification_options:
-                opt["email_summary"] = email_summary
-        card = build_notify_card(
-            conversation_id=conversation_id,
-            summary=message,
-            linear_url=linear_url,
-            card_type=card_type,
-            classification_options=classification_options,
-        )
-        msg_id = await send_card(card)
-        if msg_id:
-            return True
-        # fall through to webhook on failure
-
-    # Fallback: plain webhook
-    feishu_ok = await _send_webhook(settings.feishu_webhook_bobby, message)
-    return feishu_ok or email_ok
+    return await email_notify.notify_bobby_email(
+        message,
+        conversation_id=conversation_id,
+        subject=subject,
+        footer="\n\n".join(footer_parts),
+    )
 
 
 async def notify_yongle(message: str, conversation_id: str = "") -> bool:
-    channel = (settings.notification_channel or "feishu").lower()
-    email_ok = False
-    if channel in ("email", "both"):
-        email_ok = await email_notify.notify_yongle_email(message, conversation_id=conversation_id)
-        if channel == "email":
-            return email_ok
-    if settings.feishu_webhook_yongle:
-        return await _send_webhook(settings.feishu_webhook_yongle, message) or email_ok
-    return await notify_bobby(f"[紧急安全-转杨永乐] {message}", conversation_id=conversation_id, card_type="security") or email_ok
+    return await email_notify.notify_yongle_email(message, conversation_id=conversation_id)
 
 
 async def notify_limin(message: str, conversation_id: str = "") -> bool:
-    """Send a notification to Li Min through the configured channel."""
-    channel = (settings.notification_channel or "feishu").lower()
-    email_ok = False
-    if channel in ("email", "both"):
-        email_ok = await email_notify.notify_limin_email(message, conversation_id=conversation_id)
-        if channel == "email":
-            return email_ok
-    if not settings.feishu_limin_open_id:
-        logger.warning("feishu_limin_open_id not configured")
-        return email_ok
-    if not settings.feishu_group_chat_id:
-        logger.warning("feishu_group_chat_id not configured")
-        return email_ok
-    token = await _get_tenant_token()
-    if not token:
-        return email_ok
-
-    # Parse user email from message
-    email = ""
-    if "-" in message:
-        parts = message.split("-", 1)
-        if len(parts) > 1:
-            email = parts[1].strip()
-
-    task_title = message if not email else f"登录问题 - {email}"
-
-    async with httpx.AsyncClient() as client:
-        r = await client.post(
-            "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id",
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            json={
-                "receive_id": settings.feishu_group_chat_id,
-                "msg_type": "post",
-                "content": json.dumps({
-                    "zh_cn": {
-                        "title": f"📋 {task_title}",
-                        "content": [
-                            [{"tag": "text", "text": f"发件人: {email}"}] if email else [],
-                            [{"tag": "at", "user_id": settings.feishu_limin_open_id}],
-                        ]
-                    }
-                }),
-            },
-        )
-        if r.status_code == 200:
-            return True
-        logger.error("Failed to notify Li Min: %s", r.text)
-        return email_ok
+    return await email_notify.notify_limin_email(message, conversation_id=conversation_id)
 
 
 async def notify_sybil(message: str) -> bool:
-    """Send a notification to Sybil through the configured channel."""
-    channel = (settings.notification_channel or "feishu").lower()
-    email_ok = False
-    if channel in ("email", "both"):
-        email_ok = await email_notify.notify_sybil_email(message)
-        if channel == "email":
-            return email_ok
-    if not settings.feishu_sybil_open_id:
-        logger.warning("feishu_sybil_open_id not configured")
-        return email_ok
-    if not settings.feishu_education_group_chat_id:
-        logger.warning("feishu_education_group_chat_id not configured")
-        return email_ok
-    token = await _get_tenant_token()
-    if not token:
-        return email_ok
-
-    async with httpx.AsyncClient() as client:
-        r = await client.post(
-            "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id",
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            json={
-                "receive_id": settings.feishu_education_group_chat_id,
-                "msg_type": "post",
-                "content": json.dumps({
-                    "zh_cn": {
-                        "title": f"📋 教育版通知",
-                        "content": [
-                            [{"tag": "text", "text": message}],
-                            [{"tag": "at", "user_id": settings.feishu_sybil_open_id}],
-                        ]
-                    }
-                }),
-            },
-        )
-        if r.status_code == 200:
-            return True
-        logger.error("Failed to notify Sybil: %s", r.text)
-        return email_ok
-
-
-async def _send_webhook(webhook_url: str, message: str) -> bool:
-    if not webhook_url:
-        return False
-    payload = {"msg_type": "text", "content": {"text": message}}
-    async with httpx.AsyncClient() as client:
-        r = await client.post(webhook_url, json=payload)
-        return r.status_code == 200
+    return await email_notify.notify_sybil_email(message)

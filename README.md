@@ -1,6 +1,6 @@
 # Front-Agent
 
-Front-Agent 是一套面向 Dify 支持邮箱的自动化处理服务。它接收 Front webhook，读取完整会话和附件，用 LLM 分类邮件，再按 `skills/` 中的 Markdown 规则调用 Front、Linear、飞书、GitHub 和文档检索等工具完成处理。
+Front-Agent 是一套面向 Dify 支持邮箱的自动化处理服务。它接收 Front webhook，读取完整会话和附件，用 LLM 分类邮件，再按 `skills/` 中的 Markdown 规则调用 Front、Linear、邮件通知、GitHub 和文档检索等工具完成处理。
 
 核心设计是把业务策略放在 `skills/*.md`，把外部系统调用放在 `tools/`，把编排逻辑放在 `agent/orchestrator.py`。日常新增分类、调整回复口径或改变升级规则，优先改 skill 文件，而不是改主流程代码。
 
@@ -11,7 +11,7 @@ Front-Agent 是一套面向 Dify 支持邮箱的自动化处理服务。它接�
 - 服务入口：`main.py`
 - 生产启动：`bash start.sh`
 - 健康检查：`GET /health`
-- 当前主要服务形态：FastAPI + Front webhook + 飞书交互卡片 + SQLite 状态库
+- 当前主要服务形态：FastAPI + Front webhook + 邮件通知 + SQLite 状态库
 
 ## 系统职责
 
@@ -20,7 +20,7 @@ Front-Agent 负责五件事：
 1. 接收 Front 支持邮箱事件，并做签名校验和事件幂等。
 2. 拉取完整 Front conversation、附件和必要的用户历史。
 3. 用 `skills/classify.md` 对邮件分类，再加载对应业务 skill。
-4. 通过 LLM function calling 调用工具：回信、建 Linear 工单、转发、移动 inbox、飞书通知、保存状态等。
+4. 通过 LLM function calling 调用工具：回信、建 Linear 工单、转发、移动 inbox、邮件通知、保存状态等。
 5. 在 Front 内部评论里生成反馈入口，让 Bobby 的修正沉淀为 skill 修改建议。
 
 ## 主流程
@@ -46,7 +46,7 @@ agent.handle_email()
   |
   |-- 使用 skills/classify.md
   |-- spam/unclear 可直接关闭
-  |-- confidence < 0.3 时发飞书分类确认卡片
+  |-- confidence < 0.3 时发邮件给 Bobby 做人工分类确认
   v
 执行阶段
   |
@@ -76,11 +76,10 @@ agent.handle_email()
 │   └── tool_registry.py       # LLM 可调用工具 schema 和执行映射
 ├── webhooks/
 │   ├── front_webhook.py       # Front webhook 接入、签名、幂等、inbox 过滤
-│   └── feishu_card.py         # 飞书交互卡片回调和人工动作处理
 ├── tools/
 │   ├── front.py               # Front API：回复、草稿、转发、关闭、移动 inbox、评论
 │   ├── linear.py              # Linear 工单创建
-│   ├── feishu.py              # 飞书通知和交互卡片
+│   ├── feishu.py              # 邮件通知兼容层，保留旧工具名
 │   ├── attachments.py         # 附件下载、图片 base64、文档文本抽取
 │   ├── state.py               # conversation_states 读写
 │   ├── github.py              # GitHub issue/PR 检索
@@ -112,7 +111,7 @@ agent.handle_email()
 | `webhooks/` | 接收外部回调、校验、幂等、转交业务处理 | 直接写复杂处理策略 |
 | `agent/orchestrator.py` | 决定分类、加载 skill、组织 LLM tool loop | 直接实现外部 API 细节 |
 | `agent/tool_registry.py` | 暴露工具 schema，分发工具调用 | 写分类规则 |
-| `tools/` | 封装 Front/Linear/飞书/GitHub/文档等外部能力 | 决定业务路径 |
+| `tools/` | 封装 Front/Linear/邮件通知/GitHub/文档等外部能力 | 决定业务路径 |
 | `skills/` | 描述分类、回复模板、升级规则、工具使用策略 | 写 Python 逻辑 |
 | `services/` | 反馈学习、skill 建议、文件写入、版本快照 | 处理 webhook |
 | `tasks/` | 定时后台任务 | 接收用户请求 |
@@ -139,7 +138,7 @@ agent.handle_email()
 | `data_export` | 数据导出请求 |
 | `unclear` | 无法明确分类 |
 
-分类结果包含 `category`、`sub_type`、`confidence`、`urgency`、`flags` 和 `summary`。当 `confidence < 0.3` 时，系统会发飞书卡片让 Bobby 选择分类；Bobby 确认后会继续执行对应 skill，并可把这个例子追加进分类经验。
+分类结果包含 `category`、`sub_type`、`confidence`、`urgency`、`flags` 和 `summary`。当 `confidence < 0.3` 时，系统会发邮件给 Bobby，邮件内包含 Front 链接和候选分类；后续人工确认应在 Front 或后台页面完成。
 
 ## Agent 工具
 
@@ -156,7 +155,7 @@ LLM 不直接访问外部系统，只能通过 `agent/tool_registry.py` 暴露�
 | `front_assign` | 分配给指定 Front teammate |
 | `front_add_comment` | 添加 Front 内部评论 |
 | `linear_create_ticket` | 创建 Linear CUS 工单 |
-| `feishu_notify_*` | 通知 Bobby、李敏、Sybil、杨永乐等；可通过 `NOTIFICATION_CHANNEL` 切换为邮件通知 |
+| `feishu_notify_*` | 兼容旧工具名，实际通过邮件通知 Bobby、李敏、Sybil、杨永乐等 |
 | `state_set` | 保存多轮会话状态 |
 | `github_search` | 检索 Dify GitHub issue/PR |
 | `docs_search` | 检索 Dify 官方文档 |
@@ -168,7 +167,7 @@ SQLite 由 SQLAlchemy async 管理，启动时会自动建表。
 | 表 | 用途 |
 |---|---|
 | `conversation_states` | conversation 当前分类、步骤、等待状态和 payload |
-| `webhook_events` | Front/飞书 event id 幂等 |
+| `webhook_events` | Front event id 幂等 |
 | `skill_feedback` | Bobby 原始反馈 |
 | `skill_examples` | 从反馈提取出的语义/案例/流程记忆 |
 | `skill_suggestions` | 待审批的 skill 修改建议 |
@@ -180,24 +179,20 @@ SQLite 由 SQLAlchemy async 管理，启动时会自动建表。
 
 代码里还保留了 `sync_missing_conversations`，用于扫描 Front 最近未处理会话，但当前没有启用。
 
-## 飞书人工介入
+## 邮件人工介入
 
-通知通道可通过 `NOTIFICATION_CHANNEL` 控制：
+新版本的人工兜底通知全部通过 SMTP 邮件发送，邮件里会包含 Front conversation 链接，人工直接到 Front 或后台页面处理。
 
-- `feishu`：保持当前飞书卡片/群通知行为。
-- `email`：改用 SMTP 邮件通知，邮件里会包含 Front conversation 链接；交互按钮能力不再可用，需要人工到 Front 或后台处理。
-- `both`：同时发送邮件和飞书通知，适合灰度迁移。
+当前保留 `feishu_notify_*` 工具名只是为了兼容现有 skills 和 tool schema；这些工具在新版本里实际调用邮件通知。
 
-飞书卡片主要用于人工兜底和确认：
-
-| 卡片场景 | 动作 |
+| 通知场景 | 邮件处理方式 |
 |---|---|
-| 分类不确定 | Bobby 点击确认分类，系统继续跑对应 skill |
-| 需要人工跟进 | 标记已转告、已解决 |
-| 安全问题 | 标记已转安全团队、已解决 |
-| 草稿确认 | 发送草稿、取消、改为人工处理 |
+| 分类不确定 | 发邮件给 Bobby，附 Front 链接和候选分类 |
+| 需要人工跟进 | 发邮件给对应负责人，附 Front 链接 |
+| 安全问题 | 发邮件给安全负责人，附 Front 链接 |
+| 草稿确认 | 发邮件提示人工到 Front 审核草稿 |
 
-`webhooks/feishu_card.py` 会按 conversation 加锁，并用 event id 幂等处理重复回调。卡片 reload 时会根据数据库当前状态返回最新卡片，避免 UI 回退。
+邮件通知不提供交互按钮能力；需要人工判断或审核时，邮件只负责提醒同事到 Front 或后台页面处理。
 
 ## 反馈和 Skill 迭代
 
@@ -239,9 +234,6 @@ LINEAR_API_KEY=
 LINEAR_TEAM_ID=
 LINEAR_CUS_PROJECT_ID=
 
-# Notification routing
-NOTIFICATION_CHANNEL=feishu  # feishu | email | both
-
 # Email notifications
 NOTIFICATION_EMAIL_FROM=
 NOTIFICATION_EMAIL_BOBBY=
@@ -256,19 +248,6 @@ SMTP_USE_TLS=true
 SMTP_USE_SSL=false
 FRONT_APP_BASE_URL=https://app.frontapp.com/open
 
-# Feishu
-FEISHU_WEBHOOK_BOBBY=
-FEISHU_WEBHOOK_YUANQING=
-FEISHU_WEBHOOK_YONGLE=
-FEISHU_APP_ID=
-FEISHU_APP_SECRET=
-FEISHU_BOT_CHAT_ID=
-FEISHU_GROUP_CHAT_ID=
-
-# Feishu users/groups
-FEISHU_LIMIN_OPEN_ID=
-FEISHU_SYBIL_OPEN_ID=
-FEISHU_EDUCATION_GROUP_CHAT_ID=
 
 # Front teammates
 FRONT_TEAMMATE_XIAXI=
@@ -330,12 +309,6 @@ Front Rule webhook 地址：
 https://<your-host>/webhook/front
 ```
 
-飞书卡片回调地址：
-
-```text
-https://<your-host>/webhook/feishu/card
-```
-
 健康检查：
 
 ```bash
@@ -362,7 +335,7 @@ restartPolicyType = "on_failure"
 1. Railway 连接 GitHub 仓库。
 2. 配置环境变量，不要依赖仓库里的 `.env`。
 3. 如需持久化 SQLite，给 `DATABASE_URL` 指向持久化 volume 路径。
-4. 部署后把公网域名配置到 Front webhook 和飞书卡片回调。
+4. 部署后把公网域名配置到 Front webhook。
 5. 用 `/health` 确认服务正常。
 
 ## 修改业务规则

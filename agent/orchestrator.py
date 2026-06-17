@@ -55,14 +55,6 @@ async def handle_email(
         )
         return
 
-    _TERMINAL_STEPS = {"bobby_forwarded", "bobby_resolved", "bobby_security_forwarded"}
-    if existing_state and existing_state.step in _TERMINAL_STEPS:
-        logger.info(
-            "Skipping handle_email for conv %s — already in terminal state '%s'",
-            conversation_id, existing_state.step,
-        )
-        return
-
     # Fetch full conversation history from Front
     all_messages = await get_conversation_messages(conversation_id)
     conversation_text = build_conversation_text(all_messages)
@@ -177,7 +169,7 @@ Use the tools available to you to handle the email completely.
             await notify_bobby(
                 f"🤷 实在无法分类 ({confidence:.0%})\n\n邮件摘要: {classification.get('summary')}\n\nAI 猜测: {category}/{classification.get('sub_type')}",
                 conversation_id=conversation_id,
-                card_type="classify",
+                notification_type="classify",
                 classification_options=options,
                 email_summary=classification.get('summary'),
             )
@@ -316,7 +308,7 @@ async def _classify(conversation_text: str, latest_message: str, sender_email: s
 
 
 async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int = 10, sender_email: str = "", message_body: str = "") -> None:
-    notified_conversations: set[str] = set()  # deduplicate feishu_notify_bobby per conv
+    notified_conversations: set[str] = set()  # deduplicate Bobby email notifications per conv
     for _ in range(max_iterations):
         response = await client.chat.completions.create(
             model=settings.openai_model,
@@ -339,7 +331,7 @@ async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int 
             except Exception:
                 args = {}
 
-            # Deduplicate Feishu card notifications per conversation per agent run
+            # Deduplicate Bobby notifications per conversation per agent run
             if tool_name == "feishu_notify_bobby":
                 conv_id = args.get("conversation_id", "__no_conv__")
                 if conv_id in notified_conversations:
