@@ -1,177 +1,306 @@
-# Stable Agent V2 Plan
+# Stable Agent V2 Engineering Spec
 
-This plan combines the earlier architecture optimization plan with the updated colleague handoff decision: no Feishu workflow, no SMTP notification sender, and internal handoffs through Front forwarding.
+This is the implementation spec for the new stable version of Front-Agent. The currently running `screen` production service must remain unchanged until this spec, code diff, and historical replay results are reviewed and explicitly approved for deployment.
 
-## 1. Operating Principle
+## 1. System Goal
 
-- Keep the currently running production service unchanged until the new version is reviewed and intentionally deployed.
-- All optimization work happens on `refactor/stable-agent-v2`.
-- Do not restart, kill, or replace the running `screen` service during refactor work.
-- Treat the current branch as a new version, not a live hotfix.
+Build a stable support automation system that can classify Front conversations, select a deterministic route, execute only allowed actions, preserve original customer context for internal handoffs, and make every non-spam decision reviewable.
 
-## 2. Target Outcome
+The core architecture change is to stop mixing classification, routing, reply policy, escalation policy, and tool side effects inside one LLM loop.
 
-Build a stable support automation system that can:
+## 2. Non-Negotiable Safety Rules
 
-1. Classify incoming Front conversations reliably.
-2. Select the correct business route with explicit confidence thresholds.
-3. Draft customer-facing replies in Front unless a rule explicitly allows direct send.
-4. Create Linear tickets with enough original context.
-5. Forward internal handoffs through Front to the right colleague or team.
-6. Preserve original customer email content in every handoff.
-7. Avoid hidden side effects such as notifying customers from internal handoff code.
+- Work only on `refactor/stable-agent-v2` until deployment is approved.
+- Do not restart, kill, attach, or replace the currently running production `screen` service during refactor work.
+- No Feishu runtime path: no Feishu cards, callbacks, buttons, `已解决`, tenant token, or webhook state workflow.
+- No SMTP notification sender.
+- Internal handoffs must use Front forwarding only.
+- Internal handoff tools must never send email to customers.
+- Customer-facing communication must happen only through approved Front customer tools: draft or reply.
+- Default customer action is draft or no reply. Direct-send must be explicitly allowed by policy.
+- Spam/ads may auto-close only when the route is clearly spam/ads.
+- All non-spam handoffs stay open so Bobby can verify routing quality.
+- No fixed confidence threshold controls routing. `confidence` is observability only.
 
-## 3. Major Architecture Problems To Fix
+## 3. Architecture Layers
 
-| Area | Current Problem | Target Direction |
-|---|---|---|
-| Classification | One-shot category decisions can be inaccurate, especially mixed intent emails. | Use stricter schema, confidence gates, evidence fields, and fallback review paths. |
-| Skills | Skill files mix routing, reply policy, escalation policy, and templates. | Split each skill into decision rules, tool actions, and response templates. |
-| Tool naming | Legacy `feishu_notify_*` names no longer describe behavior. | Keep wrappers temporarily, then rename to Front-forward tools after skills are stable. |
-| Human handoff | Previous Feishu card workflow introduced callback state, duplicate callbacks, and button semantics. | Remove interactive callback workflow. Use Front forward only. |
-| Internal recipients | Routing has been person-specific and scattered across skills/config. | Centralize recipients in config and document ownership clearly. |
-| Forwarding original content | Some forwarding paths were fragile or summary-only. | Every handoff must include summary plus original Front conversation content. |
-| Customer safety | Internal notification code must never email customers. | Only Front reply/draft tools communicate with customers. Handoff tools only send to configured internal recipients. |
-| Observability | Tool failures can be hard to diagnose. | Add clearer return values, comments, and eventually structured logs/metrics. |
-| Testing | Existing checks are mostly manual. | Add focused tests for classification contract, forwarding body construction, and tool routing. |
-
-## 4. Notification And Handoff Decision
-
-### Final Decision
-
-Use Front forwarding for internal colleague handoffs.
-
-Do not use:
-
-- Feishu cards
-- Feishu webhooks
-- Feishu button states such as `已解决` / `已转告`
-- SMTP notification sender
-- `NOTIFICATION_EMAIL_FROM`
-- direct notification emails generated outside Front
-
-### Required Behavior
-
-For education/account/manual review handoffs:
-
-1. The agent summarizes the case.
-2. If a Linear ticket was created, the summary includes the Linear URL.
-3. The agent forwards the Front conversation to the colleague through Front.
-4. The forwarded body includes the original Front conversation content.
-5. The customer is not sent anything by the handoff tool.
-6. Customer-facing replies remain Front drafts or Front replies handled by existing Front tools.
-
-For security reports, the target behavior is different: move the conversation to the Security inbox, not forwarding to a named person.
-
-### Config
-
-Internal handoff recipients are configured with:
-
-```env
-INTERNAL_FORWARD_BOBBY_EMAIL=bobby@dify.ai
-INTERNAL_FORWARD_LIMIN_EMAIL=bobby@dify.ai
-INTERNAL_FORWARD_SYBIL_EMAIL=sybil@dify.ai
+```text
+Front webhook
+  -> signature verification
+  -> webhook event idempotency
+  -> allowed inbox filter
+  -> full conversation and attachment loading
+  -> classification layer
+  -> routing decision layer
+  -> policy/skill layer when needed
+  -> tool execution layer
+  -> state persistence and audit comment
 ```
 
-### Temporary Compatibility
-
-Keep the legacy tool names temporarily:
-
-- `feishu_notify_bobby`
-- `feishu_notify_limin`
-- `feishu_notify_sybil`
-
-These now mean “Front-forward the original conversation to the configured colleague.” The 李敏 compatibility path currently forwards to Bobby. They do not call Feishu.
-
-After the new version is stable, rename them to clearer names:
-
-- `front_forward_to_bobby`
-- `front_forward_to_limin`
-- `front_forward_to_sybil`
-
-## 5. Routing Rules To Stabilize
-
-| Category / Case | Target Handling |
-|---|---|
-| Marketplace / community / plugin / ecosystem cooperation | Forward original Front thread to `marketing@dify.ai`. Keep open for review. |
-| Spam / ads / unsolicited promotion | Auto-close/archive after classification. No internal handoff required unless the classifier is uncertain. |
-| Education plan review | Create Linear when needed, then immediately Front-forward summary + Linear URL + original thread to `sybil@dify.ai` only. Keep the conversation open. |
-| Account verification / blacklist / paid login issue | Draft customer acknowledgement, then immediately Front-forward summary + original thread to Bobby for now. Keep the conversation open. |
-| Security emergency | Move the Front conversation from Support/Hello inbox to `Security` immediately. Do not separately forward to Yongle in V2. Keep open for review. |
-| Investment / IR | Forward to Claudia immediately, then Front-forward summary to Bobby if visibility is needed. Keep open unless explicitly classified as spam/ads. |
-| Legal threat | Do not auto-send customer reply unless safe; immediately Front-forward summary + original thread to Bobby/legal path. Keep open. |
-| Unclear classification | Draft generic acknowledgement only when appropriate, then immediately Front-forward to Bobby for manual judgment. Keep open. |
-
-## 6. Refactor Phases
-
-| Phase | Goal | Work Items | Done Criteria |
+| Layer | File | Responsibility | Must Not Do |
 |---|---|---|---|
-| 0. Production Safety | Keep current running code unchanged. | Work only on branch; do not restart screen; keep commits small. | Running service still untouched. |
-| 1. Remove Feishu Runtime | Delete Feishu callback/API behavior. | Remove Feishu callback route, card builders, tenant token calls, button-state workflow. | No `open.feishu.cn`, `FEISHU_*`, `webhook/feishu`, or card callback references in active code. |
-| 2. Front Forward Handoff | Replace internal notifications with immediate Front forwards. | Use `front.forward_conversation_direct`; require `conversation_id`; include summary/Linear/original thread. | No SMTP notification config/helper; handoff tools send only to internal configured recipients and keep conversations open except spam/ads. |
-| 3. Skill Cleanup | Make business routing explicit. | Update education/account/security/unclear/investment skills to pass `conversation_id` and concise summary. | Tool calls are deterministic and include required fields. |
-| 4. Classification Hardening | Improve intent detection. | Add evidence fields, confidence thresholds, mixed-intent handling, and “manual review” criteria. | Classification JSON is strict and repeatable; low confidence falls back safely. |
-| 5. Tool Naming Cleanup | Remove misleading legacy names. | Rename `feishu_notify_*` to `front_forward_to_*`; update skills and registry together. | No Feishu names remain except historical docs/record files. |
-| 6. Test Coverage | Prevent regressions. | Add tests for forward body, routing recipients, no-customer handoff, classification schema, and replay 50 historical conversations as a routing test set. | Tests run locally before merge/deploy; the 50-history replay must be reviewed before production cutover. |
-| 7. Deployment Review | Decide when to replace current service. | Review diffs, env vars, logs, and rollback plan. | User explicitly approves deploy/restart. |
+| Webhook | `webhooks/front_webhook.py` | Verify event, dedupe, filter inbox, call orchestrator | Decide business route |
+| Classification | `agent/classification.py` | Parse and normalize LLM JSON | Execute tools or choose recipients |
+| Routing | `agent/routing.py` | Convert classification into deterministic route | Write long replies or call APIs directly |
+| Orchestration | `agent/orchestrator.py` | Coordinate classification, routing, skill loop, state | Hide routing rules in prompts |
+| Tool Registry | `agent/tool_registry.py` | Expose allowed tool schemas and dispatch calls | Make classification decisions |
+| Front API | `tools/front.py` | Front draft/reply/forward/move/close/comment APIs | Choose business owners |
+| Handoff | `tools/handoff.py` | Internal Front forwarding to configured recipients | Send to customer addresses |
+| Skills | `skills/*.md` | Category-specific policy and templates | Override global safety rules |
 
-## 7. Validation Checklist
+## 4. Classification Contract
 
-Before any deployment:
+The classifier output is not the final action. It is structured evidence for the routing layer.
+
+Required JSON fields:
+
+```json
+{
+  "category": "technical | account | purchase | education | billing | partnership | marketing | security | spam | legal | roadmap | investment | business | data_export | unclear",
+  "sub_type": "string or null",
+  "summary": "one sentence summary",
+  "sender_email": "sender email",
+  "is_paid_user": true,
+  "is_premium": false,
+  "urgency": "normal | high",
+  "flags": [],
+  "secondary_intents": [],
+  "evidence": ["short evidence phrase"],
+  "confidence": 0.0
+}
+```
+
+Classification rules:
+
+- Advertising, sponsorship, SEO, backlinks, guest posts, lead generation, conference promotion, media package, PR promotion, and unsolicited sales are `spam`.
+- Marketplace, plugin, template, and community ecosystem cooperation are `partnership`; they route to `marketing@dify.ai`, not Sherry or 赵雅雯.
+- Security vulnerabilities, responsible disclosure, abuse reports, data leaks, active compromise, and security reports are `security`.
+- Education plan application, rejection, discount, school eligibility, and education email problems are `education` unless the dominant issue is generic account login.
+- Login, verification code, account deletion, account transfer, change email, quota anomaly, blacklist, and account ownership issues are `account`.
+- Refund, invoice, duplicate charge, downgrade, and paid subscription cancellation are `billing`.
+- If multiple intents exist, choose the highest operational priority as `category` and place others in `secondary_intents`.
+- If evidence is insufficient or the route is outside known rules, classify as `unclear`.
+- `confidence` is recorded for review only. It must not trigger routing by itself.
+
+## 5. Route Decision Object
+
+Python routing should produce one `RouteDecision` object before any side effect.
+
+```python
+RouteDecision(
+    route="forwarded_keep_open",
+    category="education",
+    sub_type="rejected",
+    action="front_forward_to_sybil",
+    customer_action="draft_ack",
+    internal_target="sybil@dify.ai",
+    inbox_target=None,
+    close_conversation=False,
+    state_step="forwarded_keep_open",
+    reason="Eligible education review requires Sybil handoff",
+)
+```
+
+Required decision fields:
+
+| Field | Meaning |
+|---|---|
+| `route` | Stable route name used in logs/tests |
+| `category` / `sub_type` | Normalized classifier category |
+| `action` | Tool action or `skill_flow` |
+| `customer_action` | `none`, `draft`, `draft_ack`, `direct_reply`, or `skill_policy` |
+| `internal_target` | Internal email target when applicable |
+| `inbox_target` | Front inbox target when applicable |
+| `close_conversation` | Whether automation may close/archive |
+| `state_step` | State saved after the action |
+| `reason` | Short human-readable route reason |
+
+## 6. Routing Decision Table
+
+| Category / Case | Required Evidence | Route | System Action | Customer Action | Target | State Step | Close? |
+|---|---|---|---|---|---|---|---|
+| spam / ads | Ads, sponsorship, SEO, backlinks, guest posts, promotion, unsolicited sales | `spam_auto_close` | `front_close_conversation` | none | none | `closed_spam` | yes |
+| security | Vulnerability, disclosure, abuse, data leak, security incident | `security_move_inbox` | `front_forward_to_security` | none by default | inbox `Security` | `moved_inbox` | no |
+| unclear | Route cannot be determined from rules | `manual_review_bobby` | `front_forward_to_bobby` | none by default | `bobby@dify.ai` | `manual_review` | no |
+| partnership / marketplace | Marketplace/plugin/template/community ecosystem cooperation | `marketing_forwarded_keep_open` | `front_forward_to_community` or `front_forward_to_partnerships` | none by default | `marketing@dify.ai` | `forwarded_keep_open` | no |
+| education eligible review | Higher education application/rejection with school info | `education_sybil_forwarded_keep_open` | create Linear when needed, then `front_forward_to_sybil` | draft acknowledgement | `sybil@dify.ai` | `forwarded_keep_open` | no |
+| education not eligible | K-12, personal email only, or clearly not eligible | `education_draft_keep_open` | `front_create_draft` | draft rejection/info request | none | `draft_created` | no |
+| account paid/login/blacklist | Paid login, verification, blacklist, account ownership | `account_bobby_forwarded_keep_open` | `front_forward_to_bobby` or account skill then handoff | draft acknowledgement when useful | `bobby@dify.ai` | `forwarded_keep_open` | no |
+| billing | Refund, invoice, duplicate charge, downgrade | `billing_skill_flow` | skill decides draft/ticket | draft by default | skill policy | `skill_in_progress` or final state | no by default |
+| legal | Legal threat, lawyer letter, lawsuit | `legal_review_keep_open` | legal/Bobby handoff path | no automatic reply by default | legal/Bobby path | `forwarded_keep_open` | no |
+| investment | Investor/VC/fundraising | `investment_forwarded_keep_open` | forward to Claudia if configured | none by default | Claudia, optional Bobby visibility | `forwarded_keep_open` | no |
+| technical free | Technical support without paid/Premium evidence | `technical_template_or_draft` | technical skill | approved template or draft | none | skill policy | policy |
+| technical paid/Premium | Paid/Premium technical issue | `technical_ticket_or_draft` | technical skill, Linear when needed | draft or ticket acknowledgement | CUS Linear | skill policy | no by default |
+
+## 7. State Machine
+
+Use clear state steps so webhook reprocessing is predictable.
+
+| State Step | Meaning | Reprocessable? | Waiting User? | Auto Close? |
+|---|---|---|---|---|
+| `initial` | New or unprocessed conversation | yes | no | no |
+| `classified` | Classification stored, no side effect yet | yes | no | no |
+| `draft_created` | Customer draft created for human review | no | no | no |
+| `forwarded_keep_open` | Internal Front handoff sent; conversation remains open | no | no | no |
+| `moved_inbox` | Conversation moved to another Front inbox | no | no | no |
+| `manual_review` | Bobby review required | no | no | no |
+| `waiting_user` | Draft/reply asks user for more info | yes, when user replies | yes | stale-close policy only |
+| `closed_spam` | Spam/ads archived by automation | no | no | already closed |
+| `failed_needs_review` | Tool failed or route unsafe | no | no | no |
+| `done` | Explicitly completed by policy | no | no | policy only |
+
+Preferred non-spam handoff state is `forwarded_keep_open`.
+
+## 8. Customer Reply Policy
+
+| Situation | Customer-Facing Behavior |
+|---|---|
+| Spam / ads | No reply |
+| Security | No automatic customer reply by default |
+| Legal | No automatic customer reply by default |
+| Unclear | No automatic customer reply by default |
+| Marketplace / partnership | No automatic customer reply by default |
+| Education eligible review | Draft acknowledgement, not direct send |
+| Education not eligible | Draft explanation, not direct send |
+| Account paid/login/blacklist | Draft acknowledgement when helpful, then internal handoff |
+| Billing/refund/invoice | Draft by default unless policy explicitly permits otherwise |
+| Technical free | Approved template may direct-send only if skill allows |
+| Technical paid/Premium | Draft/ticket according to skill |
+
+Default: if unsure, draft or no reply. Do not direct-send.
+
+## 9. Internal Handoff Contract
+
+All internal handoffs must use Front forwarding and include:
+
+- conversation ID
+- original sender email
+- summary
+- route reason
+- category/sub_type
+- Linear URL if created
+- original Front conversation content
+
+Hard restrictions:
+
+- Handoff tools cannot use `sender_email` as `to_email`.
+- Handoff tools can only send to configured internal recipients.
+- Handoff tools do not close conversations.
+- Handoff tools do not create customer replies.
+
+Current recipients:
+
+| Path | Recipient / Target |
+|---|---|
+| Bobby review | `bobby@dify.ai` |
+| Account / previous 李敏 path | `bobby@dify.ai` |
+| Education review | `sybil@dify.ai` |
+| Marketplace/community/plugin ecosystem | `marketing@dify.ai` |
+| Security | Front inbox `Security` |
+
+## 10. Failure Handling
+
+| Failure | Required Handling |
+|---|---|
+| Classification JSON parse fails | Treat as `unclear`, route to Bobby, keep open |
+| Route has missing required evidence | Route to Bobby, keep open |
+| Front forward fails | Add internal comment if possible, set `failed_needs_review`, keep open |
+| Front close spam fails | Set `failed_needs_review`, keep open |
+| Security inbox not found | Route to Bobby instead of dropping conversation |
+| Linear ticket creation fails | Do not proceed as successful handoff; route to Bobby with failure summary |
+| Attachment parsing fails | Continue with conversation text, record attachment failure in summary/state |
+| Duplicate webhook event | Idempotency skip |
+| Tool returns unknown result | Set `failed_needs_review` |
+
+## 11. Test Strategy
+
+### Unit Tests
+
+- classification JSON parser accepts raw JSON, fenced JSON, and JSON with surrounding text
+- invalid category normalizes to `unclear`
+- no fixed confidence threshold changes route
+- spam route closes
+- security route moves to `Security`
+- partnership routes to `marketing@dify.ai`
+- unclear routes to Bobby
+- handoff tools reject empty conversation_id or empty recipient
+
+### Route Table Tests
+
+Each routing table row gets at least one test fixture with expected:
+
+- route
+- tool/action
+- customer_action
+- state_step
+- target
+- close/open
+
+### Tool Safety Tests
+
+- `tools/handoff.py` never forwards to sender/customer address
+- forward body includes original Front thread text
+- non-spam handoffs do not call `front_close_conversation`
+
+### Historical Replay
+
+Use `docs/support-inbox-test-set-50.md` after rules are accepted. For each conversation record:
+
+- expected route
+- predicted category
+- selected route
+- customer action
+- internal target or inbox target
+- close/open decision
+- pass/fail
+- correction note
+
+## 12. Implementation Phases
+
+1. Finalize this spec.
+2. Implement classification parser and route decision objects.
+3. Implement Front handoff tools and remove active Feishu runtime code.
+4. Refactor orchestrator to call deterministic routing before skill flow.
+5. Update skills to new tool names and explicit reply policies.
+6. Add route table and tool safety tests.
+7. Run compile, unit tests, and grep safety checks.
+8. Replay 50 historical Support conversations.
+9. Review results with user.
+10. Deploy only after explicit approval.
+
+## 13. Deployment And Rollback
+
+Deployment is manual and requires approval.
+
+Before deployment:
 
 ```bash
 python -m compileall main.py tools config.py agent webhooks routes
-rg -n "open\.feishu\.cn|webhook/feishu|feishu_card|FEISHU_|notification_channel|SMTP_|NOTIFICATION_EMAIL|email_notify" main.py tools config.py agent webhooks routes README.md .env.example skills
-rg -n "sender_email.*internal_forward|send_email\(|notification_email" tools agent config.py skills
+python tests/test_routing.py
+rg -n "open\.feishu\.cn|webhook/feishu|feishu_card|FEISHU_|SMTP_|NOTIFICATION_EMAIL|email_notify" main.py tools config.py agent webhooks routes skills README.md .env.example
 ```
 
-Expected results:
+Rollback plan:
 
-- Compile succeeds.
-- No active Feishu API/callback references.
-- No SMTP notification helper/config references.
-- Internal handoff recipients come only from `INTERNAL_FORWARD_*` config.
-- Customer sender email is never used as an internal handoff recipient.
+- Keep current production screen unchanged until cutover.
+- Keep previous commit hash before deployment.
+- If the new service misroutes, stop new service and restart from previous commit/env.
+- Because non-spam handoffs stay open, incorrect handoffs remain visible for manual correction.
 
-## 8. Historical Test Set
+## 14. Definition Of Stable
 
-Before deployment, validate the new routing behavior against 50 historical Front conversations. The selected Support inbox test set is [`docs/support-inbox-test-set-50.md`](support-inbox-test-set-50.md). The test set should include:
+The system is stable only when:
 
-- spam / ads / unsolicited promotions
-- unclear classification cases
-- education plan review cases
-- account verification / login / blacklist cases
-- security reports
-- marketplace / community / plugin cooperation
-- legal, investment, and other manual-review cases
-
-Expected review output for each historical conversation:
-
-1. predicted category and confidence
-2. selected tool path
-3. whether the conversation would be closed or left open
-4. forwarding target or inbox target
-5. whether customer-facing reply is draft-only or direct-send
-6. pass/fail judgment and correction note
-
-The system is not ready to replace production until this 50-conversation replay shows stable routing and no customer-safety violations.
-
-## 9. Current Branch Status
-
-Current branch: `refactor/stable-agent-v2`
-
-Relevant commits:
-
-- `1c6fcca refactor: switch notifications to email only`
-- `bc0770e refactor: forward colleague handoffs through Front`
-
-The second commit corrects the handoff model: internal colleague handoffs go through Front forwarding, not SMTP.
-
-## 10. Final Decisions From Open Questions
-
-1. `INTERNAL_FORWARD_BOBBY_EMAIL`: `bobby@dify.ai`.
-2. `INTERNAL_FORWARD_LIMIN_EMAIL`: `bobby@dify.ai` for now; account/blacklist handoffs route to Bobby.
-3. Education handoff goes only to `sybil@dify.ai`; do not CC another education owner for V2.
-4. Security inbox: `Security`.
-5. Internal Front forwards are sent immediately, not created as Bobby-review drafts.
-6. Auto-close policy: spam/ads/unsolicited promotions can be resolved automatically. All other handoff categories stay open so Bobby can verify they were routed to the right person or inbox.
+- active code has no Feishu runtime path
+- active code has no SMTP notification path
+- no fixed confidence threshold controls routing
+- spam/ads auto-close is isolated to clear spam/ads
+- security moves to `Security`
+- Marketplace/community/plugin cooperation goes to `marketing@dify.ai`
+- education eligible review goes only to Sybil
+- account/blacklist/previous 李敏 path goes to Bobby
+- all internal handoffs preserve original Front content
+- non-spam handoffs use `forwarded_keep_open`
+- deterministic tests pass
+- 50-history replay is reviewed
+- user explicitly approves deployment

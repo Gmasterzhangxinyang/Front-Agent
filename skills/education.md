@@ -32,9 +32,9 @@ Handle education plan applications, rejections, and discount issues.
          **AI 评估：** <your actual assessment, e.g. "Higher education institution, government-accredited" or "Likely accredited university">
          ```
        - WAIT for `linear_create_ticket` to return the URL before proceeding
-       - Call `feishu_notify_sybil` (Front forwarding compatibility tool) with conversation_id and message: "请审核教育版申请。学校: [school name], 域名: [domain]. Linear: [actual URL returned above]" — replace [actual URL returned above] with the real URL from the previous tool result, never use placeholder text
+       - Call `front_forward_to_sybil` with conversation_id and message: "请审核教育版申请。学校: [school name], 域名: [domain]. Linear: [actual URL returned above]" — replace [actual URL returned above] with the real URL from the previous tool result, never use placeholder text
        - Call `front_create_draft` with "received, forwarding to team" template
-       - Call `state_set` with step="ticket_created"
+       - Call `state_set` with step="forwarded_keep_open"
      - **K-12 or unaccredited:**
        - Call `front_create_draft` with "not eligible" template
        - Call `state_set` with step="done"
@@ -58,9 +58,9 @@ Handle education plan applications, rejections, and discount issues.
        **AI 评估：** <your actual assessment, e.g. "Higher education institution, government-accredited" or "Likely accredited university">
        ```
      - WAIT for `linear_create_ticket` to return the URL before proceeding
-     - Call `feishu_notify_sybil` (Front forwarding compatibility tool) with conversation_id and message: "请审核教育版申请。学校: [school name], 域名: [domain]. Linear: [actual URL returned above]" — replace [actual URL returned above] with the real URL from the previous tool result, never use placeholder text
+     - Call `front_forward_to_sybil` with conversation_id and message: "请审核教育版申请。学校: [school name], 域名: [domain]. Linear: [actual URL returned above]" — replace [actual URL returned above] with the real URL from the previous tool result, never use placeholder text
      - Call `front_create_draft` with "received, forwarding to team" template
-     - Call `state_set` with step="ticket_created"
+     - Call `state_set` with step="forwarded_keep_open"
    - **K-12 or unaccredited:**
      - Call `front_create_draft` with "not eligible" template
      - Call `state_set` with step="done"
@@ -99,9 +99,9 @@ Handle education plan applications, rejections, and discount issues.
 
      **证明：** <summary of proof provided by user>
      ```
-   - Call `feishu_notify_sybil` (Front forwarding compatibility tool) with conversation_id and message "教育版用户邮箱失效（毕业）- 原邮箱: [原邮箱], 新邮箱: [新邮箱]. Linear: [URL]"
+   - Call `front_forward_to_sybil` with conversation_id and message "教育版用户邮箱失效（毕业）- 原邮箱: [原邮箱], 新邮箱: [新邮箱]. Linear: [URL]"
    - Call `front_create_draft` with "received, forwarding to team" template
-   - Call `state_set` with step="ticket_created"
+   - Call `state_set` with step="forwarded_keep_open"
 3. If not confirmed: Call `front_create_draft` asking again politely for proof
 
 ### cancel_subscription (education plan user wants to cancel)

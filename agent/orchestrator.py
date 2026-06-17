@@ -7,6 +7,8 @@ from config import settings
 from tools import state as state_tool
 from tools.attachments import fetch_attachments_as_base64, fetch_attachments_as_text
 from tools.front import get_conversation_messages
+from agent.classification import ClassificationResult, normalize_classification, parse_classification_json
+from agent.routing import RouteDecision, decide_initial_route
 from agent.tool_registry import TOOL_SCHEMAS, execute_tool_call
 
 logger = logging.getLogger(__name__)
@@ -41,19 +43,18 @@ async def handle_email(
 ) -> None:
     existing_state = await state_tool.get_state(db, conversation_id)
 
-    # Only re-work if conversation is truly new (initial) or waiting for user input (awaiting_*)
-    # "done" is terminal — a conversation that finished processing should not be
-    # re-triggered simply because Front generated a new event_id (e.g. after
-    # moving to another inbox).
-    # Note: awaiting_classification_confirmation IS reworkable because Bobby's
-    # confirmation needs to resume the agent loop.
-    _REWORKABLE_STEPS = {"initial", "awaiting_classification_confirmation"}
-    if existing_state and existing_state.step not in _REWORKABLE_STEPS:
-        logger.info(
-            "Skipping handle_email for conv %s — already in step '%s' (category=%s)",
-            conversation_id, existing_state.step, existing_state.category,
-        )
-        return
+    # Only re-work if conversation is new or explicitly waiting for user input.
+    # Terminal/internal handoff states should not be re-triggered simply because
+    # Front generated a new event_id after moving/forwarding/commenting.
+    if existing_state:
+        step = existing_state.step or ""
+        is_reworkable = step == "initial" or step.startswith("awaiting_") or step == "waiting_user"
+        if not is_reworkable:
+            logger.info(
+                "Skipping handle_email for conv %s — already in step '%s' (category=%s)",
+                conversation_id, existing_state.step, existing_state.category,
+            )
+            return
 
     # Fetch full conversation history from Front
     all_messages = await get_conversation_messages(conversation_id)
@@ -125,64 +126,31 @@ Use the tools available to you to handle the email completely.
         if not classification:
             return
 
-        category = classification.get("category", "unclear")
-        confidence = classification.get("confidence", 1.0)
-        sub_type = classification.get("sub_type", "")
-        summary = classification.get("summary", "").lower()
-
-        # Spam-like keywords in summary = auto archive (unsolicited cold outreach)
-        spam_keywords = [
-            "seo", "advertising", "广告", "推广", "sponsor", "pricelist", "price list",
-            "pricing list", "视频合作",
-        ]
-        if any(kw in summary for kw in spam_keywords):
-            await state_tool.set_state(db, conversation_id, "spam", None, "done", {}, waiting=False, sender_email=sender_email)
-            from agent.tool_registry import execute_tool_call
-            await execute_tool_call("front_close_conversation", {"conversation_id": conversation_id}, db)
+        route = decide_initial_route(classification, conversation_id, sender_email)
+        if route.handled_before_skill:
+            await _execute_initial_route(route, classification, conversation_id, sender_email, db)
+            if route.send_feedback_comment:
+                await _send_feedback_comment(
+                    conversation_id=conversation_id,
+                    sender_email=sender_email,
+                    category=route.state_category or classification.category,
+                    all_messages=[],
+                )
             return
 
-        # Truly uncertain (confidence < 0.3) = notify Bobby
-        if confidence < 0.3:
-            from tools.feishu import notify_bobby
-            options = [
-                {"label": "技术问题(technical)", "category": "technical"},
-                {"label": "账号问题(account)", "category": "account"},
-                {"label": "购买咨询(purchase)", "category": "purchase"},
-                {"label": "教育版(education)", "category": "education"},
-                {"label": "账单退款(billing)", "category": "billing"},
-                {"label": "合作洽谈(partnership)", "category": "partnership"},
-                {"label": "安全问题(security)", "category": "security"},
-                {"label": "垃圾邮件(spam)", "category": "spam"},
-                {"label": "法律相关(legal)", "category": "legal"},
-                {"label": "产品路线(roadmap)", "category": "roadmap"},
-                {"label": "投资融资(investment)", "category": "investment"},
-                {"label": "数据导出(data_export)", "category": "data_export"},
-                {"label": "无法分类(unclear)", "category": "unclear"},
-            ]
-            await notify_bobby(
-                f"🤷 实在无法分类 ({confidence:.0%})\n\n邮件摘要: {classification.get('summary')}\n\nAI 猜测: {category}/{classification.get('sub_type')}",
-                conversation_id=conversation_id,
-                notification_type="classify",
-                classification_options=options,
-                email_summary=classification.get('summary'),
-            )
-            await state_tool.set_state(
-                db, conversation_id, category, classification.get('sub_type'),
-                "awaiting_classification_confirmation", {}, waiting=True, sender_email=sender_email
-            )
-            return
-
+        category = classification.category
+        sub_type = classification.sub_type
         skill_md = load_skill(category)
         system_prompt = f"""You are a Dify support email automation agent.
 
 This email has been classified as:
 - Category: {category}
-- Sub-type: {classification.get('sub_type')}
-- Is paid user: {classification.get('is_paid_user')}
-- Is premium user: {classification.get('is_premium')}
-- Urgency: {classification.get('urgency')}
-- Flags: {classification.get('flags', [])}
-- Summary: {classification.get('summary')}
+- Sub-type: {classification.sub_type}
+- Is paid user: {classification.is_paid_user}
+- Is premium user: {classification.is_premium}
+- Urgency: {classification.urgency}
+- Flags: {classification.flags}
+- Summary: {classification.summary}
 
 Skill instructions for this category:
 {skill_md}
@@ -194,10 +162,10 @@ Sender email: {sender_email}
 {user_history_text}
 """
         # Handle special flags before main flow
-        flags = classification.get("flags", [])
+        flags = classification.flags
         if "emotional" in flags or "legal_threat" in flags:
-            from tools.feishu import notify_bobby
-            await notify_bobby(f"⚠️ 特殊邮件需关注 - 发件人: {sender_email}, 标记: {flags}, 摘要: {classification.get('summary')}", conversation_id=conversation_id)
+            from tools.handoff import forward_to_bobby
+            await forward_to_bobby(f"⚠️ 特殊邮件需关注 - 发件人: {sender_email}, 标记: {flags}, 摘要: {classification.summary}", conversation_id=conversation_id)
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -220,7 +188,7 @@ Sender email: {sender_email}
         if _current_state is None:
             await state_tool.set_state(
                 db, conversation_id, category,
-                classification.get("sub_type") if classification else None,
+                classification.sub_type,
                 "done", {}, waiting=False, sender_email=sender_email,
             )
 
@@ -270,8 +238,7 @@ Answer with only YES or NO."""
     return "YES" in answer
 
 
-async def _classify(conversation_text: str, latest_message: str, sender_email: str, attachments: list) -> dict | None:
-    import re
+async def _classify(conversation_text: str, latest_message: str, sender_email: str, attachments: list) -> ClassificationResult | None:
     classify_md = load_skill("classify")
     content = [{"type": "text", "text": f"Classify this support email.\n\nSender: {sender_email}\n\nConversation:\n{conversation_text}\n\nLatest message:\n{latest_message}\n\nReturn ONLY valid JSON matching the output format in the skill instructions."}]
     content.extend(attachments)
@@ -285,19 +252,81 @@ async def _classify(conversation_text: str, latest_message: str, sender_email: s
         temperature=0,
     )
     raw = response.choices[0].message.content
-    # Try direct JSON parse first
-    try:
-        return json.loads(raw)
-    except Exception:
-        pass
-    # MiniMax may wrap JSON in markdown code blocks or add extra text
-    try:
-        match = re.search(r'\{[^{}]*\}', raw.replace('\n', ''))
-        if match:
-            return json.loads(match.group())
-    except Exception:
-        pass
-    return None
+    parsed = parse_classification_json(raw)
+    if parsed is None:
+        logger.warning("Classification parse failed for sender=%s raw=%r", sender_email, raw)
+        return normalize_classification(None, fallback_sender_email=sender_email)
+    return normalize_classification(parsed, fallback_sender_email=sender_email)
+
+
+async def _execute_initial_route(
+    route: RouteDecision,
+    classification: ClassificationResult,
+    conversation_id: str,
+    sender_email: str,
+    db: AsyncSession,
+) -> None:
+    result = "no_tool"
+    if route.tool_name:
+        result = await execute_tool_call(route.tool_name, route.tool_args, db)
+        logger.info("Initial route %s via %s -> %s", route.name, route.tool_name, result)
+
+        if _tool_result_failed(result):
+            fallback_result = "not_attempted"
+            if route.tool_name == "front_forward_to_security":
+                fallback_result = await execute_tool_call(
+                    "front_forward_to_bobby",
+                    {
+                        "conversation_id": conversation_id,
+                        "message": (
+                            "Security inbox routing failed; please review manually.\n"
+                            f"Original route: {route.name}\n"
+                            f"Tool result: {result}\n"
+                            f"Summary: {classification.summary}"
+                        ),
+                    },
+                    db,
+                )
+            await state_tool.set_state(
+                db,
+                conversation_id,
+                route.state_category or classification.category,
+                route.state_sub_type if route.state_sub_type is not None else classification.sub_type,
+                "failed_needs_review",
+                {
+                    "route": route.name,
+                    "reason": route.reason,
+                    "confidence": classification.confidence,
+                    "summary": classification.summary,
+                    "tool_result": result,
+                    "fallback_result": fallback_result,
+                },
+                waiting=False,
+                sender_email=sender_email,
+            )
+            return
+
+    await state_tool.set_state(
+        db,
+        conversation_id,
+        route.state_category or classification.category,
+        route.state_sub_type if route.state_sub_type is not None else classification.sub_type,
+        route.state_step,
+        {
+            "route": route.name,
+            "reason": route.reason,
+            "confidence": classification.confidence,
+            "summary": classification.summary,
+            "tool_result": result,
+        },
+        waiting=route.waiting,
+        sender_email=sender_email,
+    )
+
+
+def _tool_result_failed(result: str) -> bool:
+    failed_markers = ("failed", "move_failed", "unknown_tool")
+    return any(marker in result for marker in failed_markers)
 
 
 async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int = 10, sender_email: str = "", message_body: str = "") -> None:
@@ -324,12 +353,12 @@ async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int 
             except Exception:
                 args = {}
 
-            # Deduplicate Bobby notifications per conversation per agent run
-            if tool_name == "feishu_notify_bobby":
+            # Deduplicate Bobby handoff forwards per conversation per agent run
+            if tool_name == "front_forward_to_bobby":
                 conv_id = args.get("conversation_id", "__no_conv__")
                 if conv_id in notified_conversations:
-                    logger.info("Skipping duplicate feishu_notify_bobby for conv %s", conv_id)
-                    result = "notified"
+                    logger.info("Skipping duplicate Bobby handoff for conv %s", conv_id)
+                    result = "forwarded"
                     messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
                     continue
                 notified_conversations.add(conv_id)

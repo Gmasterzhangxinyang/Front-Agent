@@ -50,7 +50,7 @@ agent.handle_email()
   |
   |-- 使用 skills/classify.md
   |-- spam/广告可直接关闭；unclear 进入人工判断并保持打开
-  |-- confidence < 0.3 时通过 Front 转发给 Bobby 做人工分类确认
+  |-- unclear 或规则无法安全判断时通过 Front 转发给 Bobby 做人工审查
   v
 执行阶段
   |
@@ -76,14 +76,16 @@ agent.handle_email()
 ├── start.sh                   # Railway/本地启动脚本
 ├── railway.toml               # Railway 构建和健康检查配置
 ├── agent/
-│   ├── orchestrator.py        # 核心编排：分类、加载 skill、运行 agent loop
+│   ├── orchestrator.py        # 核心编排：分类、路由决策、加载 skill、运行 agent loop
+│   ├── classification.py      # 分类 JSON 解析、字段归一化、spam 识别
+│   ├── routing.py             # 确定性路由层：spam/security/unclear/marketing 等安全动作
 │   └── tool_registry.py       # LLM 可调用工具 schema 和执行映射
 ├── webhooks/
 │   ├── front_webhook.py       # Front webhook 接入、签名、幂等、inbox 过滤
 ├── tools/
 │   ├── front.py               # Front API：回复、草稿、转发、关闭、移动 inbox、评论
 │   ├── linear.py              # Linear 工单创建
-│   ├── feishu.py              # Front 转发通知兼容层，保留旧工具名
+│   ├── handoff.py             # 内部同事 handoff：通过 Front 转发原始会话，不给客户发信
 │   ├── attachments.py         # 附件下载、图片 base64、文档文本抽取
 │   ├── state.py               # conversation_states 读写
 │   ├── github.py              # GitHub issue/PR 检索
@@ -113,9 +115,11 @@ agent.handle_email()
 |---|---|---|
 | `main.py` | 应用生命周期、路由注册、健康检查 | 写业务判断 |
 | `webhooks/` | 接收外部回调、校验、幂等、转交业务处理 | 直接写复杂处理策略 |
-| `agent/orchestrator.py` | 决定分类、加载 skill、组织 LLM tool loop | 直接实现外部 API 细节 |
+| `agent/orchestrator.py` | 串联分类、确定性路由、skill 执行和反馈评论 | 直接实现外部 API 细节 |
+| `agent/classification.py` | 解析和校验 LLM 分类 JSON，做字段兜底 | 调用外部 API 或决定业务副作用 |
+| `agent/routing.py` | 把可信分类结果转换为稳定路由动作 | 生成客户回复内容或调用外部 API |
 | `agent/tool_registry.py` | 暴露工具 schema，分发工具调用 | 写分类规则 |
-| `tools/` | 封装 Front/Linear/Front 转发通知/GitHub/文档等外部能力 | 决定业务路径 |
+| `tools/` | 封装 Front/Linear/内部 Front handoff/GitHub/文档等外部能力 | 决定业务路径 |
 | `skills/` | 描述分类、回复模板、升级规则、工具使用策略 | 写 Python 逻辑 |
 | `services/` | 反馈学习、skill 建议、文件写入、版本快照 | 处理 webhook |
 | `tasks/` | 定时后台任务 | 接收用户请求 |
@@ -142,7 +146,7 @@ agent.handle_email()
 | `data_export` | 数据导出请求 |
 | `unclear` | 无法明确分类；转给 Bobby 人工判断并保持打开 |
 
-分类结果包含 `category`、`sub_type`、`confidence`、`urgency`、`flags` 和 `summary`。当 `confidence < 0.3` 时，系统会通过 Front 转发给 Bobby，内容包含候选分类、AI 摘要和原始会话；后续人工确认应在 Front 或后台页面完成。
+分类结果包含 `category`、`sub_type`、`confidence`、`urgency`、`flags`、`secondary_intents`、`evidence` 和 `summary`。`confidence` 只用于观察和评估，不使用固定阈值控制路由。`agent/classification.py` 会把模型输出归一化；`agent/routing.py` 会先执行确定性安全路由：spam 自动归档、security 移动到 Security inbox、unclear/规则无法安全判断转 Bobby、Marketplace/社区合作转 `marketing@dify.ai`。其余复杂场景才进入对应 skill 的 agent loop。
 
 ## Agent 工具
 
@@ -154,12 +158,14 @@ LLM 不直接访问外部系统，只能通过 `agent/tool_registry.py` 暴露�
 | `front_reply_with_template` | 发送固定技术支持模板 |
 | `front_close_conversation` | 关闭/归档 Front conversation |
 | `front_forward*` | 按合作、社区、投资、法律等路径转发；Marketplace/社区合作统一到 `marketing@dify.ai` |
+| `front_forward_to_bobby` | 通过 Front 将原始会话和摘要转发给 Bobby；不发送给客户 |
+| `front_forward_to_limin` | 账号/黑名单兼容路径，当前通过 Front 转发给 Bobby；不发送给客户 |
+| `front_forward_to_sybil` | 教育版审核 handoff，通过 Front 转发给 Sybil；不发送给客户 |
 | `front_forward_to_marketing` | 移动到 Marketing inbox |
 | `front_forward_to_security` | 移动到 Security inbox |
 | `front_assign` | 分配给指定 Front teammate |
 | `front_add_comment` | 添加 Front 内部评论 |
 | `linear_create_ticket` | 创建 Linear CUS 工单 |
-| `feishu_notify_*` | 兼容旧工具名，实际通过 Front 转发原会话和摘要给 Bobby、Sybil 等；李敏路径暂时转给 Bobby |
 | `state_set` | 保存多轮会话状态 |
 | `github_search` | 检索 Dify GitHub issue/PR |
 | `docs_search` | 检索 Dify 官方文档 |
@@ -187,7 +193,7 @@ SQLite 由 SQLAlchemy async 管理，启动时会自动建表。
 
 新版本的人工兜底通知全部通过 Front forward 发送给同事。转发内容包含 AI 摘要、Linear 链接等关键信息，并附带原始 Front conversation 内容。
 
-当前保留 `feishu_notify_*` 工具名只是为了兼容现有 skills 和 tool schema；这些工具在新版本里实际调用 Front 转发。
+active code 不再暴露 `feishu_notify_*` 工具名。内部 handoff 统一使用 `front_forward_to_bobby`、`front_forward_to_limin`、`front_forward_to_sybil`，实现位于 `tools/handoff.py`。
 
 | 通知场景 | Front 转发方式 |
 |---|---|

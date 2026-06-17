@@ -1,8 +1,7 @@
-"""Front forwarding compatibility layer.
+"""Internal handoff helpers implemented through Front forwarding.
 
-The historical notification tool names and module path are kept for LLM schema
-and skill compatibility. New stable-agent code forwards the Front conversation
-to configured colleague email addresses through Front.
+These helpers never send email to the customer. They send the original Front
+conversation plus an internal summary to configured Dify recipients.
 """
 
 import logging
@@ -13,23 +12,23 @@ from tools import front
 logger = logging.getLogger(__name__)
 
 
-def _format_summary(message: str, linear_url: str | None = None, extra: str = "") -> str:
+def format_summary(message: str, linear_url: str | None = None, extra: str = "") -> str:
     parts = [message.strip()]
     if linear_url:
         parts.extend(["", f"Linear: {linear_url}"])
     if extra:
         parts.extend(["", extra.strip()])
-    return "\n".join(parts).strip()
+    return "\n".join(part for part in parts if part is not None).strip()
 
 
-async def _forward_to_colleague(
+async def forward_to_colleague(
     conversation_id: str,
     to_email: str,
     message: str,
     label: str,
 ) -> bool:
     if not conversation_id:
-        logger.warning("Cannot forward colleague notification without conversation_id")
+        logger.warning("Cannot forward colleague handoff without conversation_id")
         return False
     if not to_email:
         logger.warning("No colleague forwarding recipient configured for %s", label)
@@ -42,7 +41,7 @@ async def _forward_to_colleague(
     )
 
 
-async def notify_bobby(
+async def forward_to_bobby(
     message: str,
     conversation_id: str = "",
     linear_url: str | None = None,
@@ -57,16 +56,16 @@ async def notify_bobby(
     if email_summary:
         extra_parts.append(f"Email summary: {email_summary}")
 
-    return await _forward_to_colleague(
+    return await forward_to_colleague(
         conversation_id,
         settings.internal_forward_bobby_email,
-        _format_summary(message, linear_url=linear_url, extra="\n\n".join(extra_parts)),
-        "internal Bobby notification",
+        format_summary(message, linear_url=linear_url, extra="\n\n".join(extra_parts)),
+        "internal Bobby handoff",
     )
 
 
-async def notify_limin(message: str, conversation_id: str = "") -> bool:
-    return await _forward_to_colleague(
+async def forward_to_limin(message: str, conversation_id: str = "") -> bool:
+    return await forward_to_colleague(
         conversation_id,
         settings.internal_forward_limin_email or settings.internal_forward_bobby_email,
         message,
@@ -74,8 +73,8 @@ async def notify_limin(message: str, conversation_id: str = "") -> bool:
     )
 
 
-async def notify_sybil(message: str, conversation_id: str = "") -> bool:
-    return await _forward_to_colleague(
+async def forward_to_sybil(message: str, conversation_id: str = "") -> bool:
+    return await forward_to_colleague(
         conversation_id,
         settings.internal_forward_sybil_email,
         message,

@@ -1,24 +1,14 @@
-# Skill: Unclear / Unclassified
+# Skill: Unclear / Manual Review
 
 ## Purpose
-Handle emails that cannot be confidently classified into any other category.
+Handle emails that cannot be safely classified or routed by the existing rules.
 
 ## Steps
-1. Call `front_create_draft` with generic acknowledgment template
-2. Call `feishu_notify_bobby` (Front forwarding compatibility tool) with conversation_id and message: "邮件分类不确定，请人工判断。发件人: [sender_email]. 摘要: [summary]. 对话ID: [conversation_id]"
-3. Leave conversation open
+1. Do NOT send a customer reply and do NOT create a customer draft by default.
+2. Call `front_forward_to_bobby` with conversation_id and message: "邮件分类不确定，请人工判断。发件人: [sender_email]. 摘要: [summary]. 对话ID: [conversation_id]"
+3. Call `state_set` with step="manual_review", waiting=false.
+4. Leave conversation open.
 
-## Reply Template
-
-```
-Dear [User's Name / Valued Customer],
-
-Thank you for reaching out to Dify Support.
-
-We've received your email and our team will review it shortly. We'll get back to you as soon as possible.
-
-Thank you for your patience!
-
-Best regards,
-Dify Support Team
-```
+## Important
+- This is a manual review path, not a customer response path.
+- Bobby decides whether a customer draft/reply is needed.

@@ -16,10 +16,10 @@ Determine if this is:
 - Call `front_forward_to_investment` — forwards directly to Claudia Liu (claudia@dify.ai)
 
 ### 3. Notify Bobby
-- Call `feishu_notify_bobby` (Front forwarding compatibility tool) with conversation_id and message: "📬 投资类邮件已转发\n发件人: [sender_email]\n对话ID: [conversation_id]\n类型: investment\n\n已直接转发至 Claudia Liu (claudia@dify.ai)"
+- Call `front_forward_to_bobby` with conversation_id and message: "📬 投资类邮件已转发\n发件人: [sender_email]\n对话ID: [conversation_id]\n类型: investment\n\n已直接转发至 Claudia Liu (claudia@dify.ai)"
 
-### 4. Mark as done
-- Call `state_set` with step="done" to prevent re-classification
+### 4. Keep open after handoff
+- Call `state_set` with step="forwarded_keep_open" so Bobby can verify routing
 
 **Important**: Do NOT call `front_create_draft` to reply to the user. Only forward to Claudia.
 

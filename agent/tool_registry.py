@@ -2,7 +2,7 @@ import json
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from tools import front, linear, feishu, state as state_tool, github, docs_search
+from tools import front, linear, handoff, state as state_tool, github, docs_search
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Tool schemas for GPT-4o function calling
@@ -223,11 +223,12 @@ TOOL_SCHEMAS = [
             },
         },
     },
+
     {
         "type": "function",
         "function": {
-            "name": "feishu_notify_bobby",
-            "description": "Forward the Front conversation to Bobby through Front with an internal summary.",
+            "name": "front_forward_to_bobby",
+            "description": "Forward the original Front conversation to Bobby through Front with an internal summary. This never emails the customer.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -241,8 +242,8 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
-            "name": "feishu_notify_limin",
-            "description": "Forward the Front conversation to Bobby through Front for account verification or blacklist queries previously routed to 李敏.",
+            "name": "front_forward_to_limin",
+            "description": "Compatibility account handoff path: forward the original Front conversation to Bobby through Front for account verification or blacklist queries previously routed to 李敏. This never emails the customer.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -256,8 +257,8 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
-            "name": "feishu_notify_sybil",
-            "description": "Forward the Front conversation to Sybil through Front for education plan handoff.",
+            "name": "front_forward_to_sybil",
+            "description": "Forward the original Front conversation to Sybil through Front for education plan handoff. This never emails the customer.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -279,7 +280,7 @@ TOOL_SCHEMAS = [
                     "conversation_id": {"type": "string"},
                     "category": {"type": "string"},
                     "sub_type": {"type": "string"},
-                    "step": {"type": "string", "description": "e.g. awaiting_identity_verification, awaiting_school_info, ticket_created, done"},
+                    "step": {"type": "string", "description": "e.g. awaiting_identity_verification, awaiting_school_info, draft_created, forwarded_keep_open, manual_review, closed_spam, done"},
                     "payload": {"type": "object", "description": "Any extra data to persist"},
                     "waiting": {"type": "boolean", "description": "True if waiting for user reply (starts 10-day timer)"},
                     "sender_email": {"type": "string", "description": "User's email address"},
@@ -494,21 +495,21 @@ The Dify Support Team"""
             return json.dumps({"status": "ticket_created", "url": url, "identifier": identifier})
         return "ticket_failed"
 
-    elif tool_name == "feishu_notify_bobby":
+    elif tool_name == "front_forward_to_bobby":
         msg = args["message"]
         conv_id = args.get("conversation_id", "")
-        ok = await feishu.notify_bobby(msg, conversation_id=conv_id)
+        ok = await handoff.forward_to_bobby(msg, conversation_id=conv_id)
         return "forwarded" if ok else "forward_failed"
 
-    elif tool_name == "feishu_notify_limin":
-        ok = await feishu.notify_limin(
+    elif tool_name == "front_forward_to_limin":
+        ok = await handoff.forward_to_limin(
             args["message"],
             conversation_id=args.get("conversation_id", ""),
         )
         return "forwarded" if ok else "forward_failed"
 
-    elif tool_name == "feishu_notify_sybil":
-        ok = await feishu.notify_sybil(
+    elif tool_name == "front_forward_to_sybil":
+        ok = await handoff.forward_to_sybil(
             args["message"],
             conversation_id=args.get("conversation_id", ""),
         )

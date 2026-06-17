@@ -17,9 +17,13 @@ Read the full email content (including any attachments) and return a JSON classi
   "sender_email": "<email address of sender>",
   "summary": "<one sentence summary of the user's issue>",
   "confidence": <0.0-1.0>,
-  "flags": []
+  "flags": [],
+  "secondary_intents": [],
+  "evidence": ["<short phrases from the email that support the classification>"]
 }
 ```
+
+Return only the JSON object. Do not wrap it in Markdown and do not add explanation text.
 
 ## Few-Shot Examples
 
@@ -126,6 +130,17 @@ Read the full email content (including any attachments) and return a JSON classi
 }
 ```
 
+## Routing-Oriented Classification Rules
+
+- Pick the category that determines the immediate operational route.
+- If the email has mixed intents, set the primary `category` to the highest-risk or most actionable intent and put the rest in `secondary_intents`.
+- If the sender is offering ads, sponsorship packages, SEO, backlinks, guest posts, events, summits, promotion, lead generation, or other unsolicited sales, classify as `spam` even if the text mentions marketing or partnership.
+- Classify Marketplace/plugin/template ecosystem cooperation as `partnership`; that route is forwarded to `marketing@dify.ai` by the system.
+- Classify security reports, vulnerabilities, abuse reports, data leaks, hacked accounts with active compromise, or responsible disclosure as `security` unless the primary issue is ordinary account login help.
+- Use `unclear` when the email lacks enough evidence to choose a route. Do not force a category.
+- `evidence` must contain short non-sensitive phrases that justify the route.
+- `confidence` is for review and evaluation only; do not use a numeric threshold to choose the route.
+
 ## Categories and Sub-types
 
 | category | sub_type | When to use |
@@ -178,6 +193,11 @@ Read the full email content (including any attachments) and return a JSON classi
 - If found → `is_paid_user: true`
 - If footer says `Current Plan: premium` → `is_premium: true` (self-hosted licensed user)
 - If no footer → `is_paid_user: false`, `is_premium: false`
+
+## Additional Output Fields
+
+- `secondary_intents`: array of other possible categories present in the email; keep empty if there is only one intent.
+- `evidence`: 1-3 short phrases from the email that support the classification. Do not include full private messages.
 
 ## Flags (add to flags array when applicable)
 - `legal_threat` — email contains legal threats or mentions lawyers

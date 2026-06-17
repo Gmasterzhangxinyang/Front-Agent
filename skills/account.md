@@ -22,8 +22,8 @@ Handle account-related requests: login issues, account deletion, transfer, email
    - Call `state_set` with step="awaiting_email_expired_confirmation", sub_type="cant_login"
 3. If user mentions they are a Pro/Team user (non-edu):
    - Call `front_create_draft` with "processing, please wait" template
-   - Call `feishu_notify_limin` (Front forwarding compatibility tool) with conversation_id and message "付费用户登录问题 - [email]"
-   - Call `state_set` with step="bobby_forwarded", sub_type="cant_login"
+   - Call `front_forward_to_limin` with conversation_id and message "付费用户登录问题 - [email]"
+   - Call `state_set` with step="forwarded_keep_open", sub_type="cant_login"
 4. If user is NOT paid or unclear:
    - Call `front_create_draft` asking if they are a Pro/Team user, noting this is a paid feature
    - Call `state_set` with step="awaiting_paid_confirmation", sub_type="cant_login"
@@ -34,23 +34,23 @@ Handle account-related requests: login issues, account deletion, transfer, email
    - Call `front_create_draft` with identity verification request template (need proof of original email ownership)
    - Call `state_set` with step="awaiting_identity_verification", sub_type="email_expired_graduated"
 3. If NO (email still works, issue is elsewhere):
-   - Call `feishu_notify_limin` (Front forwarding compatibility tool) with conversation_id and message "edu用户登录问题(非邮箱过期) - [email]"
-   - Call `state_set` with step="bobby_forwarded", sub_type="cant_login"
+   - Call `front_forward_to_limin` with conversation_id and message "edu用户登录问题(非邮箱过期) - [email]"
+   - Call `state_set` with step="forwarded_keep_open", sub_type="cant_login"
 
 **Step: awaiting_paid_confirmation** (user replied about paid status)
 1. Check user's reply — do they confirm they are a Pro/Team user?
 2. If YES (paid user):
    - Call `front_create_draft` with "processing, please wait" template
-   - Call `feishu_notify_limin` (Front forwarding compatibility tool) with conversation_id and message "付费用户登录问题 - [email]"
-   - Call `state_set` with step="bobby_forwarded", sub_type="cant_login"
+   - Call `front_forward_to_limin` with conversation_id and message "付费用户登录问题 - [email]"
+   - Call `state_set` with step="forwarded_keep_open", sub_type="cant_login"
 3. If NO (free user):
    - Check if email footer shows `Current Plan: premium` → self-hosted user:
      - Call `front_create_draft` with self-hosted can't help template
      - Call `state_set` with step="done", sub_type="cant_login"
    - Otherwise → SaaS free user:
      - Call `front_create_draft` with "processing, please wait" template
-     - Call `feishu_notify_limin` (Front forwarding compatibility tool) with conversation_id and message "免费SaaS用户登录问题 - [email]"
-     - Call `state_set` with step="bobby_forwarded", sub_type="cant_login"
+     - Call `front_forward_to_limin` with conversation_id and message "免费SaaS用户登录问题 - [email]"
+     - Call `state_set` with step="forwarded_keep_open", sub_type="cant_login"
 
 **登录问题可能的原因 (for AI to determine sub-type):**
 - 收不到验证码
@@ -75,7 +75,7 @@ Handle account-related requests: login issues, account deletion, transfer, email
 2. If confirmed:
    - Call `linear_create_ticket` with conversation_id, title "Account deletion request - [email]" and description
    - Call `front_create_draft` with "received, forwarded to team" template
-   - Call `state_set` with step="ticket_created"
+   - Call `state_set` with step="draft_created"
 3. If not confirmed: Call `front_create_draft` asking again politely
 
 ### transfer_account / change_email
@@ -88,14 +88,14 @@ Handle account-related requests: login issues, account deletion, transfer, email
 1. If confirmed:
    - Call `linear_create_ticket` with conversation_id, title "Account transfer request - [original email] → [new email]" and description
    - Call `front_create_draft` with "received, forwarded to team" template
-   - Call `state_set` with step="ticket_created"
+   - Call `state_set` with step="draft_created"
 
 ### account_anomaly (quota wrong, plan changed unexpectedly)
 
 **SaaS user:**
 1. Call `linear_create_ticket` with conversation_id, title "Account anomaly - [email]" and description
 2. Call `front_create_draft` with "received, forwarded to team" template
-3. Call `state_set` with step="ticket_created"
+3. Call `state_set` with step="draft_created"
 
 **Self-hosted user:**
 1. Call `front_reply_with_template`
@@ -106,7 +106,7 @@ Handle account-related requests: login issues, account deletion, transfer, email
 **SaaS user:**
 1. Call `linear_create_ticket` with conversation_id, title "Account compromised - [email]" and description
 2. Call `front_create_draft` with "received, investigating urgently" template
-3. Call `state_set` with step="ticket_created"
+3. Call `state_set` with step="draft_created"
 
 **Self-hosted user:**
 1. Call `front_reply_with_template`
