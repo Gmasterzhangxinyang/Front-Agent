@@ -241,23 +241,8 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
-            "name": "feishu_notify_yongle",
-            "description": "Forward the Front conversation to 杨永乐 through Front for security emergencies.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "message": {"type": "string"},
-                    "conversation_id": {"type": "string", "description": "Front conversation ID, REQUIRED so Front can forward the original thread"},
-                },
-                "required": ["message", "conversation_id"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "feishu_notify_limin",
-            "description": "Forward the Front conversation to 李敏 through Front for account verification or blacklist queries.",
+            "description": "Forward the Front conversation to Bobby through Front for account verification or blacklist queries previously routed to 李敏.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -513,13 +498,6 @@ The Dify Support Team"""
         msg = args["message"]
         conv_id = args.get("conversation_id", "")
         ok = await feishu.notify_bobby(msg, conversation_id=conv_id)
-        return "forwarded" if ok else "forward_failed"
-
-    elif tool_name == "feishu_notify_yongle":
-        ok = await feishu.notify_yongle(
-            args["message"],
-            conversation_id=args.get("conversation_id", ""),
-        )
         return "forwarded" if ok else "forward_failed"
 
     elif tool_name == "feishu_notify_limin":

@@ -159,7 +159,7 @@ LLM 不直接访问外部系统，只能通过 `agent/tool_registry.py` 暴露�
 | `front_assign` | 分配给指定 Front teammate |
 | `front_add_comment` | 添加 Front 内部评论 |
 | `linear_create_ticket` | 创建 Linear CUS 工单 |
-| `feishu_notify_*` | 兼容旧工具名，实际通过 Front 转发原会话和摘要给 Bobby、李敏、Sybil、杨永乐等 |
+| `feishu_notify_*` | 兼容旧工具名，实际通过 Front 转发原会话和摘要给 Bobby、Sybil 等；李敏路径暂时转给 Bobby |
 | `state_set` | 保存多轮会话状态 |
 | `github_search` | 检索 Dify GitHub issue/PR |
 | `docs_search` | 检索 Dify 官方文档 |
@@ -193,7 +193,7 @@ SQLite 由 SQLAlchemy async 管理，启动时会自动建表。
 |---|---|
 | 分类不确定 | 通过 Front 转发给 Bobby，附候选分类和原始会话 |
 | 需要人工跟进 | 通过 Front 转发给对应负责人，附摘要和原始会话 |
-| 安全问题 | 通过 Front 转发给安全负责人，附摘要和原始会话 |
+| 安全问题 | 移动到 Security inbox，不再单独转发给杨永乐 |
 | 草稿确认 | 通过 Front 转发提醒人工审核 |
 
 Front 转发通知不提供交互按钮能力；需要人工判断或审核时，同事直接在 Front 或后台页面处理。
@@ -240,9 +240,8 @@ LINEAR_CUS_PROJECT_ID=
 
 # Internal Front forwards
 INTERNAL_FORWARD_BOBBY_EMAIL=bobby@dify.ai
-INTERNAL_FORWARD_LIMIN_EMAIL=
+INTERNAL_FORWARD_LIMIN_EMAIL=bobby@dify.ai
 INTERNAL_FORWARD_SYBIL_EMAIL=sybil@dify.ai
-INTERNAL_FORWARD_YONGLE_EMAIL=
 FRONT_APP_BASE_URL=https://app.frontapp.com/open
 
 

@@ -19,9 +19,8 @@ class Settings(BaseSettings):
 
     # Internal colleague forwards sent through Front.
     internal_forward_bobby_email: str = "bobby@dify.ai"
-    internal_forward_limin_email: str = ""
+    internal_forward_limin_email: str = "bobby@dify.ai"
     internal_forward_sybil_email: str = "sybil@dify.ai"
-    internal_forward_yongle_email: str = ""
     front_app_base_url: str = "https://app.frontapp.com/open"
 
     # Linear user IDs for assignment

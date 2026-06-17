@@ -52,7 +52,7 @@ Do not use:
 
 ### Required Behavior
 
-For education/account/security/manual review handoffs:
+For education/account/manual review handoffs:
 
 1. The agent summarizes the case.
 2. If a Linear ticket was created, the summary includes the Linear URL.
@@ -61,15 +61,16 @@ For education/account/security/manual review handoffs:
 5. The customer is not sent anything by the handoff tool.
 6. Customer-facing replies remain Front drafts or Front replies handled by existing Front tools.
 
+For security reports, the target behavior is different: move the conversation to the Security inbox, not forwarding to a named person.
+
 ### Config
 
 Internal handoff recipients are configured with:
 
 ```env
 INTERNAL_FORWARD_BOBBY_EMAIL=bobby@dify.ai
-INTERNAL_FORWARD_LIMIN_EMAIL=
+INTERNAL_FORWARD_LIMIN_EMAIL=bobby@dify.ai
 INTERNAL_FORWARD_SYBIL_EMAIL=sybil@dify.ai
-INTERNAL_FORWARD_YONGLE_EMAIL=
 ```
 
 ### Temporary Compatibility
@@ -79,16 +80,14 @@ Keep the legacy tool names temporarily:
 - `feishu_notify_bobby`
 - `feishu_notify_limin`
 - `feishu_notify_sybil`
-- `feishu_notify_yongle`
 
-These now mean “Front-forward the original conversation to the configured colleague.” They do not call Feishu.
+These now mean “Front-forward the original conversation to the configured colleague.” The 李敏 compatibility path currently forwards to Bobby. They do not call Feishu.
 
 After the new version is stable, rename them to clearer names:
 
 - `front_forward_to_bobby`
 - `front_forward_to_limin`
 - `front_forward_to_sybil`
-- `front_forward_to_yongle`
 
 ## 5. Routing Rules To Stabilize
 
@@ -96,8 +95,8 @@ After the new version is stable, rename them to clearer names:
 |---|---|
 | Marketplace / community / plugin / ecosystem cooperation | Forward original Front thread to `marketing@dify.ai`. |
 | Education plan review | Create Linear when needed, then Front-forward summary + Linear URL + original thread to `sybil@dify.ai`. |
-| Account verification / blacklist / paid login issue | Draft customer acknowledgement, then Front-forward summary + original thread to configured 李敏 recipient. |
-| Security emergency | Move or forward to security path and Front-forward summary + original thread to configured security owner. |
+| Account verification / blacklist / paid login issue | Draft customer acknowledgement, then Front-forward summary + original thread to Bobby for now. |
+| Security emergency | Move the Front conversation from Support/Hello inbox to the Security inbox. Do not separately forward to Yongle in V2. |
 | Investment / IR | Forward to Claudia, then Front-forward summary to Bobby if visibility is needed. |
 | Legal threat | Do not auto-send customer reply unless safe; Front-forward summary + original thread to Bobby/legal path. |
 | Unclear classification | Draft generic acknowledgement only when appropriate, then Front-forward to Bobby for manual judgment. |
@@ -147,8 +146,7 @@ The second commit corrects the handoff model: internal colleague handoffs go thr
 ## 9. Open Questions Before Final Architecture Cleanup
 
 1. `INTERNAL_FORWARD_BOBBY_EMAIL`: `bobby@dify.ai`
-2. What exact email should `INTERNAL_FORWARD_LIMIN_EMAIL` use?
-3. What exact email should `INTERNAL_FORWARD_YONGLE_EMAIL` use?
-4. Should education go directly to `sybil@dify.ai` only, or also CC another education owner?
-5. Should Front forwards be sent immediately, or created as shared drafts for Bobby review in some categories?
-6. Which categories are allowed to auto-close after handoff?
+2. `INTERNAL_FORWARD_LIMIN_EMAIL`: `bobby@dify.ai` for now; account/blacklist handoffs route to Bobby.
+3. Should education go directly to `sybil@dify.ai` only, or also CC another education owner?
+4. Should Front forwards be sent immediately, or created as shared drafts for Bobby review in some categories?
+5. Which categories are allowed to auto-close after handoff?

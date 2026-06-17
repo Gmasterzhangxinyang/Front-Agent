@@ -65,21 +65,12 @@ async def notify_bobby(
     )
 
 
-async def notify_yongle(message: str, conversation_id: str = "") -> bool:
-    return await _forward_to_colleague(
-        conversation_id,
-        settings.internal_forward_yongle_email,
-        message,
-        "security handoff",
-    )
-
-
 async def notify_limin(message: str, conversation_id: str = "") -> bool:
     return await _forward_to_colleague(
         conversation_id,
-        settings.internal_forward_limin_email,
+        settings.internal_forward_limin_email or settings.internal_forward_bobby_email,
         message,
-        "account handoff",
+        "account handoff to Bobby",
     )
 
 
