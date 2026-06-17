@@ -15,15 +15,15 @@
 
 | # | conversation_id | created_at | status | selection_hint | expected_route | actual_route | result |
 |---|---|---|---|---|---|---|---|
-| 1 | `cnv_1ivl23bv` | 2026-06-17 04:43:03 UTC | archived | manual_review_unknown |  |  |  |
-| 2 | `cnv_1ivku2u3` | 2026-06-17 03:37:42 UTC | archived | manual_review_unknown |  |  |  |
-| 3 | `cnv_1ivffx7f` | 2026-06-16 19:19:27 UTC | archived | spam_ads_promotion |  |  |  |
-| 4 | `cnv_1ivdxvvf` | 2026-06-16 17:42:47 UTC | unassigned | education |  |  |  |
-| 5 | `cnv_1ivdhp5n` | 2026-06-16 17:13:54 UTC | archived | spam_ads_promotion |  |  |  |
-| 6 | `cnv_1ivdejiz` | 2026-06-16 17:08:23 UTC | archived | spam_ads_promotion |  |  |  |
-| 7 | `cnv_1ivddm8r` | 2026-06-16 17:06:52 UTC | archived | spam_ads_promotion |  |  |  |
-| 8 | `cnv_1ivdd4nv` | 2026-06-16 17:06:09 UTC | archived | manual_review_unknown |  |  |  |
-| 9 | `cnv_1ivcqgij` | 2026-06-16 16:29:39 UTC | archived | manual_review_unknown |  |  |  |
+| 1 | `cnv_1ivl23bv` | 2026-06-17 04:43:03 UTC | archived | manual_review_unknown | ignore_test |  |  |
+| 2 | `cnv_1ivku2u3` | 2026-06-17 03:37:42 UTC | archived | manual_review_unknown | technical_template_reply |  |  |
+| 3 | `cnv_1ivffx7f` | 2026-06-16 19:19:27 UTC | archived | spam_ads_promotion | spam_auto_close |  |  |
+| 4 | `cnv_1ivdxvvf` | 2026-06-16 17:42:47 UTC | unassigned | education | education_not_eligible_draft |  |  |
+| 5 | `cnv_1ivdhp5n` | 2026-06-16 17:13:54 UTC | archived | spam_ads_promotion | spam_auto_close |  |  |
+| 6 | `cnv_1ivdejiz` | 2026-06-16 17:08:23 UTC | archived | spam_ads_promotion | spam_auto_close |  |  |
+| 7 | `cnv_1ivddm8r` | 2026-06-16 17:06:52 UTC | archived | spam_ads_promotion | spam_auto_close |  |  |
+| 8 | `cnv_1ivdd4nv` | 2026-06-16 17:06:09 UTC | archived | manual_review_unknown | spam_auto_close |  |  |
+| 9 | `cnv_1ivcqgij` | 2026-06-16 16:29:39 UTC | archived | manual_review_unknown | spam_auto_close |  |  |
 | 10 | `cnv_1ivblbbv` | 2026-06-16 15:27:32 UTC | archived | business_purchase |  |  |  |
 | 11 | `cnv_1ivbk1gb` | 2026-06-16 15:25:42 UTC | archived | manual_review_unknown |  |  |  |
 | 12 | `cnv_1ivbfuor` | 2026-06-16 15:19:14 UTC | archived | manual_review_unknown |  |  |  |
