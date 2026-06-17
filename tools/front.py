@@ -55,7 +55,41 @@ def _message_role(msg: dict) -> str:
     return "Dify/Support"
 
 
+
+def _message_subject(msg: dict) -> str:
+    if msg.get("subject"):
+        return str(msg.get("subject")).strip()
+    headers = msg.get("headers") or {}
+    if isinstance(headers, dict) and headers.get("subject"):
+        return str(headers.get("subject")).strip()
+    return "No subject"
+
+
+def _message_recipients(msg: dict, field: str) -> str:
+    values = msg.get(field) or []
+    recipients = []
+
+    if isinstance(values, str):
+        values = [item.strip() for item in values.split(",") if item.strip()]
+
+    if isinstance(values, list):
+        for item in values:
+            if isinstance(item, str):
+                if item.strip():
+                    recipients.append(item.strip())
+            elif isinstance(item, dict):
+                for key in ("handle", "email", "name"):
+                    value = item.get(key)
+                    if value:
+                        recipients.append(str(value).strip())
+                        break
+            else:
+                recipients.append(str(item).strip())
+
+    return ", ".join([r for r in recipients if r])
+
 def _message_text(msg: dict) -> str:
+
     raw = msg.get("text") or msg.get("body") or ""
     text = str(raw).strip()
     if "<" in text and ">" in text:
@@ -115,15 +149,25 @@ async def _build_forward_body(conversation_id: str, summary: str, label: str) ->
         lines.append("No message content could be fetched from Front. Please open the conversation in Front using the conversation ID above.")
         return "\n".join(lines)
 
-    # Front returns newest first in the paths this service already uses.
+    # Front returns newest first in this service; reverse for chronological timeline
+    lines.append(f"Total messages: {len(messages)}")
     for index, msg in enumerate(reversed(messages), start=1):
         sender = _message_sender(msg)
         timestamp = _message_timestamp(msg)
         role = _message_role(msg)
+        subject = _message_subject(msg)
+        to_line = _message_recipients(msg, "to")
+        cc_line = _message_recipients(msg, "cc")
         body = _message_text(msg) or "[No text body]"
+
         lines.extend([
             "",
             f"--- Message {index} | {role} | {sender}" + (f" | {timestamp}" if timestamp else ""),
+            f"From: {sender}",
+            f"To: {to_line if to_line else 'N/A'}",
+            f"CC: {cc_line if cc_line else 'N/A'}",
+            f"Date: {timestamp or 'N/A'}",
+            f"Subject: {subject}",
             body,
         ])
         attachment_lines = _attachment_lines(msg)
