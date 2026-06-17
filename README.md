@@ -155,10 +155,10 @@ LLM 不直接访问外部系统，只能通过 `agent/tool_registry.py` 暴露�
 | 工具 | 用途 |
 |---|---|
 | `front_create_draft` | 在 Front 创建草稿，并添加内部说明 |
-| 专用 `front_forward_to_*` | 直接发送内部 forward，包含原始 Front thread 和 summary；Marketplace/社区合作统一到 `marketing@dify.ai`，conversation 保持 open |
-| `front_forward_to_bobby` | 通过 Front 直接转发原始会话和摘要给 Bobby；不发送给客户，保持 open |
-| `front_forward_to_limin` | 账号/黑名单兼容路径，当前通过 Front 直接转发给 Bobby；不发送给客户，保持 open |
-| `front_forward_to_sybil` | 教育版审核 handoff，通过 Front 直接转发给 Sybil；不发送给客户，保持 open |
+| 专用 `front_forward_to_*` | 发送内部 Front forward，不是普通直发邮件；正文包含 summary 和原始 Front thread；Marketplace/社区合作统一到 `marketing@dify.ai`，conversation 保持 open |
+| `front_forward_to_bobby` | 通过 Front forward 转发原始会话和摘要给 Bobby；不发送给客户，保持 open |
+| `front_forward_to_limin` | 账号/黑名单兼容路径，当前通过 Front forward 转发给 Bobby；不发送给客户，保持 open |
+| `front_forward_to_sybil` | 教育版审核 handoff，通过 Front forward 转发给 Sybil；不发送给客户，保持 open |
 | `front_forward_to_marketing` | 移动到 Marketing inbox |
 | `front_forward_to_security` | 移动到 Security inbox |
 | `front_assign` | 分配给指定 Front teammate |
@@ -191,7 +191,7 @@ SQLite 由 SQLAlchemy async 管理，启动时会自动建表。
 
 ## Front 转发人工介入
 
-新版本的人工兜底通知全部通过 Front direct forward 发送给同事。转发内容包含 AI 摘要、Linear 链接等关键信息，并附带原始 Front conversation 内容；forward 后 conversation 保持 open。
+新版本的人工兜底通知全部通过 Front forward 发送给同事，不是普通直发邮件。转发内容包含 AI 摘要、Linear 链接等关键信息，并附带原始 Front conversation 内容；forward 后 conversation 保持 open。
 
 active code 不再暴露 `feishu_notify_*` 工具名，也不再暴露泛用 `front_forward`。内部 handoff 只能走专用 allowlisted 工具：Bobby/Limin 兼容路径、Sybil 教育审核、Marketing 合作承接、Security inbox、Legal/Investment 专用路径。`tools/handoff.py` 对同事邮箱转发做 `@dify.ai` allowlist 校验。
 

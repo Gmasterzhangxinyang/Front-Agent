@@ -89,7 +89,7 @@ def decide_initial_route(
             keep_open=True,
             customer_action="none",
             internal_target="geyan@dify.ai",
-            reason="Legal threats, lawyer letters, or lawsuit mentions are directly forwarded to Geyan with the original thread and summary, while the conversation stays open.",
+            reason="Legal threats, lawyer letters, or lawsuit mentions are sent to Geyan as a Front forward with the original thread and summary, while the conversation stays open.",
         )
 
     if category == "security":
@@ -152,7 +152,7 @@ def _skill_route(category: str, sub_type: str | None) -> RouteDecision:
             "legal_forwarded_keep_open",
             "none",
             "geyan@dify.ai",
-            "Legal policy directly forwards the original thread and summary to Geyan and keeps the conversation open.",
+            "Legal policy sends a Front forward with the original thread and summary to Geyan and keeps the conversation open.",
         ),
         "investment": (
             "investment_forwarded_keep_open",

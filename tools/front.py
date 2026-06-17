@@ -276,54 +276,8 @@ async def add_comment(conversation_id: str, body: str, author_id: str = None) ->
         return r.status_code == 201
 
 
-async def forward_conversation(conversation_id: str, to_email: str, cc_email: str = None, summary: str = "", label: str = "partnership/community") -> bool:
-    """Create a forward draft with the original Front thread included."""
-    try:
-        channel_id = None
-
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as c:
-                ri = await c.get(f"{BASE_URL}/conversations/{conversation_id}/inboxes", headers=HEADERS)
-                if ri.status_code == 200:
-                    results = ri.json().get("_results", [])
-                    if results:
-                        address = results[0].get("address") or results[0].get("send_as")
-                        if address:
-                            channel_id = f"alt:address:{address}"
-        except Exception as e:
-            logging.error("forward_conversation: failed to get channel_id: %s", e)
-
-        if not channel_id:
-            logging.error("forward_conversation: channel_id is None, forward will likely fail")
-
-        body = await _build_forward_body(conversation_id, summary, label)
-        payload = {
-            "to": _email_list(to_email),
-            "body": _plain_to_html(body),
-            "mode": "shared",
-        }
-        cc = _email_list(cc_email)
-        if cc:
-            payload["cc"] = cc
-        if channel_id:
-            payload["channel_id"] = channel_id
-
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            r = await client.post(
-                f"{BASE_URL}/conversations/{conversation_id}/drafts",
-                headers=HEADERS,
-                json=payload,
-            )
-            if r.status_code not in (200, 201, 202, 204):
-                logging.error("Front forward draft failed: %s %s", r.status_code, r.text)
-            return r.status_code in (200, 201, 202, 204)
-    except Exception as e:
-        logging.error("forward_conversation failed: %s", e)
-        return False
-
-
 async def forward_conversation_direct(conversation_id: str, to_email: str, cc_email: str = None, summary: str = "", label: str = "partnership/community") -> bool:
-    """Send a forwarded email with the original Front thread included in the body."""
+    """Send a Front forward containing the summary and original thread."""
     try:
         channel_id = None
 

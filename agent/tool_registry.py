@@ -122,7 +122,7 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "front_forward_to_legal",
-            "description": "Directly forward the original Front conversation and summary to 葛岩 (geyan@dify.ai) for legal threats, lawyer letters, or lawsuit inquiries. This does not reply to the customer and keeps the conversation open.",
+            "description": "Send a Front forward containing the original conversation and summary to 葛岩 (geyan@dify.ai) for legal threats, lawyer letters, or lawsuit inquiries. This is not a customer reply and keeps the conversation open.",
             "parameters": {
                 "type": "object",
                 "properties": {

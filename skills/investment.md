@@ -16,7 +16,7 @@ Determine if this is:
 - Call `front_forward_to_investment` — forwards directly to Claudia Liu (claudia@dify.ai)
 
 ### 3. Notify Bobby
-- Call `front_forward_to_bobby` with conversation_id and message: "📬 投资类邮件已转发\n发件人: [sender_email]\n对话ID: [conversation_id]\n类型: investment\n\n已直接转发至 Claudia Liu (claudia@dify.ai)"
+- Call `front_forward_to_bobby` with conversation_id and message: "📬 投资类邮件已转发\n发件人: [sender_email]\n对话ID: [conversation_id]\n类型: investment\n\n已通过 Front forward 转发至 Claudia Liu (claudia@dify.ai)"
 
 ### 4. Keep open after handoff
 - Call `state_set` with step="forwarded_keep_open" so Bobby can verify routing

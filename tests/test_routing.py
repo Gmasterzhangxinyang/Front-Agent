@@ -179,9 +179,12 @@ def test_legal_threat_does_not_notify_bobby_from_orchestrator():
     assert 'if "legal_threat" in flags' not in source
 
 
-def test_forward_tools_do_not_create_forward_drafts():
-    source = Path("agent/tool_registry.py").read_text()
-    assert "front.forward_conversation(" not in source
+def test_forward_tools_send_forward_with_original_thread_body():
+    tool_source = Path("agent/tool_registry.py").read_text()
+    front_source = Path("tools/front.py").read_text()
+    assert "front.forward_conversation(" not in tool_source
+    assert "_build_forward_body(conversation_id, summary" in front_source
+    assert "Original Front conversation:" in front_source
 
 
 def run_all():

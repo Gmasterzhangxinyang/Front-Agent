@@ -4,7 +4,7 @@
 Handle emails containing legal threats, lawyer letters, or lawsuit mentions.
 
 ## Steps
-1. Call `front_forward_to_legal` — directly forwards the original Front conversation and summary to 葛岩 (geyan@dify.ai)
+1. Call `front_forward_to_legal` — sends a Front forward containing the summary and original Front conversation to 葛岩 (geyan@dify.ai)
 2. Leave conversation open
 
 ## Important
