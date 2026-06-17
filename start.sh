@@ -14,5 +14,11 @@ pkill -f "uvicorn main:app" 2>/dev/null || true
 
 sleep 1
 
-# Start uvicorn on $PORT (Railway) or default 8000 (local)
-exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --reload
+# Start uvicorn on $PORT (Railway) or default 8000 (local).
+# Reload is opt-in for local development; it is unsafe for screen/runtime use
+# because log and database writes can trigger needless reloads.
+if [ "${RELOAD:-false}" = "true" ]; then
+  exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --reload
+fi
+
+exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
