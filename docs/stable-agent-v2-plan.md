@@ -93,13 +93,14 @@ After the new version is stable, rename them to clearer names:
 
 | Category / Case | Target Handling |
 |---|---|
-| Marketplace / community / plugin / ecosystem cooperation | Forward original Front thread to `marketing@dify.ai`. |
-| Education plan review | Create Linear when needed, then Front-forward summary + Linear URL + original thread to `sybil@dify.ai`. |
-| Account verification / blacklist / paid login issue | Draft customer acknowledgement, then Front-forward summary + original thread to Bobby for now. |
-| Security emergency | Move the Front conversation from Support/Hello inbox to the Security inbox. Do not separately forward to Yongle in V2. |
-| Investment / IR | Forward to Claudia, then Front-forward summary to Bobby if visibility is needed. |
-| Legal threat | Do not auto-send customer reply unless safe; Front-forward summary + original thread to Bobby/legal path. |
-| Unclear classification | Draft generic acknowledgement only when appropriate, then Front-forward to Bobby for manual judgment. |
+| Marketplace / community / plugin / ecosystem cooperation | Forward original Front thread to `marketing@dify.ai`. Keep open for review. |
+| Spam / ads / unsolicited promotion | Auto-close/archive after classification. No internal handoff required unless the classifier is uncertain. |
+| Education plan review | Create Linear when needed, then immediately Front-forward summary + Linear URL + original thread to `sybil@dify.ai` only. Keep the conversation open. |
+| Account verification / blacklist / paid login issue | Draft customer acknowledgement, then immediately Front-forward summary + original thread to Bobby for now. Keep the conversation open. |
+| Security emergency | Move the Front conversation from Support/Hello inbox to the Security inbox immediately. Do not separately forward to Yongle in V2. Keep open for review. |
+| Investment / IR | Forward to Claudia immediately, then Front-forward summary to Bobby if visibility is needed. Keep open unless explicitly classified as spam/ads. |
+| Legal threat | Do not auto-send customer reply unless safe; immediately Front-forward summary + original thread to Bobby/legal path. Keep open. |
+| Unclear classification | Draft generic acknowledgement only when appropriate, then immediately Front-forward to Bobby for manual judgment. Keep open. |
 
 ## 6. Refactor Phases
 
@@ -107,7 +108,7 @@ After the new version is stable, rename them to clearer names:
 |---|---|---|---|
 | 0. Production Safety | Keep current running code unchanged. | Work only on branch; do not restart screen; keep commits small. | Running service still untouched. |
 | 1. Remove Feishu Runtime | Delete Feishu callback/API behavior. | Remove Feishu callback route, card builders, tenant token calls, button-state workflow. | No `open.feishu.cn`, `FEISHU_*`, `webhook/feishu`, or card callback references in active code. |
-| 2. Front Forward Handoff | Replace internal notifications with Front forwards. | Use `front.forward_conversation_direct`; require `conversation_id`; include summary/Linear/original thread. | No SMTP notification config/helper; handoff tools send only to internal configured recipients. |
+| 2. Front Forward Handoff | Replace internal notifications with immediate Front forwards. | Use `front.forward_conversation_direct`; require `conversation_id`; include summary/Linear/original thread. | No SMTP notification config/helper; handoff tools send only to internal configured recipients and keep conversations open except spam/ads. |
 | 3. Skill Cleanup | Make business routing explicit. | Update education/account/security/unclear/investment skills to pass `conversation_id` and concise summary. | Tool calls are deterministic and include required fields. |
 | 4. Classification Hardening | Improve intent detection. | Add evidence fields, confidence thresholds, mixed-intent handling, and “manual review” criteria. | Classification JSON is strict and repeatable; low confidence falls back safely. |
 | 5. Tool Naming Cleanup | Remove misleading legacy names. | Rename `feishu_notify_*` to `front_forward_to_*`; update skills and registry together. | No Feishu names remain except historical docs/record files. |
@@ -143,10 +144,10 @@ Relevant commits:
 
 The second commit corrects the handoff model: internal colleague handoffs go through Front forwarding, not SMTP.
 
-## 9. Open Questions Before Final Architecture Cleanup
+## 9. Final Decisions From Open Questions
 
-1. `INTERNAL_FORWARD_BOBBY_EMAIL`: `bobby@dify.ai`
+1. `INTERNAL_FORWARD_BOBBY_EMAIL`: `bobby@dify.ai`.
 2. `INTERNAL_FORWARD_LIMIN_EMAIL`: `bobby@dify.ai` for now; account/blacklist handoffs route to Bobby.
-3. Should education go directly to `sybil@dify.ai` only, or also CC another education owner?
-4. Should Front forwards be sent immediately, or created as shared drafts for Bobby review in some categories?
-5. Which categories are allowed to auto-close after handoff?
+3. Education handoff goes only to `sybil@dify.ai`; do not CC another education owner for V2.
+4. Internal Front forwards are sent immediately, not created as Bobby-review drafts.
+5. Auto-close policy: spam/ads/unsolicited promotions can be resolved automatically. All other handoff categories stay open so Bobby can verify they were routed to the right person or inbox.

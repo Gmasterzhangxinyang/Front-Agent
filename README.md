@@ -49,7 +49,7 @@ agent.handle_email()
 分类阶段
   |
   |-- 使用 skills/classify.md
-  |-- spam/unclear 可直接关闭
+  |-- spam/广告可直接关闭；unclear 进入人工判断并保持打开
   |-- confidence < 0.3 时通过 Front 转发给 Bobby 做人工分类确认
   v
 执行阶段
@@ -135,12 +135,12 @@ agent.handle_email()
 | `marketing` | 市场活动、推广合作、活动邀请 |
 | `security` | 安全漏洞、紧急安全事件 |
 | `legal` | 律师函、法律威胁、诉讼相关 |
-| `spam` | 广告、群发、无关推销 |
+| `spam` | 广告、群发、无关推销；可自动归档 |
 | `roadmap` | 产品路线、功能上线咨询 |
 | `investment` | 投资、融资、IR |
 | `business` | 企业版、商务咨询、演示请求 |
 | `data_export` | 数据导出请求 |
-| `unclear` | 无法明确分类 |
+| `unclear` | 无法明确分类；转给 Bobby 人工判断并保持打开 |
 
 分类结果包含 `category`、`sub_type`、`confidence`、`urgency`、`flags` 和 `summary`。当 `confidence < 0.3` 时，系统会通过 Front 转发给 Bobby，内容包含候选分类、AI 摘要和原始会话；后续人工确认应在 Front 或后台页面完成。
 
@@ -191,8 +191,8 @@ SQLite 由 SQLAlchemy async 管理，启动时会自动建表。
 
 | 通知场景 | Front 转发方式 |
 |---|---|
-| 分类不确定 | 通过 Front 转发给 Bobby，附候选分类和原始会话 |
-| 需要人工跟进 | 通过 Front 转发给对应负责人，附摘要和原始会话 |
+| 分类不确定 | 通过 Front 转发给 Bobby，附候选分类和原始会话，保持打开 |
+| 需要人工跟进 | 通过 Front 转发给对应负责人，附摘要和原始会话，保持打开 |
 | 安全问题 | 移动到 Security inbox，不再单独转发给杨永乐 |
 | 草稿确认 | 通过 Front 转发提醒人工审核 |
 

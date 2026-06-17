@@ -141,13 +141,6 @@ Use the tools available to you to handle the email completely.
             await execute_tool_call("front_close_conversation", {"conversation_id": conversation_id}, db)
             return
 
-        # Unclear = auto archive (AI can't determine category)
-        if category == "unclear":
-            await state_tool.set_state(db, conversation_id, "unclear", None, "done", {}, waiting=False, sender_email=sender_email)
-            from agent.tool_registry import execute_tool_call
-            await execute_tool_call("front_close_conversation", {"conversation_id": conversation_id}, db)
-            return
-
         # Truly uncertain (confidence < 0.3) = notify Bobby
         if confidence < 0.3:
             from tools.feishu import notify_bobby
@@ -308,7 +301,7 @@ async def _classify(conversation_text: str, latest_message: str, sender_email: s
 
 
 async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int = 10, sender_email: str = "", message_body: str = "") -> None:
-    notified_conversations: set[str] = set()  # deduplicate Bobby email notifications per conv
+    notified_conversations: set[str] = set()  # deduplicate Bobby handoff forwards per conv
     for _ in range(max_iterations):
         response = await client.chat.completions.create(
             model=settings.openai_model,
