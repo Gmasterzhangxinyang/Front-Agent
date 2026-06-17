@@ -326,6 +326,7 @@ restartPolicyType = "on_failure"
 
 ```bash
 python3 tests/test_routing.py
+python3 tests/test_skills.py
 python3 -m compileall main.py tools config.py agent webhooks routes tests
 git diff --check
 ```
