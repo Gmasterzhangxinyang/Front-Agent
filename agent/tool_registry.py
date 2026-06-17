@@ -8,6 +8,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
+
+async def _safe_add_comment(conversation_id: str, body: str) -> bool:
+    """Add an internal Front comment without blocking the primary action."""
+    try:
+        return await front.add_comment(conversation_id, body)
+    except Exception as e:
+        logger.warning("Non-blocking Front comment failed for %s: %s", conversation_id, e)
+        return False
+
+
 # Tool schemas for GPT-4o function calling
 TOOL_SCHEMAS = [
     {
@@ -288,7 +298,7 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         category = args.get("category", "")
         reason_cn = args.get("reason_cn", "AI 自动生成草稿")
         comment = f"[AI草稿] 分类：{category}｜{reason_cn}"
-        await front.add_comment(conversation_id, comment)
+        await _safe_add_comment(conversation_id, comment)
         ok = await front.create_draft(conversation_id, body)
         return "draft_created" if ok else "draft_failed"
 
@@ -363,7 +373,7 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         )
         if ok:
             # Add internal comment with summary
-            await front.add_comment(
+            await _safe_add_comment(
                 conversation_id,
                 f"[AI] Marketing type email - moved to marketing inbox. Summary: {summary}"
             )
@@ -378,14 +388,14 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
             settings.security_inbox_name
         )
         if ok:
-            await front.add_comment(
+            await _safe_add_comment(
                 conversation_id,
                 f"[AI] Security concern - moved to security inbox."
             )
         return "moved_to_security" if ok else "move_failed"
 
     elif tool_name == "front_add_comment":
-        ok = await front.add_comment(args["conversation_id"], args["body"])
+        ok = await _safe_add_comment(args["conversation_id"], args["body"])
         return "comment_added" if ok else "comment_failed"
 
     elif tool_name == "front_reply_with_template":
@@ -419,7 +429,7 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
             url, identifier = result
             conversation_id = args.get("conversation_id")
             if conversation_id:
-                await front.add_comment(conversation_id, f"Linear issue created: [{identifier}]({url})")
+                await _safe_add_comment(conversation_id, f"Linear issue created: [{identifier}]({url})")
             return json.dumps({"status": "ticket_created", "url": url, "identifier": identifier})
         return "ticket_failed"
 

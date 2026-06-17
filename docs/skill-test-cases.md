@@ -14,7 +14,7 @@ Do not use real customer data in these tests.
 
 ### TECH-01 workflow_issue
 
-Expected: `technical/workflow_issue`, create Front draft, keep open.
+Expected: `technical/workflow_issue`, create Front draft; paid users go to ticket path, non-paid users go to community/GitHub, keep open.
 
 ```text
 Subject: HTTP Request node keeps failing
@@ -32,7 +32,7 @@ Can you help me troubleshoot this?
 
 ### TECH-02 api_issue
 
-Expected: `technical/api_issue`, create Front draft, keep open.
+Expected: `technical/api_issue`, create Front draft guiding paid user to Settings -> Support -> Contact Us ticket path, keep open.
 
 ```text
 Subject: API key returns unauthorized
@@ -49,7 +49,7 @@ Please advise.
 
 ### TECH-03 self_hosted
 
-Expected: `technical/self_hosted`, create guidance draft only, no Linear ticket, keep open.
+Expected: `technical/self_hosted`, create guidance draft pointing non-paid/Community users to docs, community, and GitHub issue; no Linear ticket, keep open.
 
 ```text
 Subject: Self-hosted docker compose cannot start

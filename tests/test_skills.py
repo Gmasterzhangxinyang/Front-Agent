@@ -127,6 +127,18 @@ def test_internal_forwarding_skill_targets_are_current():
             assert expected in text, f"{category}.md missing {expected!r}"
 
 
+
+def test_technical_support_has_paid_and_non_paid_paths():
+    text = _skill_text("technical")
+    for expected in [
+        "Settings -> Support -> Contact Us",
+        "GitHub issues",
+        "Dify community",
+        "no clear paid-plan evidence",
+        "Do not create Linear tickets for non-paid technical support",
+    ]:
+        assert expected in text, f"technical.md missing {expected!r}"
+
 def run_all():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):
