@@ -127,7 +127,7 @@ Required decision fields:
 | education not eligible | K-12, personal email only, or clearly not eligible | `education_draft_keep_open` | `front_create_draft` | draft rejection/info request | none | `draft_created` | no |
 | account paid/login/blacklist | Paid login, verification, blacklist, account ownership | `account_bobby_forwarded_keep_open` | `front_forward_to_bobby` or account skill then handoff | draft acknowledgement when useful | `bobby@dify.ai` | `forwarded_keep_open` | no |
 | billing | Refund, invoice, duplicate charge, downgrade | `billing_skill_flow` | skill decides draft/ticket | draft by default | skill policy | `skill_in_progress` or final state | no by default |
-| legal | Legal threat, lawyer letter, lawsuit | `legal_review_keep_open` | legal/Bobby handoff path | no automatic reply by default | legal/Bobby path | `forwarded_keep_open` | no |
+| legal | Legal threat, lawyer letter, lawsuit | `legal_forwarded_keep_open` | direct Front forward to `geyan@dify.ai` with original thread and summary | no automatic reply | Geyan | `forwarded_keep_open` | no |
 | investment | Investor/VC/fundraising | `investment_forwarded_keep_open` | forward to Claudia if configured | none by default | Claudia, optional Bobby visibility | `forwarded_keep_open` | no |
 | technical free | Technical support without paid/Premium evidence | `technical_template_or_draft` | technical skill | approved template or draft | none | skill policy | policy |
 | technical paid/Premium | Paid/Premium technical issue | `technical_ticket_or_draft` | technical skill, Linear when needed | draft or ticket acknowledgement | CUS Linear | skill policy | no by default |

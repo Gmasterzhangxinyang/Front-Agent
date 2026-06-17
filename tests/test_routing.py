@@ -92,6 +92,37 @@ def test_partnership_forwards_to_marketing():
     assert route.state_step == "forwarded_keep_open"
 
 
+def test_legal_routes_to_geyan_and_stays_open():
+    result = normalize_classification({
+        "category": "legal",
+        "sub_type": "lawyer_letter",
+        "confidence": 0.9,
+        "summary": "Lawyer letter about contract dispute",
+    })
+    route = decide_initial_route(result, "cnv_test", "sender@example.com")
+    assert route.name == "legal_forwarded_keep_open"
+    assert route.tool_name == "front_forward_to_legal"
+    assert route.internal_target == "geyan@dify.ai"
+    assert route.state_step == "forwarded_keep_open"
+    assert route.keep_open is True
+    assert route.customer_action == "none"
+
+
+def test_legal_threat_flag_overrides_to_geyan_route():
+    result = normalize_classification({
+        "category": "account",
+        "sub_type": "cant_login",
+        "confidence": 0.7,
+        "flags": ["legal_threat"],
+        "summary": "User says their lawyer will contact Dify",
+    })
+    route = decide_initial_route(result, "cnv_test", "sender@example.com")
+    assert route.name == "legal_forwarded_keep_open"
+    assert route.state_category == "legal"
+    assert route.tool_name == "front_forward_to_legal"
+    assert route.internal_target == "geyan@dify.ai"
+
+
 def test_account_route_has_explicit_policy():
     result = normalize_classification({
         "category": "account",
@@ -140,6 +171,17 @@ def test_close_tool_is_not_exposed_to_model():
     source = Path("agent/tool_registry.py").read_text()
     schemas_source = source.split("async def execute_tool_call", 1)[0]
     assert '"name": "front_close_conversation"' not in schemas_source
+
+
+def test_legal_threat_does_not_notify_bobby_from_orchestrator():
+    source = Path("agent/orchestrator.py").read_text()
+    assert 'or "legal_threat" in flags' not in source
+    assert 'if "legal_threat" in flags' not in source
+
+
+def test_forward_tools_do_not_create_forward_drafts():
+    source = Path("agent/tool_registry.py").read_text()
+    assert "front.forward_conversation(" not in source
 
 
 def run_all():

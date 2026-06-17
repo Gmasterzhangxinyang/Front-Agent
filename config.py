@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     claudia_email: str = ""             # 刘景媛 (Claudia) - claudia@dify.ai
 
     # Legal
-    geyan_email: str = ""               # 葛岩 - geyan@dify.ai
+    geyan_email: str = "geyan@dify.ai"  # 葛岩 - geyan@dify.ai
 
     # Database
     database_url: str = "sqlite+aiosqlite:////tmp/email_automation.db"

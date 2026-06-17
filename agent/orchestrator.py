@@ -175,9 +175,10 @@ Conversation ID: {conversation_id}
 Sender email: {sender_email}
 {user_history_text}
 """
-        # Handle special flags before main flow
+        # Handle special flags before main flow. Legal threats are routed by
+        # decide_initial_route() to Geyan and should not notify Bobby here.
         flags = classification.flags
-        if "emotional" in flags or "legal_threat" in flags:
+        if "emotional" in flags:
             from tools.handoff import forward_to_bobby
             await forward_to_bobby(f"⚠️ 特殊邮件需关注 - 发件人: {sender_email}, 标记: {flags}, 摘要: {classification.summary}", conversation_id=conversation_id)
 

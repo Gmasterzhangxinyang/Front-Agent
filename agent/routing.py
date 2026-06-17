@@ -73,6 +73,25 @@ def decide_initial_route(
             reason="Classifier returned unclear or route cannot be safely determined by rules.",
         )
 
+    if category == "legal" or "legal_threat" in classification.flags:
+        return RouteDecision(
+            name="legal_forwarded_keep_open",
+            handled_before_skill=True,
+            tool_name="front_forward_to_legal",
+            tool_args={
+                "conversation_id": conversation_id,
+                "summary": summary,
+            },
+            state_category="legal",
+            state_sub_type=sub_type,
+            state_step="forwarded_keep_open",
+            waiting=False,
+            keep_open=True,
+            customer_action="none",
+            internal_target="geyan@dify.ai",
+            reason="Legal threats, lawyer letters, or lawsuit mentions are directly forwarded to Geyan with the original thread and summary, while the conversation stays open.",
+        )
+
     if category == "security":
         return RouteDecision(
             name="security_move_inbox",
@@ -130,10 +149,10 @@ def _skill_route(category: str, sub_type: str | None) -> RouteDecision:
             "Account policy may draft acknowledgement and hand off paid/login/blacklist cases to Bobby.",
         ),
         "legal": (
-            "legal_review_keep_open",
+            "legal_forwarded_keep_open",
             "none",
-            "legal/Bobby path",
-            "Legal policy must not auto-reply to customer; route for human review.",
+            "geyan@dify.ai",
+            "Legal policy directly forwards the original thread and summary to Geyan and keeps the conversation open.",
         ),
         "investment": (
             "investment_forwarded_keep_open",
