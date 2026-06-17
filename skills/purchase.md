@@ -45,8 +45,8 @@ Handle questions about purchasing Dify plans, pricing, and reseller/agent inquir
 1. Call `front_create_draft` with no promo code template
 
 ### reseller
-1. Call `front_create_draft` with "forwarding to partnerships team" template
-2. Call `front_forward_to_partnerships` with conversation_id and summary (1-2 sentence summary of the user's inquiry)
+1. Call `front_create_draft` with "forwarding to marketing/partnership intake" template
+2. Call `front_forward_to_partnerships` with conversation_id and summary (1-2 sentence summary of the user's inquiry). This forwards the original thread to `marketing@dify.ai`.
 
 ## Reply Templates
 
@@ -111,7 +111,7 @@ Dear [User's Name / Valued Customer],
 
 Thank you for reaching out about partnership or reseller opportunities with Dify!
 
-We've received your inquiry and have forwarded it to our partnerships team for review. A team member will be in touch with you shortly.
+We've received your inquiry and have forwarded it to the appropriate team for review. A team member will be in touch with you shortly.
 
 If you have any immediate questions in the meantime, feel free to reply.
 

@@ -60,7 +60,7 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "front_forward_to_partnerships",
-            "description": "Create a draft email forwarding the conversation to the partnerships team (赵晗青 with cc to 赵雅雯). Use this for partnership, reseller, marketplace, and plugin inquiries. The draft will be created for Bobby to review before sending.",
+            "description": "Forward partnership, reseller, marketplace, plugin, and community ecosystem inquiries to marketing@dify.ai. The forwarded email includes the original Front thread content.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -75,7 +75,7 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "front_forward_to_community",
-            "description": "Create a draft email forwarding the conversation to community/partnership team with regional routing. The draft will be created for Bobby to review before sending.\n\nRegional routing:\n- 插件与模板生态 (plugins & templates): forward to 赵晗青, cc 赵雅雯\n- 日本 (Japan): forward to 赵雅雯, cc marudan.kj@dify.ai\n- CN & APAC Business Line: forward to 赵雅雯, cc lushachen@dify.ai + byron@dify.ai\n- EU Business Line: forward to 赵雅雯, cc xinruiliu@dify.ai",
+            "description": "Forward community, Marketplace, plugin/template ecosystem, and external cooperation inquiries to marketing@dify.ai. The region parameter is kept for compatibility but no longer changes routing. The forwarded email includes the original Front thread content.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -359,47 +359,26 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
     elif tool_name == "front_forward_to_partnerships":
         conversation_id = args["conversation_id"]
         summary = args.get("summary", "")
-        if not settings.zhaohq_email:
-            return "forward_failed: zhaohq_email not configured"
+        to_email = settings.marketing_partnership_email or "marketing@dify.ai"
         ok = await front.forward_conversation_direct(
             conversation_id,
-            settings.zhaohq_email,
-            settings.zhaoyawen_email if settings.zhaoyawen_email else None,
-            summary
+            to_email,
+            None,
+            summary,
         )
-        return "forwarded" if ok else "forward_failed"
+        return "forwarded_to_marketing" if ok else "forward_failed"
 
     elif tool_name == "front_forward_to_community":
         conversation_id = args["conversation_id"]
         summary = args.get("summary", "")
-        region = args.get("region", "")
-
-        # Regional routing
-        if region == "plugins_templates":
-            to_email = settings.zhaohq_email
-            cc_email = settings.zhaoyawen_email or None
-        elif region == "japan":
-            to_email = settings.yawen_email
-            cc_email = settings.marudan_kj_email or None
-        elif region == "cn_apac":
-            to_email = settings.yawen_email
-            cc_parts = []
-            if settings.lushachen_email:
-                cc_parts.append(settings.lushachen_email)
-            if settings.byron_email:
-                cc_parts.append(settings.byron_email)
-            cc_email = ", ".join(cc_parts) if cc_parts else None
-        elif region == "eu":
-            to_email = settings.yawen_email
-            cc_email = settings.xinruiliu_email or None
-        else:
-            return "forward_failed: unknown region"
-
-        if not to_email:
-            return f"forward_failed: to_email not configured for region {region}"
-
-        ok = await front.forward_conversation_direct(conversation_id, to_email, cc_email, summary)
-        return "forwarded" if ok else "forward_failed"
+        to_email = settings.marketing_partnership_email or "marketing@dify.ai"
+        ok = await front.forward_conversation_direct(
+            conversation_id,
+            to_email,
+            None,
+            summary,
+        )
+        return "forwarded_to_marketing" if ok else "forward_failed"
 
     elif tool_name == "front_forward_to_investment":
         conversation_id = args["conversation_id"]

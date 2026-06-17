@@ -56,6 +56,7 @@ class Settings(BaseSettings):
 
     # Marketing inbox (use inbox name from Front, e.g. "Marketing")
     marketing_inbox_name: str = ""    # 市场团队邮箱
+    marketing_partnership_email: str = "marketing@dify.ai"  # Marketplace/community external cooperation intake
 
     # Security inbox (e.g. "Security")
     security_inbox_name: str = ""    # 安全团队邮箱

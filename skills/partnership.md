@@ -1,37 +1,29 @@
 # Skill: Partnership / Marketplace / Plugin / Community
 
 ## Purpose
-Handle partnership inquiries, marketplace cooperation, plugin cooperation, plugin takedown requests, and community ecosystem inquiries.
+Handle partnership inquiries, Marketplace cooperation, plugin cooperation, plugin takedown requests, and community ecosystem inquiries.
+
+Marketplace/community external cooperation is now owned by the marketing intake address: `marketing@dify.ai`.
 
 ## Steps
 
 ### 1. Classify the inquiry type
 Determine if this is:
-- **plugins_templates**: 运营插件与模板生态相关（plugin ecosystem, templates, marketplace listing）
-- **japan**: 日本社区活动或业务合作
-- **cn_apac**: 中国及亚太区（CN & APAC）业务线合作
-- **eu**: 欧洲区（EU）业务线合作
-- **partnership**: 其他 partnership/marketplace/reseller 合作
+- **plugins_templates**: 插件、模板生态、Marketplace listing、插件上架/下架/合作
+- **community**: 社区活动、社区合作、生态合作
+- **partnership**: reseller、代理商、外部合作、其他 marketplace/partnership inquiry
 
-### 2. Forward based on type
+### 2. Forward to marketing intake
 
-#### For community types (plugins_templates / japan / cn_apac / eu):
-- Call `front_forward_to_community` — forwards directly to the appropriate team member
+For all types above:
+- Call `front_forward_to_community` with `conversation_id`, a 1-2 sentence `summary`, and `region` set to `plugins_templates` when the inquiry is about Marketplace/plugins/templates.
+- If the inquiry is reseller or generic partnership and you prefer the legacy tool name, `front_forward_to_partnerships` is also acceptable. It routes to the same address.
 
-#### For partnership type:
-- Call `front_forward_to_partnerships` — forwards directly to 赵晗青 (cc 赵雅雯)
+Both tools forward to `marketing@dify.ai` and include the original Front conversation content in the forwarded email body.
 
-**Important**: Do NOT call `front_create_draft` to reply to the user. Only forward to the appropriate team member.
-
-## Regional Routing
-
-| Type | Region | To | CC |
-|------|--------|----|----|
-| plugins_templates | — | 赵晗青 | 赵雅雯 |
-| japan | 日本 | 赵雅雯 | marudan.kj@dify.ai |
-| cn_apac | CN & APAC | 赵雅雯 | lushachen@dify.ai, byron@dify.ai |
-| eu | EU | 赵雅雯 | xinruiliu@dify.ai |
+**Important**: Do NOT call `front_create_draft` to reply to the user. Only forward to marketing intake.
 
 ## Bobby's Workflow
-1. AI forwards directly to the appropriate team member (no action needed from you)
-2. No automatic reply sent to the user
+1. AI forwards the original inquiry to `marketing@dify.ai`.
+2. No automatic reply is sent to the user.
+3. Marketing owns Marketplace/community external cooperation follow-up.

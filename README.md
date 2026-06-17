@@ -150,7 +150,7 @@ LLM 不直接访问外部系统，只能通过 `agent/tool_registry.py` 暴露�
 | `front_create_draft` | 在 Front 创建草稿，并添加内部说明 |
 | `front_reply_with_template` | 发送固定技术支持模板 |
 | `front_close_conversation` | 关闭/归档 Front conversation |
-| `front_forward*` | 按合作、社区、投资、法律等路径转发 |
+| `front_forward*` | 按合作、社区、投资、法律等路径转发；Marketplace/社区合作统一到 `marketing@dify.ai` |
 | `front_forward_to_marketing` | 移动到 Marketing inbox |
 | `front_forward_to_security` | 移动到 Security inbox |
 | `front_assign` | 分配给指定 Front teammate |
@@ -256,6 +256,7 @@ FRONT_TEAMMATE_ZHAOYAWEN=
 ZHAOHQ_EMAIL=
 ZHAOYAWEN_EMAIL=
 MARKETING_INBOX_NAME=
+MARKETING_PARTNERSHIP_EMAIL=marketing@dify.ai
 SECURITY_INBOX_NAME=
 YAWEN_EMAIL=
 MARUDAN_KJ_EMAIL=
