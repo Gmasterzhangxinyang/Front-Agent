@@ -12,8 +12,8 @@ Front-Agent 是 Dify 支持邮箱的自动化处理服务。它接收 Front webh
 - 健康检查：`GET /health`
 - 评分反馈系统：默认关闭，`ENABLE_FEEDBACK_SYSTEM=false`
 - 客户回复：默认只创建 Front 草稿，不直接发送给客户
-- 内部 handoff：优先尝试 Front 原生转发接口（尽可能保留原始邮件属性）；如该接口不可用，回退到 API 组合正文 + 原始线程摘要，conversation 保持 open
-- Feishu：已从 active runtime path 移除
+- 内部 handoff：统一使用 Front 普通邮件转发（conversations/{conversation_id}/messages），正文包含 AI summary 和原始 conversation thread，conversation 保持 open
+- Feishu：仅 Sybil education/account handoff 使用群通知；其他内部 handoff 不走 Feishu
 
 ## 架构分层
 
@@ -81,7 +81,7 @@ Agent 会读取完整 Front conversation，不只看最新一封邮件。多轮�
 - conversation id
 - 必要时包含 Linear 链接等上下文
 
-当前实现策略：优先走 message 级 forward API（若可用），失败后自动回退到已知的带原始 thread 的 message body 转发，保证不中断 handoff。
+当前实现策略：统一走普通邮件转发（非 spam handoff），正文包含 AI summary + 原始 conversation thread；如转发失败会返回失败，由上游重试或告警处理。
 
 Forward 后 conversation 保持 open。非 spam 的 handoff 状态应该使用 `forwarded_keep_open`、`manual_review`、`moved_inbox` 或 `draft_created`，不要用 `done`。
 

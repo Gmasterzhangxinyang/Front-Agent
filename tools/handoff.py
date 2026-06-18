@@ -1,7 +1,7 @@
-"""Internal handoff helpers implemented through Front forwarding.
+"""Internal handoff helpers.
 
-These helpers never send email to the customer. They send the original Front
-conversation plus an internal summary to configured Dify recipients.
+These helpers never send email to the customer. Most handoffs use Front
+forwarding; Sybil handoffs use Feishu so no internal email is sent to Sybil.
 """
 
 import logging
@@ -90,13 +90,54 @@ async def forward_to_limin(message: str, conversation_id: str = "") -> bool:
     )
 
 
-async def forward_to_sybil(message: str, conversation_id: str = "", cc_email: str = "") -> bool:
-    from config import settings
+async def notify_sybil_group(
+    message: str,
+    conversation_id: str = "",
+    cc_email: str = "",
+    handoff_type: str = "",
+    linear_url: str = "",
+) -> bool:
+    from tools import feishu
 
-    return await forward_to_colleague(
-        conversation_id,
-        settings.internal_forward_sybil_email,
+    if not conversation_id:
+        logger.warning("Cannot notify Sybil without conversation_id")
+        return False
+
+    ok = await feishu.notify_sybil_group(
         message,
-        "education/account handoff",
-        cc_email=(cc_email or settings.internal_forward_bobby_email),
+        conversation_id,
+        cc_note=cc_email,
+        handoff_type=handoff_type,
+        linear_url=linear_url,
+    )
+    if ok:
+        return True
+
+    try:
+        from tools import front
+
+        fallback_body = (
+            "[AI] Sybil Feishu group notification failed. "
+            "No email was sent. Please notify Sybil manually.\n\n"
+            f"{feishu.build_sybil_group_message(message, conversation_id, cc_email, handoff_type, linear_url)}"
+        )
+        await front.add_comment(conversation_id, fallback_body)
+    except Exception as e:
+        logger.error("Failed to add Sybil notification fallback comment: %s", e)
+    return False
+
+
+async def forward_to_sybil(
+    message: str,
+    conversation_id: str = "",
+    cc_email: str = "",
+    handoff_type: str = "",
+    linear_url: str = "",
+) -> bool:
+    return await notify_sybil_group(
+        message,
+        conversation_id=conversation_id,
+        cc_email=cc_email,
+        handoff_type=handoff_type,
+        linear_url=linear_url,
     )

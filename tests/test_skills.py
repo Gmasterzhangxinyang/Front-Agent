@@ -104,20 +104,23 @@ def test_skills_do_not_instruct_direct_customer_reply():
     assert not offenders, "Skills must not instruct direct customer replies:\n" + "\n".join(offenders)
 
 
-def test_skills_do_not_reference_removed_feishu_runtime():
+def test_skills_only_reference_sybil_feishu_tool():
     offenders = []
+    allowed = {"account.md", "education.md"}
     for path in sorted(SKILLS_DIR.glob("*.md")):
         text = path.read_text(encoding="utf-8")
-        if "feishu" in text.lower() or "飞书" in text:
+        if "feishu" not in text.lower() and "飞书" not in text:
+            continue
+        if path.name not in allowed or "feishu_notify_sybil_group" not in text:
             offenders.append(str(path))
-    assert not offenders, f"Skills still reference Feishu: {offenders}"
+    assert not offenders, f"Unexpected Feishu skill references: {offenders}"
 
 
 def test_internal_forwarding_skill_targets_are_current():
     checks = {
         "legal": ["geyan@dify.ai", "keep the conversation open"],
         "partnership": ["marketing@dify.ai", "original Front conversation"],
-        "education": ["front_forward_to_sybil", "Linear"],
+        "education": ["feishu_notify_sybil_group", "Linear", "education_review"],
         "unclear": ["front_forward_to_bobby", "人工判断"],
         "security": ["front_forward_to_security", "security inbox"],
     }
@@ -148,6 +151,17 @@ def test_sybil_forward_tool_supports_bobby_cc():
     assert "cc_email" in tool_source
     assert 'cc_email=args.get("cc_email", "")' in tool_source
     assert "cc_email=cc_email or None" in handoff_source
+
+
+def test_sybil_group_message_is_single_mention_prefixed_body():
+    source = Path("tools/feishu.py").read_text(encoding="utf-8")
+    assert "@Sybil" in source
+    assert "return f\"{mention} {normalized_message}\".strip()" in source
+    assert "has_linear_url = bool(_extract_linear_url(normalized_message))" in source
+    assert "placeholder_pattern" in source
+    assert "Front-Agent handoff" not in source
+    assert "Conversation ID:" not in source
+
 
 def test_technical_support_has_paid_and_non_paid_paths():
     text = _skill_text("technical")

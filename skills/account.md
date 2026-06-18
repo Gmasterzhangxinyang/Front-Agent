@@ -106,7 +106,7 @@ Handle account-related requests: login issues, account deletion, transfer, email
 **SaaS user:**
 1. Call `linear_create_ticket` with conversation_id, title "Account anomaly - [email]", sender_email, original_message, and description containing plan, workspace, issue, and billing evidence. Fill actual values.
 2. WAIT for `linear_create_ticket` to return the URL.
-3. Call `front_forward_to_sybil` with conversation_id, cc_email="bobby@dify.ai", and message "账号额度/计划异常，请处理。发件人: [email]. 计划: [plan]. 摘要: [brief summary]. Linear: [actual URL]".
+3. Call `feishu_notify_sybil_group` with conversation_id, cc_email="bobby@dify.ai", handoff_type="account_anomaly", linear_url="[actual URL]", and message "类型: account_anomaly。账号额度/计划异常，请处理。发件人: [email]. 计划: [plan]. 摘要: [brief summary]. Linear: [actual URL]".
 4. Call `front_create_draft` with "received, forwarded to team" template.
 5. Call `state_set` with step="forwarded_keep_open", sub_type="account_anomaly".
 

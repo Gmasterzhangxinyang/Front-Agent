@@ -1,7 +1,6 @@
 import html
 import logging
 import re
-from urllib.parse import urlparse
 
 import httpx
 from config import settings
@@ -12,7 +11,6 @@ HEADERS = {
     "Content-Type": "application/json",
 }
 
-_NATIVE_FORWARD_SUPPORTED: bool | None = None
 
 
 async def get_conversation_messages(conversation_id: str) -> list[dict]:
@@ -66,43 +64,6 @@ def _message_subject(msg: dict) -> str:
     if isinstance(headers, dict) and headers.get("subject"):
         return str(headers.get("subject")).strip()
     return "No subject"
-
-
-def _extract_message_id(msg: dict) -> str:
-    if not isinstance(msg, dict):
-        return ""
-    message_id = msg.get("id")
-    if isinstance(message_id, str) and message_id.strip():
-        return message_id.strip()
-
-    links = msg.get("_links") or {}
-    self_link = links.get("self")
-    if isinstance(self_link, str) and self_link.strip():
-        parsed = urlparse(self_link)
-        return parsed.path.rstrip("/").split("/")[-1]
-
-    metadata = msg.get("metadata") or {}
-    uid = metadata.get("uid")
-    if isinstance(uid, str) and uid.strip():
-        return uid.strip()
-
-    return ""
-
-
-def _select_forward_message(messages: list[dict]) -> dict | None:
-    if not messages:
-        return None
-
-    # Prefer the earliest inbound customer email so forwarding keeps original context.
-    for message in reversed(messages):
-        if message.get("is_inbound") is True and message.get("type") == "email":
-            return message
-
-    for message in reversed(messages):
-        if message.get("type") == "email":
-            return message
-
-    return messages[-1]
 
 
 def _message_recipients(msg: dict, field: str) -> str:
@@ -216,102 +177,6 @@ async def _build_forward_body(conversation_id: str, summary: str, label: str) ->
             lines.extend(attachment_lines)
 
     return "\n".join(lines)
-
-
-def _normalize_message_id(message_id: str) -> str:
-    if not message_id:
-        return message_id
-    return message_id.split("?", 1)[0].split("#", 1)[0]
-
-
-async def _try_forward_via_front_message_api(
-    conversation_id: str,
-    to_email: str,
-    cc_email: str | None,
-    summary: str,
-) -> bool:
-    global _NATIVE_FORWARD_SUPPORTED
-
-    if _NATIVE_FORWARD_SUPPORTED is False:
-        return False
-
-    try:
-        messages = await get_conversation_messages(conversation_id)
-    except Exception as e:
-        logging.error("forward_conversation_direct: failed to get conversation messages %s", e)
-        return False
-
-    source_message = _select_forward_message(messages)
-    if not source_message:
-        logging.warning("forward_conversation_direct: no source message found for %s", conversation_id)
-        return False
-
-    message_id = _extract_message_id(source_message)
-    if not message_id:
-        logging.warning("forward_conversation_direct: cannot resolve message id for %s", conversation_id)
-        return False
-
-    subject = _message_subject(source_message)
-    thread_subject = subject if subject else "Forwarded message"
-    display_lines = ["Conversation ID: {cid}".format(cid=conversation_id)]
-    if summary:
-        display_lines.append(f"Summary: {summary}")
-    display_lines.extend(
-        [
-            f"Original sender: {_message_sender(source_message)}",
-            f"Original subject: {thread_subject}",
-        ]
-    )
-    body_text = "\n".join([line for line in display_lines if line.strip()])
-
-    payload = {
-        "to": _email_list(to_email),
-        "subject": f"Fwd: {thread_subject}",
-        "body": _plain_to_html(body_text),
-        "text": body_text,
-    }
-    cc = _email_list(cc_email)
-    if cc:
-        payload["cc"] = cc
-
-    endpoints = [
-        f"{BASE_URL}/messages/{_normalize_message_id(message_id)}/forward",
-        f"{BASE_URL}/messages/{_normalize_message_id(message_id)}/forwards",
-    ]
-
-    for endpoint in endpoints:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            r = await client.post(endpoint, headers=HEADERS, json=payload)
-
-        if r.status_code in (200, 201, 202, 204):
-            _NATIVE_FORWARD_SUPPORTED = True
-            return True
-
-        # Front may return an unsupported endpoint on older tenant configs; try next candidate.
-        if r.status_code in (404, 405, 501):
-            logging.warning(
-                "forward message API not supported for %s on %s (status=%s)",
-                conversation_id,
-                endpoint,
-                r.status_code,
-            )
-            continue
-
-        # Other status codes might be real failures in payload mapping; still try backup behavior.
-        logging.error(
-            "front native forward call failed for %s via %s: %s %s",
-            conversation_id,
-            endpoint,
-            r.status_code,
-            r.text[:200],
-        )
-
-    _NATIVE_FORWARD_SUPPORTED = False
-    logging.warning(
-        "front native forward is not supported by this tenant/API, fallback to composed forward from now on"
-    )
-
-    return False
 
 
 async def create_draft(conversation_id: str, body: str, author_id: str = None) -> bool:
@@ -457,18 +322,8 @@ async def add_comment(conversation_id: str, body: str, author_id: str = None) ->
 
 
 async def forward_conversation_direct(conversation_id: str, to_email: str, cc_email: str = None, summary: str = "", label: str = "partnership/community") -> bool:
-    """Send a Front forward containing the summary and original thread."""
+    """Send an internal handoff by composing a normal outgoing email with summary and thread."""
     try:
-        if await _try_forward_via_front_message_api(
-            conversation_id,
-            to_email,
-            cc_email,
-            summary,
-        ):
-            return True
-
-        logging.info("Native front message forward not available for %s, fallback to composed body forward", conversation_id)
-
         channel_id = None
 
         try:
@@ -515,8 +370,6 @@ async def forward_conversation_direct(conversation_id: str, to_email: str, cc_em
     except Exception as e:
         logging.error("forward_conversation_direct failed: %s", e)
         return False
-
-
 async def get_inbox_by_name(inbox_name: str) -> str | None:
     """Get inbox ID by name or email address. Returns inbox_id or None."""
     import logging

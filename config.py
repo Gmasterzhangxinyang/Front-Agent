@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     internal_forward_sybil_email: str = "sybil@dify.ai"
     front_app_base_url: str = "https://app.frontapp.com/open"
 
+    # Feishu messaging. Sybil education handoffs use the existing Bobby custom bot webhook first.
+    feishu_webhook_bobby: str = ""
+    feishu_app_id: str = ""
+    feishu_app_secret: str = ""
+    feishu_sybil_open_id: str = ""
+    feishu_education_group_chat_id: str = ""
+
     # Linear user IDs for assignment
     # ⚠️ 需填写: 在 Linear Settings → Members 查找各人的 User ID
     linear_user_yuanqing: str = ""   # 张苑晴

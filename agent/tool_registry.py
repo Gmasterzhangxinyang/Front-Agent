@@ -226,14 +226,34 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
-            "name": "front_forward_to_sybil",
-            "description": "Forward the original Front conversation to Sybil through Front for education or account handoff. Optional cc_email can CC Bobby. This never emails the customer.",
+            "name": "feishu_notify_sybil_group",
+            "description": "Notify the Sybil education/account handoff Feishu group through the existing bobby 的小猫 robot. This is the required path for all Sybil-related handoffs. It never sends email to Sybil or the customer.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "message": {"type": "string"},
-                    "conversation_id": {"type": "string", "description": "Front conversation ID, REQUIRED so Front can forward the original thread"},
-                    "cc_email": {"type": "string", "description": "Optional internal CC recipient, e.g. bobby@dify.ai for account handoff"},
+                    "message": {"type": "string", "description": "Concise Chinese handoff summary. Include approximate type and the Linear URL. The tool posts in the Sybil group and mentions Sybil."},
+                    "conversation_id": {"type": "string", "description": "Front conversation ID, REQUIRED so Sybil can open the original thread from Feishu"},
+                    "cc_email": {"type": "string", "description": "Optional legacy visibility note, e.g. bobby@dify.ai for account handoff. No email is sent."},
+                    "handoff_type": {"type": "string", "description": "Approximate Sybil handoff type, e.g. education_review, education_email_expired, account_anomaly."},
+                    "linear_url": {"type": "string", "description": "Linear issue URL created before notifying Sybil."},
+                },
+                "required": ["message", "conversation_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "front_forward_to_sybil",
+            "description": "Compatibility alias only. Prefer feishu_notify_sybil_group. This calls the same Feishu group robot and never sends email to Sybil or the customer.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "message": {"type": "string", "description": "Concise Chinese handoff summary. Include approximate type and the Linear URL."},
+                    "conversation_id": {"type": "string", "description": "Front conversation ID, REQUIRED so Sybil can open the original thread from Feishu"},
+                    "cc_email": {"type": "string", "description": "Optional legacy visibility note. No email is sent."},
+                    "handoff_type": {"type": "string", "description": "Approximate Sybil handoff type, e.g. education_review, education_email_expired, account_anomaly."},
+                    "linear_url": {"type": "string", "description": "Linear issue URL created before notifying Sybil."},
                 },
                 "required": ["message", "conversation_id"],
             },
@@ -450,13 +470,15 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         )
         return "forwarded" if ok else "forward_failed"
 
-    elif tool_name == "front_forward_to_sybil":
-        ok = await handoff.forward_to_sybil(
+    elif tool_name in ("feishu_notify_sybil_group", "front_forward_to_sybil"):
+        ok = await handoff.notify_sybil_group(
             args["message"],
             conversation_id=args.get("conversation_id", ""),
             cc_email=args.get("cc_email", ""),
+            handoff_type=args.get("handoff_type", ""),
+            linear_url=args.get("linear_url", ""),
         )
-        return "forwarded" if ok else "forward_failed"
+        return "feishu_notified" if ok else "feishu_notify_failed"
 
     elif tool_name == "state_set":
         await state_tool.set_state(
