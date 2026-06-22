@@ -38,6 +38,18 @@ def verify_signature(body: bytes, signature: str) -> bool:
 ALLOWED_INBOX_IDS = {"inb_f9fvf"}  # Support only
 
 
+def _is_processable_inbound_message(message: dict) -> bool:
+    if not message:
+        return False
+    if message.get("is_draft") is True:
+        return False
+    if message.get("type") == "comment":
+        return False
+    if message.get("is_inbound") is False:
+        return False
+    return bool(message.get("text") or message.get("body") or message.get("attachments"))
+
+
 @router.post("/webhook/front")
 async def front_webhook(request: Request):
     body = await request.body()
@@ -74,6 +86,13 @@ async def _process_front_webhook_event(payload: dict, event_id: str | None, conv
 
         # Extract message data
         message = payload.get("target", {}).get("data", {}) or {}
+        if not _is_processable_inbound_message(message):
+            logger.info("Ignoring non-inbound Front event for conversation %s", conversation_id)
+            if event_id:
+                db.add(WebhookEvent(event_id=event_id))
+                await db.commit()
+            return {"status": "ignored", "reason": "not inbound user message"}
+
         message_body = message.get("text") or message.get("body") or ""
         sender = message.get("from") or {}
         sender_email = sender.get("handle") or sender.get("email") or ""

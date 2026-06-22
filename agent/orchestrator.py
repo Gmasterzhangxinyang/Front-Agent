@@ -39,17 +39,19 @@ async def handle_email(
 ) -> None:
     existing_state = await state_tool.get_state(db, conversation_id)
 
-    # Only re-work if conversation is new or explicitly waiting for user input.
-    # Terminal/internal handoff states should not be re-triggered simply because
-    # Front generated a new event_id after moving/forwarding/commenting.
+    # Existing-state webhook events are replies on conversations we have already handled.
+    # Only education replies continue through the skill flow; other categories are ignored.
     if existing_state:
+        category = existing_state.category or ""
         step = existing_state.step or ""
-        is_reworkable = step == "initial" or step.startswith("awaiting_") or step == "waiting_user"
-        if not is_reworkable:
+        if category != "education":
             logger.info(
-                "Skipping handle_email for conv %s — already in step '%s' (category=%s)",
+                "Skipping non-education reply for conv %s — step=%s category=%s",
                 conversation_id, existing_state.step, existing_state.category,
             )
+            return
+        if step == "closed_spam":
+            logger.info("Skipping closed spam conversation %s", conversation_id)
             return
 
     # Fetch full conversation history from Front
