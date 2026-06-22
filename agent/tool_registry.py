@@ -227,15 +227,15 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "feishu_notify_sybil_group",
-            "description": "Notify the Sybil education/account handoff Feishu group through the existing bobby 的小猫 robot. This is the required path for all Sybil-related handoffs. It never sends email to Sybil or the customer.",
+            "description": "Queue a Sybil education/account handoff for the daily 10:00 Asia/Shanghai Feishu digest through the existing bobby 的小猫 robot. This is the required path for all Sybil-related handoffs. It never sends email to Sybil or the customer.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "message": {"type": "string", "description": "Concise Chinese handoff summary. Include approximate type and the Linear URL. The tool posts in the Sybil group and mentions Sybil."},
-                    "conversation_id": {"type": "string", "description": "Front conversation ID, REQUIRED so Sybil can open the original thread from Feishu"},
+                    "message": {"type": "string", "description": "Concise Chinese handoff summary. Include approximate type and the Linear URL. The tool queues the item for the Sybil group digest."},
+                    "conversation_id": {"type": "string", "description": "Front conversation ID, REQUIRED so the digest can include the original Front thread"},
                     "cc_email": {"type": "string", "description": "Optional legacy visibility note, e.g. bobby@dify.ai for account handoff. No email is sent."},
                     "handoff_type": {"type": "string", "description": "Approximate Sybil handoff type, e.g. education_review, education_email_expired, account_anomaly."},
-                    "linear_url": {"type": "string", "description": "Linear issue URL created before notifying Sybil."},
+                    "linear_url": {"type": "string", "description": "Linear issue URL created before queueing Sybil."},
                 },
                 "required": ["message", "conversation_id"],
             },
@@ -245,15 +245,15 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "front_forward_to_sybil",
-            "description": "Compatibility alias only. Prefer feishu_notify_sybil_group. This calls the same Feishu group robot and never sends email to Sybil or the customer.",
+            "description": "Compatibility alias only. Prefer feishu_notify_sybil_group. This queues the same Sybil Feishu digest item and never sends email to Sybil or the customer.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "message": {"type": "string", "description": "Concise Chinese handoff summary. Include approximate type and the Linear URL."},
-                    "conversation_id": {"type": "string", "description": "Front conversation ID, REQUIRED so Sybil can open the original thread from Feishu"},
+                    "conversation_id": {"type": "string", "description": "Front conversation ID, REQUIRED so the digest can include the original Front thread"},
                     "cc_email": {"type": "string", "description": "Optional legacy visibility note. No email is sent."},
                     "handoff_type": {"type": "string", "description": "Approximate Sybil handoff type, e.g. education_review, education_email_expired, account_anomaly."},
-                    "linear_url": {"type": "string", "description": "Linear issue URL created before notifying Sybil."},
+                    "linear_url": {"type": "string", "description": "Linear issue URL created before queueing Sybil."},
                 },
                 "required": ["message", "conversation_id"],
             },
@@ -478,7 +478,7 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
             handoff_type=args.get("handoff_type", ""),
             linear_url=args.get("linear_url", ""),
         )
-        return "feishu_notified" if ok else "feishu_notify_failed"
+        return "feishu_queued" if ok else "feishu_queue_failed"
 
     elif tool_name == "state_set":
         await state_tool.set_state(

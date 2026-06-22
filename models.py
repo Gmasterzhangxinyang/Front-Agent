@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, DateTime, JSON, func
+from sqlalchemy import String, DateTime, JSON, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 from database import Base
 
@@ -23,6 +23,21 @@ class WebhookEvent(Base):
 
     event_id: Mapped[str] = mapped_column(String, primary_key=True)
     processed_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class SybilNotification(Base):
+    __tablename__ = "sybil_notifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    conversation_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    cc_email: Mapped[str] = mapped_column(String, default="")
+    handoff_type: Mapped[str] = mapped_column(String, default="", index=True)
+    linear_url: Mapped[str] = mapped_column(String, default="")
+    status: Mapped[str] = mapped_column(String, default="pending", index=True)
+    error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+    sent_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
 
 
 class SkillExample(Base):

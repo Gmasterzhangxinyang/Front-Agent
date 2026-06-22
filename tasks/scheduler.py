@@ -5,10 +5,11 @@ from database import AsyncSessionLocal
 from models import ConversationState
 from sqlalchemy import select
 from tools.front import resolve_conversation
+from tools.sybil_digest import send_pending_sybil_digest
 import httpx
 
 logger = logging.getLogger(__name__)
-scheduler = AsyncIOScheduler()
+scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
 
 from config import settings
 
@@ -115,7 +116,23 @@ async def auto_close_stale_conversations():
 
 
 def start_scheduler():
-    scheduler.add_job(auto_close_stale_conversations, "interval", hours=6)
+    scheduler.add_job(
+        auto_close_stale_conversations,
+        "interval",
+        hours=6,
+        id="auto_close_stale_conversations",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        send_pending_sybil_digest,
+        "cron",
+        hour=10,
+        minute=0,
+        timezone="Asia/Shanghai",
+        id="send_pending_sybil_digest_cn_10am",
+        replace_existing=True,
+    )
     # sync_missing_conversations disabled - only process webhook-triggered emails
     # scheduler.add_job(sync_missing_conversations, "interval", minutes=10)
-    scheduler.start()
+    if not scheduler.running:
+        scheduler.start()

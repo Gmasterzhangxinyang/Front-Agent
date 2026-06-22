@@ -97,28 +97,29 @@ async def notify_sybil_group(
     handoff_type: str = "",
     linear_url: str = "",
 ) -> bool:
-    from tools import feishu
+    from tools import feishu, sybil_digest
 
     if not conversation_id:
         logger.warning("Cannot notify Sybil without conversation_id")
         return False
 
-    ok = await feishu.notify_sybil_group(
+    ok = await sybil_digest.queue_sybil_notification(
         message,
         conversation_id,
-        cc_note=cc_email,
+        cc_email=cc_email,
         handoff_type=handoff_type,
         linear_url=linear_url,
     )
     if ok:
+        logger.info("Queued Sybil notification for daily digest: %s", conversation_id)
         return True
 
     try:
         from tools import front
 
         fallback_body = (
-            "[AI] Sybil Feishu group notification failed. "
-            "No email was sent. Please notify Sybil manually.\n\n"
+            "[AI] Sybil Feishu digest queue failed. "
+            "No Feishu message was sent. Please notify Sybil manually.\n\n"
             f"{feishu.build_sybil_group_message(message, conversation_id, cc_email, handoff_type, linear_url)}"
         )
         await front.add_comment(conversation_id, fallback_body)

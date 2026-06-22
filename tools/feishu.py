@@ -116,6 +116,10 @@ def _sybil_mention() -> str:
     return f'<at user_id="{settings.feishu_sybil_open_id}">Sybil</at>'
 
 
+def sybil_mention() -> str:
+    return _sybil_mention()
+
+
 def _extract_linear_url(message: str) -> str:
     for pattern in (
         r"\bLinear\s*[:：]\s*(https?://[^\s)>\]]+)",
@@ -177,6 +181,23 @@ def build_sybil_group_message(
     return f"{mention} {normalized_message}".strip()
 
 
+async def send_sybil_group_text(text: str) -> bool:
+    # Prefer the Feishu app-bot group route for Sybil handoffs. This is the
+    # bobby的小猫 path and avoids accidentally sending to an unrelated webhook group.
+    if settings.feishu_education_group_chat_id:
+        ok = await send_text(settings.feishu_education_group_chat_id, "chat_id", text)
+        if ok:
+            return True
+
+    if settings.feishu_webhook_bobby:
+        ok = await send_webhook_text(settings.feishu_webhook_bobby, text)
+        if ok:
+            return True
+
+    logger.warning("No Feishu group recipient configured for Sybil handoff")
+    return False
+
+
 async def notify_sybil_group(
     message: str,
     conversation_id: str = "",
@@ -192,20 +213,7 @@ async def notify_sybil_group(
         linear_url=linear_url,
     )
 
-    # Prefer the Feishu app-bot group route for Sybil handoffs. This is the
-    # bobby的小猫 path and avoids accidentally sending to an unrelated webhook group.
-    if settings.feishu_education_group_chat_id:
-        ok = await send_text(settings.feishu_education_group_chat_id, "chat_id", text)
-        if ok:
-            return True
-
-    if settings.feishu_webhook_bobby:
-        ok = await send_webhook_text(settings.feishu_webhook_bobby, text)
-        if ok:
-            return True
-
-    logger.warning("No Feishu group recipient configured for Sybil handoff")
-    return False
+    return await send_sybil_group_text(text)
 
 async def notify_sybil(message: str, conversation_id: str = "", cc_note: str = "") -> bool:
     return await notify_sybil_group(message, conversation_id=conversation_id, cc_note=cc_note)
