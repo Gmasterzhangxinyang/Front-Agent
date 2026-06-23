@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, DateTime, JSON, Text, func
+from sqlalchemy import String, DateTime, JSON, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 from database import Base
 
@@ -38,6 +38,18 @@ class SybilNotification(Base):
     error: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
     sent_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+
+
+class ConversationAction(Base):
+    __tablename__ = "conversation_actions"
+    __table_args__ = (UniqueConstraint("conversation_id", "action_type", "action_key", name="uq_conversation_action"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    conversation_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    action_type: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    action_key: Mapped[str] = mapped_column(String, nullable=False)
+    result: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
 
 
 class SkillExample(Base):

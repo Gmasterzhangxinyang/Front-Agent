@@ -48,11 +48,19 @@ Front 邮件事件
   -> agent/routing.py 执行确定性路由
   -> 未被确定性路由完全处理时，进入对应 category skill loop
   -> 通过 agent/tool_registry.py 调用受限工具
+  -> 工具执行层做 action log 去重和原始客户邮箱保护
   -> 写入 conversation state
   -> 除 spam 自动归档外，conversation 默认保持 open
 ```
 
 Agent 会读取完整 Front conversation，不只看最新一封邮件。多轮对话依赖 `conversation_states`，`awaiting_*` 和 `waiting_user` 这类状态会继续原流程。
+
+当前不是所有动作都由 Python 固定执行。系统分两段：
+
+1. **确定性路由**：`agent/routing.py` 先处理 spam、unclear、security、legal、partnership/marketing 等高确定性路径。
+2. **LLM skill flow**：education、account、technical、billing 等复杂支持类进入 `skills/<category>.md`，由 LLM 选择受限工具；工具层再做幂等、安全收件人和状态兜底。
+
+Technical 当前属于 LLM skill flow：模型可根据 `skills/technical.md` 调 `docs_search`、`github_search`、`linear_create_ticket`、`front_create_draft`、`state_set`，但默认只创建草稿，不直接发送客户邮件。
 
 ## 确定性路由
 
@@ -110,6 +118,26 @@ LLM 不能直接访问外部系统，只能调用 `agent/tool_registry.py` 暴�
 - 内部 handoff 只能走专用 `front_forward_to_*` 工具。
 - `tools/handoff.py` 对同事 handoff 做 `@dify.ai` allowlist 校验。
 
+## 幂等和原始收件人保护
+
+系统有两层去重：
+
+- `webhook_events`：按 Front `event_id` 跳过同一 webhook 事件。
+- `conversation_actions`：按 `conversation_id + action_type + action_key` 跳过已成功执行过的外部写动作。
+
+`conversation_actions` 当前覆盖这些有副作用的动作：
+
+| 动作 | 去重 key | 目的 |
+|---|---|---|
+| `front_create_draft` | 草稿 body hash | 避免重复创建同一份草稿 |
+| `linear_create_ticket` | Linear title hash | 避免重复建同一类工单 |
+| `feishu_notify_sybil_group` / `front_forward_to_sybil` | `handoff_type + linear_url`，无 URL 时用 message hash | 避免重复排 Sybil digest |
+| `front_forward_to_bobby` / `front_forward_to_limin` / `front_forward_to_*` | summary/message hash | 避免重复内部转发 |
+
+去重不是“conversation 已处理就全部拦截”。用户后续补充新信息、产生不同草稿内容或不同工单标题时，仍可以继续执行。
+
+`conversation_states.sender_email` 用作原始客户邮箱：首次写入后不再被覆盖。`agent/orchestrator.py` 会把该邮箱注入 `front_create_draft` 的内部 `to_email`，避免内部 Bobby handoff 让 Front conversation recipient 变成 `bobby@dify.ai` 后，草稿误发给内部同事。`to_email` 不暴露给 LLM schema，由 Python 注入。
+
 ## Skills
 
 业务规则放在 `skills/` 目录下。
@@ -133,7 +161,8 @@ SQLite 表定义在 `models.py`，由 `database.py` 初始化。
 
 | 表 | 用途 |
 |---|---|
-| `conversation_states` | 当前 category、sub_type、step、waiting、payload、sender |
+| `conversation_states` | 当前 category、sub_type、step、waiting、payload、原始 sender |
+| `conversation_actions` | 外部写动作 action log，用于工具级去重 |
 | `webhook_events` | Front event 幂等 |
 | `skill_feedback` | 反馈记录，当前 runtime 默认关闭 |
 | `skill_examples` | 从反馈提取的案例 |

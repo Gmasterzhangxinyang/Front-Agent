@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from datetime import datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from database import AsyncSessionLocal
@@ -10,15 +11,30 @@ import httpx
 
 logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
+SUPPORT_INBOX_ID = "inb_f9fvf"
 
 from config import settings
+
+
+async def _front_get(client: httpx.AsyncClient, url: str, **kwargs) -> httpx.Response:
+    last_error = None
+    for attempt in range(1, 4):
+        try:
+            return await client.get(url, **kwargs)
+        except httpx.HTTPError as e:
+            last_error = e
+            logger.warning("Front GET failed (%s/3): %s", attempt, e)
+            if attempt < 3:
+                await asyncio.sleep(attempt)
+    assert last_error is not None
+    raise last_error
 
 
 async def sync_missing_conversations():
     """Scan Front for conversations we haven't processed (no state in DB).
 
     This catches cases where Front webhook was not received or was dropped.
-    Only processes the 50 most recent unassigned conversations.
+    Only processes the 50 most recent unassigned conversations in Support.
     Skips archived conversations and those already in our state DB.
     """
     token = settings.front_api_token
@@ -32,11 +48,16 @@ async def sync_missing_conversations():
         known = {row[0] for row in result.fetchall()}
 
         async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.get(
-                "https://api2.frontapp.com/conversations",
-                params={"limit": 50, "status": "unassigned"},
-                headers={"Authorization": f"Bearer {token}"},
-            )
+            try:
+                r = await _front_get(
+                    client,
+                    f"https://api2.frontapp.com/inboxes/{SUPPORT_INBOX_ID}/conversations",
+                    params={"limit": 50, "status": "unassigned"},
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+            except httpx.HTTPError as e:
+                logger.warning("sync_missing_conversations: Front API request failed: %s", e)
+                return
             if r.status_code != 200:
                 logger.warning(f"sync_missing_conversations: Front API {r.status_code}")
                 return
@@ -54,10 +75,15 @@ async def sync_missing_conversations():
                     continue
 
                 # Fetch the latest message to get sender info
-                r2 = await client.get(
-                    f"https://api2.frontapp.com/conversations/{cid}/messages",
-                    headers={"Authorization": f"Bearer {token}"},
-                )
+                try:
+                    r2 = await _front_get(
+                        client,
+                        f"https://api2.frontapp.com/conversations/{cid}/messages",
+                        headers={"Authorization": f"Bearer {token}"},
+                    )
+                except httpx.HTTPError as e:
+                    logger.error("sync_missing_conversations: failed to fetch messages for %s: %s", cid, e)
+                    continue
                 if r2.status_code != 200:
                     continue
 

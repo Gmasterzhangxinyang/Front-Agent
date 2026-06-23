@@ -163,6 +163,10 @@ def should_auto_close_spam(classification: ClassificationResult) -> bool:
         return True
     summary = classification.summary.lower()
     evidence = " ".join(classification.evidence).lower()
+    route_text = f"{summary} {evidence}"
+    collaboration_terms = ("youtube", "video", "channel", "podcast", "newsletter", "content creator", "creator collaboration", "media collaboration", "视频合作")
+    if classification.category in {"marketing", "partnership"} and any(term in route_text for term in collaboration_terms):
+        return False
     return any(keyword in summary or keyword in evidence for keyword in SPAM_SUMMARY_KEYWORDS)
 
 

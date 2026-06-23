@@ -385,7 +385,10 @@ async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int 
                     continue
                 notified_conversations.add(conv_id)
 
-            # Auto-inject sender_email and original_message for linear tickets
+            # Auto-inject immutable customer context for tools that write outside the model.
+            if tool_name == "front_create_draft" and sender_email and not args.get("to_email"):
+                args["to_email"] = sender_email
+
             if tool_name == "linear_create_ticket":
                 if sender_email and not args.get("sender_email"):
                     args["sender_email"] = sender_email

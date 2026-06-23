@@ -37,6 +37,25 @@ def decide_initial_route(
     sub_type = classification.sub_type
     summary = classification.summary or "No summary provided by classifier."
 
+    if _is_creator_marketing_collaboration(classification):
+        return RouteDecision(
+            name="marketing_move_inbox",
+            handled_before_skill=True,
+            tool_name="front_forward_to_marketing",
+            tool_args={
+                "conversation_id": conversation_id,
+                "summary": summary,
+            },
+            state_category="marketing",
+            state_sub_type="collaboration",
+            state_step="moved_inbox",
+            waiting=False,
+            keep_open=True,
+            customer_action="none",
+            inbox_target="Marketing",
+            reason="YouTube, video, media channel, or content creator collaboration pitches move to the Marketing inbox.",
+        )
+
     if should_auto_close_spam(classification):
         return RouteDecision(
             name="spam_auto_close",
@@ -108,19 +127,35 @@ def decide_initial_route(
             reason="Security reports move to the Security inbox for review.",
         )
 
-    if category in {"partnership", "marketing"}:
-        tool_name = "front_forward_to_community" if category == "partnership" else "front_forward_to_partnerships"
-        args = {
-            "conversation_id": conversation_id,
-            "summary": summary,
-        }
-        if tool_name == "front_forward_to_community":
-            args["region"] = "plugins_templates"
+    if category == "marketing":
         return RouteDecision(
-            name="marketing_forwarded_keep_open",
+            name="marketing_move_inbox",
             handled_before_skill=True,
-            tool_name=tool_name,
-            tool_args=args,
+            tool_name="front_forward_to_marketing",
+            tool_args={
+                "conversation_id": conversation_id,
+                "summary": summary,
+            },
+            state_category=category,
+            state_sub_type=sub_type,
+            state_step="moved_inbox",
+            waiting=False,
+            keep_open=True,
+            customer_action="none",
+            inbox_target="Marketing",
+            reason="Marketing campaigns, events, and collaborations move to the Marketing inbox.",
+        )
+
+    if category == "partnership":
+        return RouteDecision(
+            name="partnership_forwarded_keep_open",
+            handled_before_skill=True,
+            tool_name="front_forward_to_community",
+            tool_args={
+                "conversation_id": conversation_id,
+                "summary": summary,
+                "region": "plugins_templates",
+            },
             state_category=category,
             state_sub_type=sub_type,
             state_step="forwarded_keep_open",
@@ -132,6 +167,28 @@ def decide_initial_route(
         )
 
     return _skill_route(category, sub_type)
+
+
+def _is_creator_marketing_collaboration(classification: ClassificationResult) -> bool:
+    text = " ".join([
+        classification.category or "",
+        classification.sub_type or "",
+        classification.summary or "",
+        " ".join(classification.evidence),
+    ]).lower()
+    creator_terms = (
+        "youtube",
+        "video",
+        "channel",
+        "podcast",
+        "newsletter",
+        "content creator",
+        "creator",
+        "media collaboration",
+        "视频合作",
+    )
+    collaboration_terms = ("collaboration", "partnership", "合作")
+    return any(term in text for term in creator_terms) and any(term in text for term in collaboration_terms)
 
 
 def _skill_route(category: str, sub_type: str | None) -> RouteDecision:

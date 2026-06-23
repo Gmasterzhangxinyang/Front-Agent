@@ -134,7 +134,8 @@ Return only the JSON object. Do not wrap it in Markdown and do not add explanati
 
 - Pick the category that determines the immediate operational route.
 - If the email has mixed intents, set the primary `category` to the highest-risk or most actionable intent and put the rest in `secondary_intents`.
-- If the sender is offering ads, sponsorship packages, SEO, backlinks, guest posts, events, summits, promotion, lead generation, or other unsolicited sales, classify as `spam` even if the text mentions marketing or partnership.
+- If the sender is offering ads, SEO, backlinks, guest posts, generic promotion packages, lead generation, or other unsolicited vendor services, classify as `spam` even if the text mentions marketing or partnership.
+- Classify YouTube/video/podcast/newsletter/content creator or media channel collaboration pitches as `marketing` with sub_type `collaboration`, unless the email is clearly an unrelated mass ad service pitch. These should be moved to the Marketing inbox, not auto-closed as spam.
 - Classify Marketplace/plugin/template ecosystem cooperation as `partnership`; that route is forwarded to `marketing@dify.ai` by the system.
 - Classify security reports, vulnerabilities, abuse reports, data leaks, hacked accounts with active compromise, or responsible disclosure as `security` unless the primary issue is ordinary account login help.
 - Use `unclear` when the email lacks enough evidence to choose a route. Do not force a category.

@@ -33,9 +33,15 @@ Front webhook
   -> classification layer
   -> routing decision layer
   -> policy/skill layer when needed
-  -> tool execution layer
+  -> tool execution layer with action log dedupe
   -> state persistence and audit comment
 ```
+
+Current runtime split:
+
+- Python deterministic routing owns high-confidence, high-risk route selection such as spam close, security inbox move, unclear Bobby review, legal handoff, and partnership/marketing routing.
+- LLM skill flow still owns complex support workflows such as education/account/technical/billing by selecting from an allowlisted tool set. Tool execution must enforce idempotency and recipient safety because the LLM can retry or repeat a tool call.
+- Technical support is currently skill-flow based: the LLM may search docs/GitHub, create Linear tickets when warranted, create Front drafts, and set state. It must not directly send customer replies.
 
 | Layer | File | Responsibility | Must Not Do |
 |---|---|---|---|
@@ -43,7 +49,7 @@ Front webhook
 | Classification | `agent/classification.py` | Parse and normalize LLM JSON | Execute tools or choose recipients |
 | Routing | `agent/routing.py` | Convert classification into deterministic route | Write long replies or call APIs directly |
 | Orchestration | `agent/orchestrator.py` | Coordinate classification, routing, skill loop, state | Hide routing rules in prompts |
-| Tool Registry | `agent/tool_registry.py` | Expose allowed tool schemas and dispatch calls | Make classification decisions |
+| Tool Registry | `agent/tool_registry.py` | Expose allowed tool schemas, dispatch calls, action-log dedupe | Make classification decisions |
 | Front API | `tools/front.py` | Front draft/reply/forward/move/close/comment APIs | Choose business owners |
 | Handoff | `tools/handoff.py` | Internal Front forwarding to configured recipients | Send to customer addresses |
 | Skills | `skills/*.md` | Category-specific policy and templates | Override global safety rules |
@@ -122,7 +128,7 @@ Required decision fields:
 | spam / ads | Ads, sponsorship, SEO, backlinks, guest posts, promotion, unsolicited sales | `spam_auto_close` | `front_close_conversation` | none | none | `closed_spam` | yes |
 | security | Vulnerability, disclosure, abuse, data leak, security incident | `security_move_inbox` | `front_forward_to_security` | none by default | inbox `Security` | `moved_inbox` | no |
 | unclear | Route cannot be determined from rules | `manual_review_bobby` | `front_forward_to_bobby` | none by default | `bobby@dify.ai` | `manual_review` | no |
-| partnership / marketplace | Marketplace/plugin/template/community ecosystem cooperation | `marketing_forwarded_keep_open` | `front_forward_to_community` or `front_forward_to_partnerships` | none by default | `marketing@dify.ai` | `forwarded_keep_open` | no |
+| partnership / marketplace | Marketplace/plugin/template/community ecosystem cooperation | `partnership_forwarded_keep_open` | `front_forward_to_community` or `front_forward_to_partnerships` | none by default | `marketing@dify.ai` | `forwarded_keep_open` | no |
 | education eligible review | Higher education application/rejection with school info | `education_sybil_forwarded_keep_open` | create Linear when needed, then `front_forward_to_sybil` | draft acknowledgement | `sybil@dify.ai` | `forwarded_keep_open` | no |
 | education not eligible | K-12, personal email only, or clearly not eligible | `education_draft_keep_open` | `front_create_draft` | draft rejection/info request | none | `draft_created` | no |
 | account SaaS issue with Linear | Login, deletion/transfer/compromise for verified SaaS accounts | `account_sybil_forwarded_keep_open` | create Linear, then `front_forward_to_bobby` | draft acknowledgement when useful | `bobby@dify.ai` | `forwarded_keep_open` | no |
@@ -133,9 +139,9 @@ Required decision fields:
 | technical free | Technical support without paid/Premium evidence | `technical_template_or_draft` | technical skill | approved template or draft | none | skill policy | policy |
 | technical paid/Premium | Paid/Premium technical issue | `technical_ticket_or_draft` | technical skill, Linear when needed | draft or ticket acknowledgement | CUS Linear | skill policy | no by default |
 
-## 7. State Machine
+## 7. State Machine and Action Log
 
-Use clear state steps so webhook reprocessing is predictable.
+Use clear state steps so webhook reprocessing is predictable. `conversation_states.sender_email` stores the original customer sender once known and must not be overwritten by later internal forwards or teammate messages. Customer draft recipients should use this preserved sender, not the current Front conversation recipient.
 
 | State Step | Meaning | Reprocessable? | Waiting User? | Auto Close? |
 |---|---|---|---|---|
@@ -151,6 +157,17 @@ Use clear state steps so webhook reprocessing is predictable.
 | `done` | Explicitly completed by policy | no | no | policy only |
 
 Preferred non-spam handoff state is `forwarded_keep_open`.
+
+`conversation_actions` provides tool-level idempotency for external write operations. Its uniqueness key is `conversation_id + action_type + action_key`. Record only successful side effects; failed actions may be retried. Current action keys:
+
+| Tool | Action Key |
+|---|---|
+| `front_create_draft` | normalized draft body hash |
+| `linear_create_ticket` | normalized title hash |
+| `feishu_notify_sybil_group` / `front_forward_to_sybil` | handoff type + Linear URL, or message hash when no URL exists |
+| `front_forward_to_bobby` / `front_forward_to_limin` / other internal forwards | summary/message hash |
+
+This is not conversation-level blocking. If the user provides new information and the system generates materially different action content, the new action can still execute.
 
 ## 8. Customer Reply Policy
 
@@ -210,7 +227,9 @@ Current recipients:
 | Security inbox not found | Route to Bobby instead of dropping conversation |
 | Linear ticket creation fails | Do not proceed as successful handoff; route to Bobby with failure summary |
 | Attachment parsing fails | Continue with conversation text, record attachment failure in summary/state |
-| Duplicate webhook event | Idempotency skip |
+| Duplicate webhook event | Idempotency skip via `webhook_events` |
+| Duplicate tool side effect | Return prior successful result from `conversation_actions` |
+| Handler exception | Notify Bobby, explicitly reopen the original conversation, save `failed_needs_review` |
 | Tool returns unknown result | Set `failed_needs_review` |
 
 ## 11. Test Strategy
@@ -225,6 +244,8 @@ Current recipients:
 - partnership routes to `marketing@dify.ai`
 - unclear routes to Bobby
 - handoff tools reject empty conversation_id or empty recipient
+- action log guards exist for duplicate-prone write tools
+- Front draft creation uses preserved original sender, not internal handoff recipient
 
 ### Route Table Tests
 

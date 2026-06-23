@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from models import ConversationState
+from models import ConversationAction, ConversationState
 
 
 async def get_state(db: AsyncSession, conversation_id: str) -> ConversationState | None:
@@ -50,7 +51,9 @@ async def set_state(
     state.step = step
     state.payload = payload
     state.waiting_since = datetime.utcnow() if waiting else None
-    if sender_email:
+    # Preserve the original customer sender once known. Front internal forwards
+    # can later make the conversation recipient look like an internal teammate.
+    if sender_email and not state.sender_email:
         state.sender_email = sender_email
     await db.commit()
     await db.refresh(state)
@@ -62,3 +65,49 @@ async def clear_state(db: AsyncSession, conversation_id: str) -> None:
     if state:
         await db.delete(state)
         await db.commit()
+
+async def get_action(
+    db: AsyncSession,
+    conversation_id: str,
+    action_type: str,
+    action_key: str,
+) -> ConversationAction | None:
+    result = await db.execute(
+        select(ConversationAction).where(
+            ConversationAction.conversation_id == conversation_id,
+            ConversationAction.action_type == action_type,
+            ConversationAction.action_key == action_key,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def record_action(
+    db: AsyncSession,
+    conversation_id: str,
+    action_type: str,
+    action_key: str,
+    result: str,
+) -> ConversationAction:
+    existing = await get_action(db, conversation_id, action_type, action_key)
+    if existing:
+        return existing
+
+    action = ConversationAction(
+        conversation_id=conversation_id,
+        action_type=action_type,
+        action_key=action_key,
+        result=result,
+    )
+    db.add(action)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        existing = await get_action(db, conversation_id, action_type, action_key)
+        if existing:
+            return existing
+        raise
+    await db.refresh(action)
+    return action
+

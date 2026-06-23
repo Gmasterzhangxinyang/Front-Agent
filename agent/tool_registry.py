@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import sys
@@ -7,6 +8,54 @@ from tools import front, linear, handoff, state as state_tool, github, docs_sear
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
+
+DEDUPE_TOOL_NAMES = {
+    "front_create_draft",
+    "front_forward_to_bobby",
+    "front_forward_to_limin",
+    "front_forward_to_partnerships",
+    "front_forward_to_community",
+    "front_forward_to_investment",
+    "front_forward_to_legal",
+    "feishu_notify_sybil_group",
+    "front_forward_to_sybil",
+    "linear_create_ticket",
+}
+
+
+def _hash_text(value: str) -> str:
+    normalized = " ".join((value or "").split())
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
+
+
+def _action_identity(tool_name: str, args: dict) -> tuple[str, str, str] | None:
+    conversation_id = args.get("conversation_id")
+    if not conversation_id or tool_name not in DEDUPE_TOOL_NAMES:
+        return None
+
+    if tool_name == "front_create_draft":
+        key = f"body:{_hash_text(args.get('body', ''))}"
+    elif tool_name == "linear_create_ticket":
+        key = f"title:{_hash_text(args.get('title', ''))}"
+    elif tool_name in ("feishu_notify_sybil_group", "front_forward_to_sybil"):
+        handoff_type = args.get("handoff_type") or "sybil_handoff"
+        linear_url = args.get("linear_url") or ""
+        key = f"{handoff_type}:{linear_url or _hash_text(args.get('message', ''))}"
+    else:
+        summary = args.get("summary") or args.get("message") or ""
+        key = f"summary:{_hash_text(summary)}"
+
+    return conversation_id, tool_name, key
+
+
+def _should_record_result(result: str) -> bool:
+    failed_markers = ("failed", "blocked", "unknown_tool")
+    return not any(marker in result for marker in failed_markers)
+
+
+async def _original_sender_email(db: AsyncSession, conversation_id: str, fallback: str = "") -> str:
+    state = await state_tool.get_state(db, conversation_id)
+    return (state.sender_email if state and state.sender_email else fallback) or ""
 
 
 async def _safe_add_comment(conversation_id: str, body: str) -> bool:
@@ -311,6 +360,20 @@ TOOL_SCHEMAS = [
 
 
 async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str:
+    action_identity = _action_identity(tool_name, args)
+    if action_identity:
+        existing = await state_tool.get_action(db, *action_identity)
+        if existing:
+            logger.info("Skipping duplicate action %s for conv %s", tool_name, action_identity[0])
+            return existing.result
+
+    result = await _execute_tool_call_uncached(tool_name, args, db)
+    if action_identity and _should_record_result(result):
+        await state_tool.record_action(db, *action_identity, result=result)
+    return result
+
+
+async def _execute_tool_call_uncached(tool_name: str, args: dict, db: AsyncSession) -> str:
     from config import settings
 
     if tool_name == "front_create_draft":
@@ -319,8 +382,9 @@ async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str
         category = args.get("category", "")
         reason_cn = args.get("reason_cn", "AI 自动生成草稿")
         comment = f"[AI草稿] 分类：{category}｜{reason_cn}"
+        to_email = args.get("to_email") or await _original_sender_email(db, conversation_id)
         await _safe_add_comment(conversation_id, comment)
-        ok = await front.create_draft(conversation_id, body)
+        ok = await front.create_draft(conversation_id, body, to_email=to_email or None)
         return "draft_created" if ok else "draft_failed"
 
     if tool_name == "front_reply":

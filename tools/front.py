@@ -179,15 +179,16 @@ async def _build_forward_body(conversation_id: str, summary: str, label: str) ->
     return "\n".join(lines)
 
 
-async def create_draft(conversation_id: str, body: str, author_id: str = None) -> bool:
+async def create_draft(conversation_id: str, body: str, author_id: str = None, to_email: str | None = None) -> bool:
     import logging
-    sender_email = ""
+    sender_email = to_email or ""
     channel_id = None
 
     try:
         conv = await get_conversation(conversation_id)
         recipient = conv.get("recipient", {})
-        sender_email = recipient.get("handle", "")
+        if not sender_email:
+            sender_email = recipient.get("handle", "")
     except Exception as e:
         logging.error("create_draft: failed to get conversation: %s", e)
 

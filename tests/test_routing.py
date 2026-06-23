@@ -39,6 +39,22 @@ def test_spam_category_auto_closes():
     assert route.state_step == "closed_spam"
 
 
+def test_video_channel_collaboration_routes_to_marketing_not_spam():
+    result = normalize_classification({
+        "category": "marketing",
+        "sub_type": "collaboration",
+        "confidence": 0.9,
+        "summary": "YouTube channel video collaboration sponsorship opportunity for Dify",
+        "evidence": ["channel generated 112,800 views", "explore a collaboration"],
+    })
+    assert not should_auto_close_spam(result)
+    route = decide_initial_route(result, "cnv_test", "creator.com")
+    assert route.name == "marketing_move_inbox"
+    assert route.tool_name == "front_forward_to_marketing"
+    assert route.state_step == "moved_inbox"
+    assert route.inbox_target == "Marketing"
+
+
 def test_low_confidence_does_not_control_route():
     result = normalize_classification({
         "category": "technical",
@@ -86,10 +102,24 @@ def test_partnership_forwards_to_marketing():
         "summary": "Marketplace plugin cooperation request",
     })
     route = decide_initial_route(result, "cnv_test", "sender@example.com")
-    assert route.name == "marketing_forwarded_keep_open"
+    assert route.name == "partnership_forwarded_keep_open"
     assert route.tool_name == "front_forward_to_community"
     assert route.tool_args["summary"] == "Marketplace plugin cooperation request"
     assert route.state_step == "forwarded_keep_open"
+
+
+def test_marketing_moves_to_marketing_inbox():
+    result = normalize_classification({
+        "category": "marketing",
+        "sub_type": "campaign",
+        "confidence": 0.9,
+        "summary": "Marketing campaign collaboration request",
+    })
+    route = decide_initial_route(result, "cnv_test", "sender.com")
+    assert route.name == "marketing_move_inbox"
+    assert route.tool_name == "front_forward_to_marketing"
+    assert route.state_step == "moved_inbox"
+    assert route.inbox_target == "Marketing"
 
 
 def test_legal_routes_to_geyan_and_stays_open():
@@ -213,7 +243,7 @@ def test_chat_completion_kwargs_are_gpt_5_compatible():
     )
     assert "temperature" not in params
     assert "max_tokens" not in params
-    assert params["max_completion_tokens"] == 10
+    assert params["max_completion_tokens"] == 1024
 
 
 def test_chat_completion_kwargs_preserve_legacy_model_params():
@@ -254,6 +284,38 @@ def test_front_webhook_has_concurrency_guards():
     assert "_get_conversation_lock" in source
     assert "async with _webhook_semaphore" in source
     assert "async with lock" in source
+
+def test_front_webhook_reopens_handler_errors():
+    source = Path("webhooks/front_webhook.py").read_text()
+    assert "front.reopen_conversation(conversation_id)" in source
+    assert "failed_needs_review" in source
+    assert "handler_error" in source
+
+
+def test_front_has_reopen_conversation_helper():
+    source = Path("tools/front.py").read_text()
+    assert "async def reopen_conversation" in source
+    assert 'json={"status": "open"}' in source
+
+
+def test_action_log_and_original_sender_guards_exist():
+    models_source = Path("models.py").read_text()
+    state_source = Path("tools/state.py").read_text()
+    registry_source = Path("agent/tool_registry.py").read_text()
+    orchestrator_source = Path("agent/orchestrator.py").read_text()
+    front_source = Path("tools/front.py").read_text()
+
+    assert "class ConversationAction" in models_source
+    assert 'UniqueConstraint("conversation_id", "action_type", "action_key"' in models_source
+    assert "async def record_action" in state_source
+    assert "not state.sender_email" in state_source
+    assert "DEDUPE_TOOL_NAMES" in registry_source
+    assert "state_tool.get_action" in registry_source
+    assert "state_tool.record_action" in registry_source
+    assert 'args["to_email"] = sender_email' in orchestrator_source
+    assert "to_email: str | None = None" in front_source
+    assert "if not sender_email:" in front_source
+
 
 def run_all():
     for name, fn in sorted(globals().items()):
