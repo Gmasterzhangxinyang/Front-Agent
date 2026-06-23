@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     # Security inbox (e.g. "Security")
     security_inbox_name: str = "Security"    # 安全团队邮箱
 
+    # Business inbox (e.g. "Business")
+    business_inbox_name: str = "Business"
+
     # Community / Partnership regional routing
     yawen_email: str = ""                # 赵雅雯邮箱（亚太区接口人）yawen@dify.ai
     marudan_kj_email: str = ""          # 日本区 marudan.kj@dify.ai

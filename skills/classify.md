@@ -27,6 +27,8 @@ Return only the JSON object. Do not wrap it in Markdown and do not add explanati
 
 ## Few-Shot Examples
 
+Every example below includes all required fields. Follow this shape exactly. Use JSON `null`, not the string `"null"`.
+
 ### Example 1: Education Plan Rejection
 **Email:** "Hi, I applied for the education plan but it was rejected. I'm a student at Stanford University, my school email is john@stanford.edu. Can you help me verify?"
 
@@ -41,7 +43,9 @@ Return only the JSON object. Do not wrap it in Markdown and do not add explanati
   "sender_email": "john@stanford.edu",
   "summary": "Student from Stanford University requesting education plan verification after rejection",
   "confidence": 0.95,
-  "flags": []
+  "flags": [],
+  "secondary_intents": [],
+  "evidence": ["education plan was rejected", "student at Stanford University", "john@stanford.edu"]
 }
 ```
 
@@ -55,11 +59,13 @@ Return only the JSON object. Do not wrap it in Markdown and do not add explanati
   "sub_type": "workflow_issue",
   "is_paid_user": true,
   "is_premium": false,
-  "urgency": "normal",
+  "urgency": "high",
   "sender_email": "user@company.com",
-  "summary": "Pro user experiencing 500 error in workflow HTTP Request node",
+  "summary": "Pro user experiencing repeated 500 errors in a workflow HTTP Request node",
   "confidence": 0.92,
-  "flags": ["urgent_service_impact"]
+  "flags": ["urgent_service_impact"],
+  "secondary_intents": [],
+  "evidence": ["workflow keeps failing", "HTTP Request node", "Pro plan"]
 }
 ```
 
@@ -75,9 +81,11 @@ Return only the JSON object. Do not wrap it in Markdown and do not add explanati
   "is_premium": false,
   "urgency": "normal",
   "sender_email": "user@company.com",
-  "summary": "Team plan user requesting refund for duplicate charge",
+  "summary": "Team plan user requesting refund for a duplicate charge",
   "confidence": 0.98,
-  "flags": []
+  "flags": ["has_refund_request"],
+  "secondary_intents": [],
+  "evidence": ["charged twice", "Team plan", "workspace ID is ws_abc123"]
 }
 ```
 
@@ -93,9 +101,11 @@ Return only the JSON object. Do not wrap it in Markdown and do not add explanati
   "is_premium": false,
   "urgency": "high",
   "sender_email": "user@company.com",
-  "summary": "User unable to log in, verification code email not received",
+  "summary": "User cannot log in because verification code email is not received",
   "confidence": 0.96,
-  "flags": ["urgent_service_impact"]
+  "flags": ["urgent_service_impact"],
+  "secondary_intents": [],
+  "evidence": ["can't log into my account", "not receiving the verification code", "checked my spam folder"]
 }
 ```
 
@@ -113,10 +123,11 @@ Return only the JSON object. Do not wrap it in Markdown and do not add explanati
   "sender_email": "marketing@seocompany.com",
   "summary": "Promotional email offering SEO services",
   "confidence": 0.99,
-  "flags": []
+  "flags": [],
+  "secondary_intents": [],
+  "evidence": ["offer SEO services", "boost your website ranking", "Get 50% off"]
 }
 ```
-
 
 ### Bobby-Confirmed Example
 **Email summary:** User requesting refund (message in Chinese: 需要退款)
@@ -125,8 +136,16 @@ Return only the JSON object. Do not wrap it in Markdown and do not add explanati
 ```json
 {
   "category": "billing",
-  "sub_type": "null",
-  "confidence": 1.0
+  "sub_type": "refund",
+  "is_paid_user": false,
+  "is_premium": false,
+  "urgency": "normal",
+  "sender_email": "",
+  "summary": "User is requesting a refund",
+  "confidence": 1.0,
+  "flags": ["has_refund_request"],
+  "secondary_intents": [],
+  "evidence": ["需要退款"]
 }
 ```
 

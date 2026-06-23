@@ -146,6 +146,26 @@ def decide_initial_route(
             reason="Marketing campaigns, events, and collaborations move to the Marketing inbox.",
         )
 
+
+    if category == "business":
+        return RouteDecision(
+            name="business_move_inbox",
+            handled_before_skill=True,
+            tool_name="front_forward_to_business",
+            tool_args={
+                "conversation_id": conversation_id,
+                "summary": summary,
+            },
+            state_category=category,
+            state_sub_type=sub_type,
+            state_step="moved_inbox",
+            waiting=False,
+            keep_open=True,
+            customer_action="none",
+            inbox_target="Business",
+            reason="Enterprise sales, procurement, demos, quotes, and business inquiries move to the Business inbox.",
+        )
+
     if category == "partnership":
         return RouteDecision(
             name="partnership_forwarded_keep_open",

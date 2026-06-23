@@ -17,6 +17,7 @@ DEDUPE_TOOL_NAMES = {
     "front_forward_to_community",
     "front_forward_to_investment",
     "front_forward_to_legal",
+    "front_forward_to_business",
     "feishu_notify_sybil_group",
     "front_forward_to_sybil",
     "linear_create_ticket",
@@ -159,6 +160,21 @@ TOOL_SCHEMAS = [
                     "conversation_id": {"type": "string"},
                 },
                 "required": ["conversation_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "front_forward_to_business",
+            "description": "Move the conversation to the Business inbox in Front for Enterprise sales, procurement, demo, quote, and business inquiries. No customer draft or reply is created.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "conversation_id": {"type": "string"},
+                    "summary": {"type": "string", "description": "Brief summary of the business inquiry (1-2 sentences)"},
+                },
+                "required": ["conversation_id", "summary"],
             },
         },
     },
@@ -463,6 +479,23 @@ async def _execute_tool_call_uncached(tool_name: str, args: dict, db: AsyncSessi
                 f"[AI] Marketing type email - moved to marketing inbox. Summary: {summary}"
             )
         return "moved_to_marketing" if ok else "move_failed"
+
+
+    elif tool_name == "front_forward_to_business":
+        conversation_id = args["conversation_id"]
+        summary = args.get("summary", "")
+        if not settings.business_inbox_name:
+            return "forward_failed: business_inbox_name not configured"
+        ok = await front.move_conversation_to_inbox(
+            conversation_id,
+            settings.business_inbox_name,
+        )
+        if ok:
+            await _safe_add_comment(
+                conversation_id,
+                f"[AI] Business inquiry - moved to Business inbox. Summary: {summary}"
+            )
+        return "moved_to_business" if ok else "move_failed"
 
     elif tool_name == "front_forward_to_security":
         conversation_id = args["conversation_id"]

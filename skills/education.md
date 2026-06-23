@@ -10,7 +10,24 @@ Handle education plan applications, rejections, and discount issues.
 - K-12 schools and unaccredited institutions do NOT qualify
 - Must use school email domain (not personal email like Gmail)
 
-## Steps by Sub-type
+
+## Tool Sequencing and Hard Stops
+- Never call `feishu_notify_sybil_group` before `linear_create_ticket` has returned a real Linear URL.
+- Never leave placeholder URL text in tool arguments. Use the exact URL returned by `linear_create_ticket`.
+- For successful education reviews, call tools in this order: `linear_create_ticket` -> `feishu_notify_sybil_group` -> `front_create_draft` -> `state_set`.
+- The final `state_set` payload for successful reviews should include `school_name`, `school_domain`, and `linear_url`.
+- If asking the user for more information or proof, call `state_set` with `waiting=true`.
+
+
+## Draft Quality Bar
+- Write concise, professional English unless the user wrote primarily in another language.
+- Answer only what the email supports. Do not invent product behavior, policy exceptions, timelines, refunds, eligibility, or engineering commitments.
+- If required facts are missing, ask for the minimum specific information needed instead of guessing.
+- Do not mention internal tools, Linear, Sybil, Bobby, action logs, routing, or internal handoffs in customer-facing drafts.
+- Do not promise that an issue is fixed, approved, refunded, or escalated unless a tool result or policy explicitly proves it.
+- End with a clear next step for the user or a clear expectation that the team will review.
+
+## Steps by Sub-Type
 
 ### rejected (education plan application rejected)
 
@@ -32,7 +49,7 @@ Handle education plan applications, rejections, and discount issues.
          **AI 评估：** <your actual assessment, e.g. "Higher education institution, government-accredited" or "Likely accredited university">
          ```
        - WAIT for `linear_create_ticket` to return the URL before proceeding
-       - Call `feishu_notify_sybil_group` with conversation_id, handoff_type="education_review", linear_url="[actual URL returned above]", and message: "类型: education_review。请审核教育版申请。学校: [school name], 域名: [domain]. Linear: [actual URL returned above]" — replace [actual URL returned above] with the real URL from the previous tool result, never use placeholder text
+       - Call `feishu_notify_sybil_group` with conversation_id, handoff_type="education_review", linear_url set to the exact Linear URL returned above, and message "类型: education_review。请审核教育版申请。学校: <actual school name>, 域名: <actual domain>. Linear: <exact returned Linear URL>". Never leave placeholder text in the tool arguments.
        - Call `front_create_draft` with "received, forwarding to team" template
        - Call `state_set` with step="forwarded_keep_open"
      - **K-12 or unaccredited:**
@@ -46,7 +63,7 @@ Handle education plan applications, rejections, and discount issues.
 1. Extract: school full name (English) and school email domain from user's reply
 2. If user provided personal email (Gmail, Yahoo, etc.) instead of school domain:
    - Call `front_create_draft` with "must use school email" template
-   - Keep state as awaiting_school_info
+   - Call `state_set` with step="awaiting_school_info", waiting=true
 3. Determine school type:
    - **Higher education (university/college, government-accredited):**
      - Call `linear_create_ticket` with conversation_id, title "教育版 - [school name]", sender_email (the user's email address), original_message (the user's original email text), and description — fill in actual values, never use placeholder text:
@@ -58,7 +75,7 @@ Handle education plan applications, rejections, and discount issues.
        **AI 评估：** <your actual assessment, e.g. "Higher education institution, government-accredited" or "Likely accredited university">
        ```
      - WAIT for `linear_create_ticket` to return the URL before proceeding
-     - Call `feishu_notify_sybil_group` with conversation_id, handoff_type="education_review", linear_url="[actual URL returned above]", and message: "类型: education_review。请审核教育版申请。学校: [school name], 域名: [domain]. Linear: [actual URL returned above]" — replace [actual URL returned above] with the real URL from the previous tool result, never use placeholder text
+     - Call `feishu_notify_sybil_group` with conversation_id, handoff_type="education_review", linear_url set to the exact Linear URL returned above, and message "类型: education_review。请审核教育版申请。学校: <actual school name>, 域名: <actual domain>. Linear: <exact returned Linear URL>". Never leave placeholder text in the tool arguments.
      - Call `front_create_draft` with "received, forwarding to team" template
      - Call `state_set` with step="forwarded_keep_open"
    - **K-12 or unaccredited:**
@@ -99,10 +116,11 @@ Handle education plan applications, rejections, and discount issues.
 
      **证明：** <summary of proof provided by user>
      ```
-   - Call `feishu_notify_sybil_group` with conversation_id, handoff_type="education_email_expired", linear_url="[URL]", and message "类型: education_email_expired。教育版用户邮箱失效（毕业）- 原邮箱: [原邮箱], 新邮箱: [新邮箱]. Linear: [URL]"
+   - WAIT for `linear_create_ticket` to return the real URL before proceeding
+   - Call `feishu_notify_sybil_group` with conversation_id, handoff_type="education_email_expired", linear_url set to the exact Linear URL returned above, and message "类型: education_email_expired。教育版用户邮箱失效（毕业）- 原邮箱: <actual original email>, 新邮箱: <actual new email>. Linear: <exact returned Linear URL>". Never leave placeholder text in the tool arguments.
    - Call `front_create_draft` with "received, forwarding to team" template
    - Call `state_set` with step="forwarded_keep_open"
-3. If not confirmed: Call `front_create_draft` asking again politely for proof
+3. If not confirmed: Call `front_create_draft` asking again politely for proof, then call `state_set` with step="awaiting_identity_verification", sub_type="email_expired_graduated", waiting=true
 
 ### cancel_subscription (education plan user wants to cancel)
 

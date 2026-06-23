@@ -102,6 +102,7 @@ Forward 后 conversation 保持 open。非 spam 的 handoff 状态应该使用 `
 | Education 审核 | `sybil@dify.ai` |
 | Marketplace / community / external cooperation | `marketing@dify.ai` |
 | Security report | Front inbox `Security` |
+| Enterprise / business / procurement | Front inbox `Business` |
 | Legal threat / lawyer letter / lawsuit | `geyan@dify.ai` |
 | Investment / VC / IR | Claudia，依赖 `CLAUDIA_EMAIL` 配置 |
 
@@ -263,6 +264,7 @@ INTERNAL_FORWARD_LIMIN_EMAIL=bobby@dify.ai
 INTERNAL_FORWARD_SYBIL_EMAIL=sybil@dify.ai
 MARKETING_PARTNERSHIP_EMAIL=marketing@dify.ai
 SECURITY_INBOX_NAME=Security
+BUSINESS_INBOX_NAME=Business
 GEYAN_EMAIL=geyan@dify.ai
 CLAUDIA_EMAIL=
 

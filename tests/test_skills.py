@@ -1,3 +1,5 @@
+import json
+import re
 import sys
 from pathlib import Path
 
@@ -21,7 +23,7 @@ EXPECTED_ROUTE_CASES = {
     "legal": {"name": "legal_forwarded_keep_open", "handled": True, "tool": "front_forward_to_legal", "target": "geyan@dify.ai", "step": "forwarded_keep_open"},
     "roadmap": {"name": "roadmap_skill_flow", "handled": False, "customer_action": "draft"},
     "investment": {"name": "investment_forwarded_keep_open", "handled": False, "customer_action": "none", "target": "claudia@dify.ai"},
-    "business": {"name": "business_skill_flow", "handled": False, "customer_action": "none"},
+    "business": {"name": "business_move_inbox", "handled": True, "tool": "front_forward_to_business", "inbox": "Business", "step": "moved_inbox"},
     "data_export": {"name": "data_export_skill_flow", "handled": False, "customer_action": "draft"},
     "unclear": {"name": "manual_review_bobby", "handled": True, "tool": "front_forward_to_bobby", "target": "bobby@dify.ai", "step": "manual_review"},
 }
@@ -123,6 +125,7 @@ def test_internal_forwarding_skill_targets_are_current():
         "education": ["feishu_notify_sybil_group", "Linear", "education_review"],
         "unclear": ["front_forward_to_bobby", "人工判断"],
         "security": ["front_forward_to_security", "security inbox"],
+        "business": ["front_forward_to_business", "Business inbox"],
     }
     for category, expected_strings in checks.items():
         text = _skill_text(category)
@@ -173,6 +176,93 @@ def test_technical_support_has_paid_and_non_paid_paths():
         "Do not create Linear tickets for non-paid technical support",
     ]:
         assert expected in text, f"technical.md missing {expected!r}"
+
+
+def test_skills_do_not_reference_unavailable_tools_or_url_placeholders():
+    forbidden = [
+        "move_conversation_to_inbox",
+        'linear_url="[',
+        "Linear: [actual URL",
+        "Linear: [URL",
+        "[actual URL returned above]",
+    ]
+    offenders = []
+    for path in sorted(SKILLS_DIR.glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        for item in forbidden:
+            if item in text:
+                offenders.append(f"{path}: contains {item!r}")
+    assert not offenders, "Unsafe skill references found:\n" + "\n".join(offenders)
+
+
+def test_skill_guardrails_are_current():
+    technical = _skill_text("technical")
+    for expected in ["docs_search", "github_search", "Linear ticket policy"]:
+        assert expected in technical, f"technical.md missing {expected!r}"
+
+    education = _skill_text("education")
+    for expected in ["Tool Sequencing and Hard Stops", "exact URL returned", "school_name", "school_domain", "linear_url"]:
+        assert expected in education, f"education.md missing {expected!r}"
+
+    account = _skill_text("account")
+    for expected in ["Tool Sequencing and Hard Stops", "waiting=true", "exact Linear URL", "payload should include the Linear URL"]:
+        assert expected in account, f"account.md missing {expected!r}"
+
+    business = _skill_text("business")
+    assert "business_move_inbox" in business
+    assert "front_forward_to_business" in business
+    assert "No customer draft" in business
+
+
+def test_reply_skills_have_draft_quality_bar():
+    reply_skills = [
+        "account",
+        "billing",
+        "data_export",
+        "education",
+        "purchase",
+        "roadmap",
+        "technical",
+    ]
+    required = [
+        "Do not invent",
+        "If required facts are missing",
+        "Do not mention internal tools",
+        "Do not promise",
+        "clear next step",
+    ]
+    for skill in reply_skills:
+        text = _skill_text(skill)
+        assert "## Draft Quality Bar" in text, f"{skill}.md missing Draft Quality Bar"
+        for phrase in required:
+            assert phrase in text, f"{skill}.md missing draft quality rule {phrase!r}"
+
+
+def test_classify_few_shot_examples_are_complete_json():
+    text = _skill_text("classify")
+    examples = text.split("## Few-Shot Examples", 1)[1].split("## Routing-Oriented Classification Rules", 1)[0]
+    required = {
+        "category",
+        "sub_type",
+        "is_paid_user",
+        "is_premium",
+        "urgency",
+        "sender_email",
+        "summary",
+        "confidence",
+        "flags",
+        "secondary_intents",
+        "evidence",
+    }
+    blocks = re.findall(r"```json\n(.*?)\n```", examples, flags=re.DOTALL)
+    assert blocks, "classify.md must include JSON few-shot examples"
+    for block in blocks:
+        data = json.loads(block)
+        assert required <= set(data), f"classification example missing fields: {required - set(data)}"
+        assert data.get("sub_type") != "null"
+        assert isinstance(data.get("flags"), list)
+        assert isinstance(data.get("secondary_intents"), list)
+        assert isinstance(data.get("evidence"), list)
 
 def run_all():
     for name, fn in sorted(globals().items()):

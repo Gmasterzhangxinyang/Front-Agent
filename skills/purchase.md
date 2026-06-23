@@ -33,6 +33,15 @@ Handle questions about purchasing Dify plans, pricing, and reseller/agent inquir
 - **Support**: Dedicated support with SLA
 - **Contact**: business@dify.ai
 
+
+## Draft Quality Bar
+- Write concise, professional English unless the user wrote primarily in another language.
+- Answer only what the email supports. Do not invent product behavior, policy exceptions, timelines, refunds, eligibility, or engineering commitments.
+- If required facts are missing, ask for the minimum specific information needed instead of guessing.
+- Do not mention internal tools, Linear, Sybil, Bobby, action logs, routing, or internal handoffs in customer-facing drafts.
+- Do not promise that an issue is fixed, approved, refunded, or escalated unless a tool result or policy explicitly proves it.
+- End with a clear next step for the user or a clear expectation that the team will review.
+
 ## Steps by Sub-type
 
 ### enterprise
@@ -45,8 +54,9 @@ Handle questions about purchasing Dify plans, pricing, and reseller/agent inquir
 1. Call `front_create_draft` with no promo code template
 
 ### reseller
-1. Call `front_create_draft` with "forwarding to marketing/partnership intake" template
+1. Do NOT create a customer draft.
 2. Call `front_forward_to_partnerships` with conversation_id and summary (1-2 sentence summary of the user's inquiry). This forwards the original thread to `marketing@dify.ai`.
+3. Call `state_set` with step="forwarded_keep_open", sub_type="reseller".
 
 ## Reply Templates
 

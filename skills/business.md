@@ -1,26 +1,24 @@
 # Skill: Business / Enterprise Inquiries
 
 ## Purpose
-Detect business/enterprise related inquiries and route them to the Business inbox. No agent processing needed.
+Handle enterprise sales, procurement, demo, quote, and business-plan inquiries.
 
 ## Detection
 Emails should be classified as `business` when they contain:
 - Enterprise plan inquiries
 - Sales/pricing questions for teams/companies
-- Business development/partnerships (non-technical)
 - Requests for demos, quotes, or sales meetings
-- References to "enterprise", "business plan", "team plan" in context of buying
-- Self-hosted enterprise licensing
 - Vendor registration or procurement processes
+- Self-hosted enterprise licensing
 
 ## Steps
 
 ### business (Enterprise/Business inquiries)
 
-**Step: initial**
-1. Call `move_conversation_to_inbox` with target inbox "Business" to route the conversation to the Business team
-2. Do NOT reply to the user
-3. Do NOT create any drafts
-4. Call `state_set` with step="moved_inbox" to record the internal handoff while keeping the conversation open
+Business is normally handled before the LLM skill loop by deterministic routing:
+1. `agent/routing.py` chooses `business_move_inbox`.
+2. `front_forward_to_business` moves the conversation to the configured Business inbox.
+3. `state_set` records step="moved_inbox".
+4. No customer draft, no direct reply, and no auto-close.
 
-**Important**: This category requires no further agent action after routing, and the conversation remains open for the Business team.
+If this skill is reached unexpectedly, do not create a customer draft. Call `front_forward_to_business` with conversation_id and a concise summary, then call `state_set` with step="moved_inbox".

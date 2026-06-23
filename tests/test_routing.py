@@ -122,6 +122,22 @@ def test_marketing_moves_to_marketing_inbox():
     assert route.inbox_target == "Marketing"
 
 
+def test_business_routes_to_business_inbox():
+    result = normalize_classification({
+        "category": "business",
+        "sub_type": "enterprise_inquiry",
+        "confidence": 0.9,
+        "summary": "Enterprise procurement team requests a quote and vendor onboarding",
+    })
+    route = decide_initial_route(result, "cnv_test", "buyer@example.com")
+    assert route.name == "business_move_inbox"
+    assert route.handled_before_skill is True
+    assert route.tool_name == "front_forward_to_business"
+    assert route.state_step == "moved_inbox"
+    assert route.inbox_target == "Business"
+    assert route.customer_action == "none"
+
+
 def test_legal_routes_to_geyan_and_stays_open():
     result = normalize_classification({
         "category": "legal",

@@ -133,6 +133,7 @@ Required decision fields:
 | education not eligible | K-12, personal email only, or clearly not eligible | `education_draft_keep_open` | `front_create_draft` | draft rejection/info request | none | `draft_created` | no |
 | account SaaS issue with Linear | Login, deletion/transfer/compromise for verified SaaS accounts | `account_sybil_forwarded_keep_open` | create Linear, then `front_forward_to_bobby` | draft acknowledgement when useful | `bobby@dify.ai` | `forwarded_keep_open` | no |
 | account quota/plan anomaly | quota mismatch, plan changed unexpectedly | `account_anomaly_forwarded_keep_open` | create Linear, then `front_forward_to_sybil` with `cc_email=bobby@dify.ai` | draft acknowledgement when useful | `sybil@dify.ai`, CC `bobby@dify.ai` | `forwarded_keep_open` | no |
+| business / enterprise | Enterprise sales, procurement, demos, quotes | `business_move_inbox` | `front_forward_to_business` | none | inbox `Business` | `moved_inbox` | no |
 | billing | Refund, invoice, duplicate charge, downgrade | `billing_skill_flow` | skill decides draft/ticket | draft by default | skill policy | `skill_in_progress` or final state | no by default |
 | legal | Legal threat, lawyer letter, lawsuit | `legal_forwarded_keep_open` | sent Front forward to `geyan@dify.ai` with original thread and summary | no automatic reply | Geyan | `forwarded_keep_open` | no |
 | investment | Investor/VC/fundraising | `investment_forwarded_keep_open` | forward to Claudia if configured | none by default | Claudia, optional Bobby visibility | `forwarded_keep_open` | no |
@@ -214,6 +215,7 @@ Current recipients:
 | Account quota/plan anomaly with Linear | `sybil@dify.ai`, CC `bobby@dify.ai` (for anomaly only) |
 | Education review | `sybil@dify.ai` |
 | Marketplace/community/plugin ecosystem | `marketing@dify.ai` |
+| Business / Enterprise | Front inbox `Business` |
 | Security | Front inbox `Security` |
 
 ## 10. Failure Handling
