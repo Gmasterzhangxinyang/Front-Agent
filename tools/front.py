@@ -308,6 +308,16 @@ async def resolve_conversation(conversation_id: str) -> bool:
         return r.status_code == 204
 
 
+async def reopen_conversation(conversation_id: str) -> bool:
+    async with httpx.AsyncClient() as client:
+        r = await client.patch(
+            f"{BASE_URL}/conversations/{conversation_id}",
+            headers=HEADERS,
+            json={"status": "open"},
+        )
+        return r.status_code == 204
+
+
 async def add_comment(conversation_id: str, body: str, author_id: str = None) -> bool:
     payload = {"body": body}
     if author_id:

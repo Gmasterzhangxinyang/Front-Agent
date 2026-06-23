@@ -124,11 +124,45 @@ async def _process_front_webhook_event(payload: dict, event_id: str | None, conv
             )
         except Exception as e:
             logger.error(f"Error handling email {conversation_id}: {e}", exc_info=True)
-            # Forward unexpected processing errors to Bobby through Front.
+            # Forward unexpected processing errors to Bobby, but keep the
+            # original conversation open for manual review. Some Front setups
+            # auto-archive after an outgoing message, so explicitly reopen it.
+            error_summary = f"❌ 邮件处理出错！对话ID: {conversation_id}, 错误: {str(e)[:200]}"
+
+            try:
+                from tools.handoff import forward_to_bobby
+
+                await forward_to_bobby(error_summary, conversation_id=conversation_id)
+            except Exception as notify_error:
+                logger.warning("Failed to forward handler error for %s: %s", conversation_id, notify_error)
+
+            try:
+                from tools import front
+
+                reopened = await front.reopen_conversation(conversation_id)
+                if not reopened:
+                    logger.warning("Failed to reopen errored conversation %s", conversation_id)
+            except Exception as reopen_error:
+                logger.warning("Failed to reopen errored conversation %s: %s", conversation_id, reopen_error)
+
+            try:
+                from tools import state as state_tool
+
+                await state_tool.set_state(
+                    db,
+                    conversation_id,
+                    "unclear",
+                    None,
+                    "failed_needs_review",
+                    {"reason": "handler_error", "error": str(e)[:500]},
+                    waiting=False,
+                    sender_email=sender_email,
+                )
+            except Exception as state_error:
+                logger.warning("Failed to save handler error state for %s: %s", conversation_id, state_error)
+
             # Do not record the webhook event as processed; Front retries should
             # still have a chance to recover from transient failures.
-            from tools.handoff import forward_to_bobby
-            await forward_to_bobby(f"❌ 邮件处理出错！对话ID: {conversation_id}, 错误: {str(e)[:200]}", conversation_id=conversation_id)
             return {"status": "failed", "reason": "handler_error"}
 
         if event_id:

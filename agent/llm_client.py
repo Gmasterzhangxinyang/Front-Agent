@@ -3,6 +3,7 @@ from typing import Any
 
 GPT_5_PREFIXES = ("gpt-5",)
 OPENAI_MODEL_PREFIXES = ("gpt-", "o1", "o3", "o4")
+GPT_5_MIN_COMPLETION_TOKENS = 1024
 
 
 def is_gpt5_model(model: str) -> bool:
@@ -35,8 +36,9 @@ def chat_completion_kwargs(
     """Build Chat Completions kwargs with GPT-5.x compatibility.
 
     GPT-5.5 rejects non-default temperature values and the legacy
-    max_tokens parameter, so callers should go through this helper instead of
-    passing model-specific parameters inline.
+    max_tokens parameter. GPT-5 models can also consume part of the completion
+    budget before producing visible text, so very small caps can fail before a
+    short answer is returned.
     """
     params: dict[str, Any] = {
         "model": model,
@@ -45,7 +47,7 @@ def chat_completion_kwargs(
     }
     if max_tokens is not None:
         if is_gpt5_model(model):
-            params["max_completion_tokens"] = max_tokens
+            params["max_completion_tokens"] = max(max_tokens, GPT_5_MIN_COMPLETION_TOKENS)
         else:
             params["max_tokens"] = max_tokens
     if temperature is not None and not is_gpt5_model(model):
