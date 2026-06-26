@@ -16,7 +16,7 @@ Current production screen runs this branch from release directories under `/tmp/
 - Non-spam: keep conversations open for review
 - Sybil handoffs: queued for the daily Feishu digest, not emailed directly to Sybil
 - Ops dashboard: `GET /ops` shows processing status, action logs, and queues
-- Case memory: similar historical conversations are used as prompt hints only; they do not change deterministic routes or replace docs/GitHub grounding
+- Case memory: similar historical conversations are distilled into hindsight signals with retrieval evidence; they do not change deterministic routes or replace docs/GitHub grounding
 
 ## Processing Flow
 
@@ -58,12 +58,14 @@ Technical support is intentionally skill-flow based because requests vary widely
 
 ## Case Memory
 
-`services/case_memory.py` retrieves similar historical rows from `conversation_states` and formats them as `Historical case memory` prompt context before classification and before category skill execution.
+`services/case_memory.py` retrieves similar historical rows from `conversation_states` and formats them as `Historical case memory / hindsight signals` prompt context before classification and before category skill execution.
 
 Safety constraints:
 
 - Matching is conservative: classification context requires at least 3 effective token overlaps; known-category skill context requires at least 2.
 - Category and previous outcome only affect ranking after the overlap threshold is met; they cannot create a match by themselves.
+- Each prompt item includes `match=` retrieval evidence so the model can ignore weak or irrelevant memories.
+- Matched cases are separated into `Successful patterns` and `Cautionary patterns` rather than copied as raw history.
 - Generic terms such as `support`, `issue`, `question`, and `request` are ignored.
 - Email addresses and phone numbers are redacted before entering the prompt.
 - Case memory is reference-only. Deterministic routing, tool allowlists, draft-only policy, and skill safety rules still win.

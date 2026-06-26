@@ -1,6 +1,6 @@
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy import select
@@ -49,6 +49,7 @@ class CaseMemoryItem:
     summary: str
     reason: str
     outcome: str
+    matched_terms: tuple[str, ...] = field(default_factory=tuple)
     score: int = 0
 
 
@@ -61,13 +62,16 @@ def tokenize(text: str) -> set[str]:
     return tokens
 
 
-def score_case(query: str, item: CaseMemoryItem, category: str | None = None) -> int:
+def matched_terms(query: str, item: CaseMemoryItem) -> tuple[str, ...]:
     query_tokens = tokenize(query)
     if not query_tokens:
-        return 0
-
+        return ()
     case_text = " ".join([item.category, item.sub_type, item.summary, item.reason])
-    overlap_count = len(query_tokens & tokenize(case_text))
+    return tuple(sorted(query_tokens & tokenize(case_text)))
+
+
+def score_case(query: str, item: CaseMemoryItem, category: str | None = None) -> int:
+    overlap_count = len(matched_terms(query, item))
     min_overlap = MIN_CATEGORY_OVERLAP if category else MIN_CLASSIFICATION_OVERLAP
     if overlap_count < min_overlap:
         return 0
@@ -77,7 +81,7 @@ def score_case(query: str, item: CaseMemoryItem, category: str | None = None) ->
         score += 2
     if item.step in {"done", "draft_created", "closed_spam", "moved_inbox", "forwarded_keep_open"}:
         score += 1
-    if item.step in {"failed_needs_review", "manual_review"} or item.step.startswith("awaiting"):
+    if _is_cautionary_step(item.step):
         score += 1
     return score
 
@@ -87,19 +91,43 @@ def build_case_memory_prompt(items: list[CaseMemoryItem]) -> str:
         return ""
 
     lines = [
-        "Historical case memory (reference only; deterministic routing and skill safety rules still win):",
-        "- Use these as hints for ambiguity, missing facts, likely subtype, and known failure modes.",
+        "Historical case memory / hindsight signals (reference only; deterministic routing and skill safety rules still win):",
+        "- Use these as hindsight signals for ambiguity, missing facts, likely subtype, and known failure modes.",
+        "- matched_terms are retrieval evidence; ignore any item whose terms do not fit the current email.",
         "- Do not expose case details, case ids, internal notes, or personal data to the customer.",
         "- Do not copy an old outcome blindly; apply the current skill and route policy.",
     ]
-    for item in items:
-        parts = [f"{item.category}/{item.sub_type or 'general'}", f"step={item.step}", item.outcome]
-        if item.summary:
-            parts.append(f"signal={_clip(_redact(item.summary))}")
-        if item.reason:
-            parts.append(f"note={_clip(_redact(item.reason))}")
-        lines.append("- " + " | ".join(parts))
+
+    successful = [item for item in items if not _is_cautionary_step(item.step)]
+    cautionary = [item for item in items if _is_cautionary_step(item.step)]
+    if successful:
+        lines.append("Successful patterns:")
+        for item in successful:
+            lines.append(_format_case_line(item))
+    if cautionary:
+        lines.append("Cautionary patterns:")
+        for item in cautionary:
+            lines.append(_format_case_line(item))
     return "\n".join(lines)
+
+
+def _format_case_line(item: CaseMemoryItem) -> str:
+    match_note = ", ".join(item.matched_terms[:6]) if item.matched_terms else "threshold-met"
+    parts = [
+        f"{item.category}/{item.sub_type or 'general'}",
+        f"match={match_note}",
+        f"step={item.step}",
+        item.outcome,
+    ]
+    if item.summary:
+        parts.append(f"signal={_clip(_redact(item.summary))}")
+    if item.reason:
+        parts.append(f"note={_clip(_redact(item.reason))}")
+    return "- " + " | ".join(parts)
+
+
+def _is_cautionary_step(step: str) -> bool:
+    return step in {"failed_needs_review", "manual_review"} or step.startswith("awaiting")
 
 
 async def build_case_memory_context(
@@ -119,9 +147,10 @@ async def build_case_memory_context(
         item = _state_to_item(state)
         if category and item.category != category:
             continue
+        terms = matched_terms(query, item)
         score = score_case(query, item, category=category)
         if score > 0:
-            candidates.append(CaseMemoryItem(**{**item.__dict__, "score": score}))
+            candidates.append(CaseMemoryItem(**{**item.__dict__, "matched_terms": terms, "score": score}))
 
     candidates.sort(key=lambda item: item.score, reverse=True)
     return build_case_memory_prompt(candidates[:limit])

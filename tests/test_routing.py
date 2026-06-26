@@ -360,6 +360,39 @@ def test_case_memory_category_bonus_cannot_create_match_by_itself():
     assert score_case("completely unrelated words", item, category="education") == 0
 
 
+def test_case_memory_prompt_explains_hindsight_signals():
+    from services.case_memory import CaseMemoryItem, build_case_memory_prompt
+
+    prompt = build_case_memory_prompt([
+        CaseMemoryItem(
+            category="technical",
+            sub_type="workflow_issue",
+            step="draft_created",
+            summary="Iteration parallel mode fails in Enterprise deployment",
+            reason="technical_skill_flow",
+            outcome="previously handled with a customer draft",
+            matched_terms=("enterprise", "iteration", "parallel"),
+            score=5,
+        ),
+        CaseMemoryItem(
+            category="account",
+            sub_type="cant_login",
+            step="failed_needs_review",
+            summary="Verification code does not arrive",
+            reason="missing state_set",
+            outcome="previously failed; prefer manual review or safer tool sequence",
+            matched_terms=("verification", "code"),
+            score=4,
+        ),
+    ])
+    assert "hindsight signals" in prompt
+    assert "matched_terms are retrieval evidence" in prompt
+    assert "Successful patterns:" in prompt
+    assert "Cautionary patterns:" in prompt
+    assert "match=enterprise, iteration, parallel" in prompt
+    assert "match=verification, code" in prompt
+
+
 def test_openai_models_ignore_minimax_base_url():
     from types import SimpleNamespace
 
