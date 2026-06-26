@@ -49,6 +49,22 @@ flowchart TD
     Q --> R
 ```
 
+```mermaid
+flowchart LR
+    A[Current email] --> B[Tokenize and score against conversation_states]
+    B --> C{Strong match?}
+    C -->|No| D[Skip case memory]
+    C -->|Yes| E[Build hindsight signals]
+    E --> F[Successful patterns]
+    E --> G[Cautionary patterns]
+    F --> H[Inject into classification prompt]
+    G --> H
+    H --> I[LLM classification]
+    I --> J[Deterministic routing in Python]
+    J --> K[Skill prompt with hindsight signals]
+    K --> L[Allowlisted tools and state save]
+```
+
 Two layers decide behavior:
 
 - `agent/routing.py`: deterministic routing for spam, unclear, security, business, marketing, partnership, and legal.
