@@ -51,7 +51,7 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    A[Current email] --> B[Tokenize and score against conversation_states]
+    A[Incoming webhook message] --> B[Tokenize and score against conversation_states]
     B --> C{Strong match?}
     C -->|No| D[Skip case memory]
     C -->|Yes| E[Build hindsight signals]
