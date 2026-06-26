@@ -15,7 +15,6 @@ class RouteDecision:
     state_step: str = "done"
     waiting: bool = False
     keep_open: bool = True
-    send_feedback_comment: bool = True
     close_conversation: bool = False
     customer_action: str = "skill_policy"
     internal_target: str | None = None
@@ -67,7 +66,6 @@ def decide_initial_route(
             state_step="closed_spam",
             waiting=False,
             keep_open=False,
-            send_feedback_comment=False,
             close_conversation=True,
             customer_action="none",
             reason="Clear spam, ads, or unsolicited promotion can be archived automatically.",

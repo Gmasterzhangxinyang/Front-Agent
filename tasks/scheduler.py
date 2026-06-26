@@ -141,6 +141,15 @@ async def auto_close_stale_conversations():
         await db.commit()
 
 
+async def generate_ops_reports():
+    try:
+        from routes.ops import generate_all_ops_reports
+
+        await generate_all_ops_reports()
+    except Exception:
+        logger.exception("generate_ops_reports failed")
+
+
 def start_scheduler():
     scheduler.add_job(
         auto_close_stale_conversations,
@@ -157,6 +166,16 @@ def start_scheduler():
         timezone="Asia/Shanghai",
         id="send_pending_sybil_digest_cn_10am",
         replace_existing=True,
+    )
+    scheduler.add_job(
+        generate_ops_reports,
+        "interval",
+        hours=3,
+        id="generate_ops_reports_every_3h",
+        replace_existing=True,
+        next_run_time=datetime.now(),
+        coalesce=True,
+        max_instances=1,
     )
     # sync_missing_conversations disabled - only process webhook-triggered emails
     # scheduler.add_job(sync_missing_conversations, "interval", minutes=10)

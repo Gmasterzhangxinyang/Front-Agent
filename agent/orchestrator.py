@@ -10,6 +10,7 @@ from agent.classification import ClassificationResult, normalize_classification,
 from agent.llm_client import chat_completion_kwargs, make_async_openai_client
 from agent.routing import RouteDecision, decide_initial_route
 from agent.tool_registry import TOOL_SCHEMAS, execute_tool_call
+from services.case_memory import build_case_memory_context
 
 logger = logging.getLogger(__name__)
 client = make_async_openai_client(settings)
@@ -63,14 +64,27 @@ async def handle_email(
     doc_attachments = await fetch_attachments_as_text(attachments)
     doc_text = "\n".join([f"[附件: {d['filename']}]\n{d['text']}" for d in doc_attachments]) if doc_attachments else ""
 
+    case_memory_query = f"{conversation_text}\n\n{message_body}"
+    classification_case_memory = ""
+    skill_case_memory = ""
+
     # Check if we need user history (only for new conversations)
     user_history_text = ""
     if not existing_state or existing_state.step in ("initial", "done"):
+        classification_case_memory = await build_case_memory_context(db, case_memory_query, limit=4)
         should_fetch = await _should_fetch_history(conversation_text, message_body, sender_email)
         if should_fetch:
             history = await state_tool.get_user_history(db, sender_email, days=30)
             if history:
                 user_history_text = f"\n\n**User's conversation history (last 30 days):**\n{json.dumps(history, indent=2, ensure_ascii=False)}"
+    elif existing_state.category:
+        skill_case_memory = await build_case_memory_context(
+            db,
+            case_memory_query,
+            category=existing_state.category,
+            limit=4,
+        )
+
 
     # Determine which skill to load
     if existing_state and existing_state.step not in ("initial", "done"):
@@ -87,6 +101,8 @@ Current conversation state:
 Skill instructions:
 {skill_md}
 
+{skill_case_memory}
+
 The user has replied. Continue the flow from the current step.
 Always be polite, professional, and empathetic in all replies to users.
 Conversation ID: {conversation_id}
@@ -101,6 +117,8 @@ Step 2: Load the appropriate skill and execute the correct actions by calling th
 
 Classification skill:
 {classify_md}
+
+{classification_case_memory}
 
 After classifying, load and follow the skill for the identified category.
 Always be polite, professional, and empathetic in all replies to users.
@@ -120,25 +138,30 @@ Use the tools available to you to handle the email completely.
 
     # If classifying, do a two-step: first classify, then load skill and act
     if not existing_state or existing_state.step in ("initial", "done"):
-        classification = await _classify(conversation_text, message_body, sender_email, attachment_content)
+        classification = await _classify(
+            conversation_text,
+            message_body,
+            sender_email,
+            attachment_content,
+            case_memory_context=classification_case_memory,
+        )
         if not classification:
             return
 
         route = decide_initial_route(classification, conversation_id, sender_email)
         if route.handled_before_skill:
             await _execute_initial_route(route, classification, conversation_id, sender_email, db)
-            if route.send_feedback_comment:
-                await _send_feedback_comment(
-                    conversation_id=conversation_id,
-                    sender_email=sender_email,
-                    category=route.state_category or classification.category,
-                    all_messages=[],
-                )
             return
 
         category = classification.category
         sub_type = classification.sub_type
         skill_md = load_skill(category)
+        skill_case_memory = await build_case_memory_context(
+            db,
+            case_memory_query,
+            category=category,
+            limit=4,
+        )
         system_prompt = f"""You are a Dify support email automation agent.
 
 This email has been classified as:
@@ -167,6 +190,8 @@ Global safety rules:
 Skill instructions for this category:
 {skill_md}
 
+{skill_case_memory}
+
 Follow the skill instructions within the global safety rules. Call the appropriate tools to handle this email.
 Always be polite, professional, and empathetic in all replies to users.
 Conversation ID: {conversation_id}
@@ -187,13 +212,6 @@ Sender email: {sender_email}
 
         await _run_agent_loop(messages, db, sender_email=sender_email, message_body=message_body)
 
-        # After agent loop, send feedback comment
-        await _send_feedback_comment(
-            conversation_id=conversation_id,
-            sender_email=sender_email,
-            category=category,
-            all_messages=messages,
-        )
 
         # If a skill took actions but never saved state, do not mark the case done.
         # Missing state means Bobby should review the route/tool outcome.
@@ -223,13 +241,6 @@ Sender email: {sender_email}
 
         await _run_agent_loop(messages, db, sender_email=sender_email, message_body=message_body)
 
-        # After agent loop, send feedback comment
-        await _send_feedback_comment(
-            conversation_id=conversation_id,
-            sender_email=sender_email,
-            category=existing_state.category,
-            all_messages=messages,
-        )
 
 
 async def _should_fetch_history(conversation_text: str, latest_message: str, sender_email: str) -> bool:
@@ -260,9 +271,16 @@ Answer with only YES or NO."""
     return "YES" in answer
 
 
-async def _classify(conversation_text: str, latest_message: str, sender_email: str, attachments: list) -> ClassificationResult | None:
+async def _classify(
+    conversation_text: str,
+    latest_message: str,
+    sender_email: str,
+    attachments: list,
+    case_memory_context: str = "",
+) -> ClassificationResult | None:
     classify_md = load_skill("classify")
-    content = [{"type": "text", "text": f"Classify this support email.\n\nSender: {sender_email}\n\nConversation:\n{conversation_text}\n\nLatest message:\n{latest_message}\n\nReturn ONLY valid JSON matching the output format in the skill instructions."}]
+    memory_section = f"\n\n{case_memory_context}" if case_memory_context else ""
+    content = [{"type": "text", "text": f"Classify this support email.\n\nSender: {sender_email}\n\nConversation:\n{conversation_text}\n\nLatest message:\n{latest_message}{memory_section}\n\nReturn ONLY valid JSON matching the output format in the skill instructions."}]
     content.extend(attachments)
 
     response = await client.chat.completions.create(**chat_completion_kwargs(
@@ -406,42 +424,3 @@ async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int 
 
         if response.choices[0].finish_reason == "stop":
             break
-
-
-async def _send_feedback_comment(
-    conversation_id: str,
-    sender_email: str,
-    category: str,
-    all_messages: list,
-) -> None:
-    """Optionally add a private Front comment with the feedback link."""
-    from config import settings
-
-    if not settings.enable_feedback_system:
-        return
-
-    from tools import front
-
-    # Extract the last AI reply from conversation history
-    last_ai_reply = ""
-    last_user_question = ""
-    for msg in all_messages:
-        if isinstance(msg, dict):
-            role = msg.get("role", "")
-            content = msg.get("content", "") or ""
-            if role == "user" and not last_user_question:
-                last_user_question = content[:200]
-            elif role == "assistant" and content and not last_ai_reply:
-                last_ai_reply = content[:300]
-                break
-
-    # Get the base URL from config (Railway exposes PORT directly)
-    base_url = getattr(settings, "streamlit_url", "http://localhost:8000").replace(":8501", ":8000")
-    # Use FastAPI-based feedback form (no Streamlit dependency)
-    feedback_url = f"{base_url}/feedback/form?conv={conversation_id}&category={category}"
-
-    comment_body = f"""👉 [点击评分]({feedback_url})"""
-    try:
-        await front.add_comment(conversation_id, comment_body)
-    except Exception as e:
-        logger.warning("Failed to send feedback comment: %s", e)

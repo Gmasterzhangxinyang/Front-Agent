@@ -73,10 +73,8 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite+aiosqlite:////tmp/email_automation.db"
 
-    # Feedback/skill learning UI is disabled by default. Set true to expose /feedback routes and comments.
-    enable_feedback_system: bool = False
-    # Base URL for feedback form (set in Railway env vars)
-    streamlit_url: str = "http://localhost:8000"
+    # Scheduler runs production background jobs. Disable only for local UI previews.
+    enable_scheduler: bool = True
 
     class Config:
         env_file = ".env"

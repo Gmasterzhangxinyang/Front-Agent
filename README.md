@@ -15,7 +15,8 @@ Current production screen runs this branch from release directories under `/tmp/
 - Spam: deterministic route may archive only clear spam/ads
 - Non-spam: keep conversations open for review
 - Sybil handoffs: queued for the daily Feishu digest, not emailed directly to Sybil
-- Feedback UI: code remains, runtime disabled by default with `ENABLE_FEEDBACK_SYSTEM=false`
+- Ops dashboard: `GET /ops` shows processing status, action logs, and queues
+- Case memory: similar historical conversations are used as prompt hints only; they do not change deterministic routes or replace docs/GitHub grounding
 
 ## Processing Flow
 
@@ -24,7 +25,8 @@ flowchart TD
     A[Front webhook] --> B[Verify signature and event_id]
     B --> C[Allowed Support inbox filter]
     C --> D[Load full conversation, attachments, state]
-    D --> E[Classify with skills/classify.md]
+    D --> CM[Retrieve strong historical case matches]
+    CM --> E[Classify with skills/classify.md]
     E --> F{Deterministic route?}
     F -->|spam| G[Archive and state=closed_spam]
     F -->|security| H[Move to Security inbox]
@@ -53,6 +55,19 @@ Two layers decide behavior:
 - `skills/*.md` via `agent/orchestrator.py`: LLM skill flow for education, account, technical, billing, purchase, roadmap, data export, and investment.
 
 Technical support is intentionally skill-flow based because requests vary widely. The skill requires docs/GitHub grounding when relevant, and still creates drafts by default.
+
+## Case Memory
+
+`services/case_memory.py` retrieves similar historical rows from `conversation_states` and formats them as `Historical case memory` prompt context before classification and before category skill execution.
+
+Safety constraints:
+
+- Matching is conservative: classification context requires at least 3 effective token overlaps; known-category skill context requires at least 2.
+- Category and previous outcome only affect ranking after the overlap threshold is met; they cannot create a match by themselves.
+- Generic terms such as `support`, `issue`, `question`, and `request` are ignored.
+- Email addresses and phone numbers are redacted before entering the prompt.
+- Case memory is reference-only. Deterministic routing, tool allowlists, draft-only policy, and skill safety rules still win.
+- Case memory does not replace documentation matching. Technical/docs grounding still comes from skill instructions and tools such as `docs_search` and `github_search`.
 
 ## Deterministic Routes
 
@@ -134,7 +149,6 @@ SQLite models are in `models.py` and initialized by `database.py`.
 | `conversation_actions` | tool-level action log and dedupe |
 | `webhook_events` | Front event idempotency |
 | `sybil_notifications` | pending/sent Sybil digest queue |
-| `skill_feedback`, `skill_examples`, `skill_suggestions`, `skill_versions` | feedback learning tables; runtime UI disabled by default |
 
 Important steps:
 
@@ -158,6 +172,7 @@ models.py                  ORM models
 start.sh                   local start script
 railway.toml               optional Railway config
 agent/orchestrator.py      main processing loop and skill execution
+services/case_memory.py    conservative historical case-memory prompt context
 agent/classification.py    classification parsing/normalization
 agent/routing.py           deterministic routes
 agent/tool_registry.py     allowlisted tool schemas and dispatch
@@ -167,6 +182,8 @@ tools/linear.py            Linear ticket creation
 tools/state.py             state/action log helpers
 tools/sybil_digest.py      Sybil digest queue and sender
 webhooks/front_webhook.py  Front webhook boundary
+routes/ops.py             Ops dashboard API and /ops page
+routes/static/ops.html    Ops dashboard frontend
 skills/                    business policy and draft instructions
 tests/                     routing and skill safety tests
 ```
@@ -200,7 +217,7 @@ GEYAN_EMAIL=geyan@dify.ai
 CLAUDIA_EMAIL=
 
 DATABASE_URL=sqlite+aiosqlite:///./email_automation.db
-ENABLE_FEEDBACK_SYSTEM=false
+ENABLE_SCHEDULER=true
 PORT=8000
 ```
 
@@ -237,4 +254,5 @@ git diff --check
 - Do not commit `.env`, SQLite DB files, screen logs, virtualenvs, or generated caches.
 - `screenlog.*` is runtime log output, not source.
 - Production state should use a persistent SQLite path or external DB.
-- Feedback/admin routes remain disabled unless `ENABLE_FEEDBACK_SYSTEM=true`.
+- Ops dashboard is available at `/ops` and reads existing processing state; it does not edit skills or send customer messages. Use ENABLE_SCHEDULER=false for local UI-only previews next to a running production instance.
+- Ops report snapshots are generated once when the scheduler starts, then every 3 hours. Each run stores both `daily` and `monthly` reports in `ops_reports`; the dashboard reads the latest snapshot for the selected period.

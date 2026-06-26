@@ -99,20 +99,27 @@ async def _process_front_webhook_event(payload: dict, event_id: str | None, conv
         attachments = message.get("attachments") or []
 
         # Check which inboxes this conversation is in - must be in Support/Hello inboxes
-        import httpx
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            ri = await client.get(f"https://api2.frontapp.com/conversations/{conversation_id}/inboxes",
-                                  headers={"Authorization": f"Bearer {settings.front_api_token}"})
-            if ri.status_code == 200:
-                inbox_ids = [i.get("id") for i in ri.json().get("_results", [])]
-                if not any(iid in ALLOWED_INBOX_IDS for iid in inbox_ids):
-                    logger.info(f"Ignoring conversation {conversation_id} - not in Support/Hello inboxes (inboxes: {inbox_ids})")
-                    if event_id:
-                        db.add(WebhookEvent(event_id=event_id))
-                        await db.commit()
-                    return {"status": "ignored", "reason": f"conversation not in allowed inbox"}
-            else:
-                logger.warning(f"Could not check inboxes for {conversation_id}, proceeding anyway")
+        from tools import front
+
+        try:
+            ri = await front.front_request("GET", f"{front.BASE_URL}/conversations/{conversation_id}/inboxes")
+        except Exception as e:
+            logger.warning("Could not check inboxes for %s after retries: %r", conversation_id, e)
+            raise HTTPException(status_code=503, detail="Front inbox check failed")
+
+        if ri.status_code == 200:
+            inbox_ids = [i.get("id") for i in ri.json().get("_results", [])]
+            if not any(iid in ALLOWED_INBOX_IDS for iid in inbox_ids):
+                logger.info(f"Ignoring conversation {conversation_id} - not in Support/Hello inboxes (inboxes: {inbox_ids})")
+                if event_id:
+                    db.add(WebhookEvent(event_id=event_id))
+                    await db.commit()
+                return {"status": "ignored", "reason": f"conversation not in allowed inbox"}
+        elif ri.status_code in front.FRONT_TRANSIENT_STATUSES:
+            logger.warning("Could not check inboxes for %s, Front returned %s", conversation_id, ri.status_code)
+            raise HTTPException(status_code=503, detail="Front inbox check transient failure")
+        else:
+            logger.warning("Could not check inboxes for %s, Front returned %s; proceeding anyway", conversation_id, ri.status_code)
 
         try:
             await handle_email(

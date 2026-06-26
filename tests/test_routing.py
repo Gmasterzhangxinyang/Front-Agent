@@ -233,14 +233,32 @@ def test_forward_tools_send_forward_with_original_thread_body():
     assert "Original Front conversation:" in front_source
 
 
-def test_feedback_system_is_disabled_by_default_and_gated():
+def test_self_evolution_feedback_system_removed_and_ops_enabled():
     config_source = Path("config.py").read_text()
     main_source = Path("main.py").read_text()
     orchestrator_source = Path("agent/orchestrator.py").read_text()
-    assert "enable_feedback_system: bool = False" in config_source
-    assert "if settings.enable_feedback_system:" in main_source
-    assert "from routes.feedback_api" not in main_source.split("if settings.enable_feedback_system:", 1)[0]
-    assert "if not settings.enable_feedback_system:" in orchestrator_source
+    models_source = Path("models.py").read_text()
+
+    assert "enable_feedback_system" not in config_source
+    assert "streamlit_url" not in config_source
+    assert "routes.feedback" not in main_source
+    assert "_send_feedback_comment" not in orchestrator_source
+    assert "SkillFeedback" not in models_source
+    assert "SkillSuggestion" not in models_source
+    assert "from routes.ops import router as ops_router" in main_source
+    assert "app.include_router(ops_router)" in main_source
+
+
+def test_ops_reports_are_scheduled_every_three_hours():
+    scheduler_source = Path("tasks/scheduler.py").read_text()
+    models_source = Path("models.py").read_text()
+    routes_source = Path("routes/ops.py").read_text()
+
+    assert "class OpsReport" in models_source
+    assert "generate_ops_reports_every_3h" in scheduler_source
+    assert "hours=3" in scheduler_source
+    assert "next_run_time=datetime.now()" in scheduler_source
+    assert "select(OpsReport)" in routes_source
 
 
 def test_default_model_is_gpt_5_5():
@@ -274,6 +292,72 @@ def test_chat_completion_kwargs_preserve_legacy_model_params():
     assert params["temperature"] == 0
     assert params["max_tokens"] == 10
     assert "max_completion_tokens" not in params
+
+
+
+
+def test_case_memory_is_prompt_context_not_self_evolution():
+    source = Path("services/case_memory.py").read_text()
+    orchestrator_source = Path("agent/orchestrator.py").read_text()
+    models_source = Path("models.py").read_text()
+
+    assert "ConversationState" in source
+    assert "Historical case memory" in source
+    assert "deterministic routing and skill safety rules still win" in source
+    assert "build_case_memory_context" in orchestrator_source
+    assert "SkillFeedback" not in models_source
+    assert "SkillSuggestion" not in models_source
+
+
+def test_case_memory_redacts_and_formats_lessons():
+    from services.case_memory import CaseMemoryItem, build_case_memory_prompt
+
+    prompt = build_case_memory_prompt([
+        CaseMemoryItem(
+            category="account",
+            sub_type="cant_login",
+            step="failed_needs_review",
+            summary="User test@example.com cannot receive verification code, phone +1 555 123 4567",
+            reason="skill loop completed without state_set",
+            outcome="previously failed; prefer manual review or safer tool sequence",
+            score=3,
+        )
+    ])
+    assert "test@example.com" not in prompt
+    assert "+1 555 123 4567" not in prompt
+    assert "[email]" in prompt
+    assert "[phone]" in prompt
+    assert "previously failed" in prompt
+
+
+def test_case_memory_requires_strong_overlap():
+    from services.case_memory import CaseMemoryItem, score_case
+
+    item = CaseMemoryItem(
+        category="account",
+        sub_type="cant_login",
+        step="draft_created",
+        summary="Verification code does not arrive for a paid Dify Cloud workspace login",
+        reason="account_skill_flow",
+        outcome="previously handled with a customer draft",
+    )
+    assert score_case("I have a billing invoice request", item, category="account") == 0
+    assert score_case("Verification code does not arrive", item, category="account") > 0
+    assert score_case("Verification code arrive login Dify Cloud", item) > 0
+
+
+def test_case_memory_category_bonus_cannot_create_match_by_itself():
+    from services.case_memory import CaseMemoryItem, score_case
+
+    item = CaseMemoryItem(
+        category="education",
+        sub_type="general",
+        step="done",
+        summary="University student education plan application",
+        reason="education_skill_flow",
+        outcome="previously completed",
+    )
+    assert score_case("completely unrelated words", item, category="education") == 0
 
 
 def test_openai_models_ignore_minimax_base_url():
