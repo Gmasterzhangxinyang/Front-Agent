@@ -17,7 +17,7 @@ router = APIRouter()
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 ATTENTION_STEPS = ("manual_review", "failed_needs_review")
 FAILED_MARKERS = ("failed", "move_failed", "unknown_tool", "error")
-REPORT_PERIODS = {"daily": 1, "monthly": 30}
+REPORT_PERIODS = {"daily": 1, "weekly": 7, "monthly": 30}
 REPORT_INTERVAL_HOURS = 3
 
 
@@ -539,7 +539,7 @@ async def ops_summary():
 async def _build_ops_report_payload(period: str, db) -> dict[str, Any]:
     days = REPORT_PERIODS.get(period)
     if days is None:
-        raise HTTPException(status_code=400, detail="period must be daily or monthly")
+        raise HTTPException(status_code=400, detail="period must be daily, weekly, or monthly")
 
     now = datetime.utcnow()
     since = now - timedelta(days=days)
@@ -694,7 +694,7 @@ async def generate_all_ops_reports() -> None:
 @router.get("/ops/api/report")
 async def ops_report(period: str = "daily", fresh: bool = False):
     if period not in REPORT_PERIODS:
-        raise HTTPException(status_code=400, detail="period must be daily or monthly")
+        raise HTTPException(status_code=400, detail="period must be daily, weekly, or monthly")
 
     async with AsyncSessionLocal() as db:
         if not fresh:
