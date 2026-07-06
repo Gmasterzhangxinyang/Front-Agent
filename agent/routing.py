@@ -265,6 +265,12 @@ def _skill_route(category: str, sub_type: str | None) -> RouteDecision:
             None,
             "Purchase policy decides whether to draft or route to business/partnership path.",
         ),
+        "recruiting": (
+            "recruiting_skill_flow",
+            "draft",
+            None,
+            "Recruiting and job application emails should receive a polite careers-channel draft, not manual unclear review.",
+        ),
         "business": (
             "business_skill_flow",
             "none",

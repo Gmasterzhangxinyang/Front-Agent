@@ -25,6 +25,7 @@ EXPECTED_ROUTE_CASES = {
     "investment": {"name": "investment_forwarded_keep_open", "handled": False, "customer_action": "none", "target": "claudia@dify.ai"},
     "business": {"name": "business_move_inbox", "handled": True, "tool": "front_forward_to_business", "inbox": "Business", "step": "moved_inbox"},
     "data_export": {"name": "data_export_skill_flow", "handled": False, "customer_action": "draft"},
+    "recruiting": {"name": "recruiting_skill_flow", "handled": False, "customer_action": "draft"},
     "unclear": {"name": "manual_review_bobby", "handled": True, "tool": "front_forward_to_bobby", "target": "bobby@dify.ai", "step": "manual_review"},
 }
 
@@ -221,6 +222,7 @@ def test_reply_skills_have_draft_quality_bar():
         "data_export",
         "education",
         "purchase",
+        "recruiting",
         "roadmap",
         "technical",
     ]

@@ -19,6 +19,7 @@ ALLOWED_CATEGORIES = {
     "investment",
     "business",
     "data_export",
+    "recruiting",
     "unclear",
 }
 
@@ -61,6 +62,7 @@ CLASSIFICATION_OPTIONS = [
     {"label": "投资融资(investment)", "category": "investment"},
     {"label": "企业销售(business)", "category": "business"},
     {"label": "数据导出(data_export)", "category": "data_export"},
+    {"label": "招聘求职(recruiting)", "category": "recruiting"},
     {"label": "无法分类(unclear)", "category": "unclear"},
 ]
 

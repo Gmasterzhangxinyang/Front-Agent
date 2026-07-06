@@ -80,6 +80,21 @@ def test_unclear_goes_to_bobby_manual_review():
     assert route.state_step == "manual_review"
 
 
+def test_recruiting_route_creates_draft_not_manual_review():
+    result = normalize_classification({
+        "category": "recruiting",
+        "sub_type": "job_application",
+        "confidence": 0.95,
+        "summary": "Candidate is applying for an ML internship and attached a resume",
+    })
+    route = decide_initial_route(result, "cnv_test", "candidate@example.com")
+    assert route.name == "recruiting_skill_flow"
+    assert route.handled_before_skill is False
+    assert route.customer_action == "draft"
+    assert route.tool_name is None
+    assert route.state_step == "skill_in_progress"
+
+
 def test_security_moves_to_security_inbox():
     result = normalize_classification({
         "category": "security",

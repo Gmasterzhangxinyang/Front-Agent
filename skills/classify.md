@@ -129,6 +129,26 @@ Every example below includes all required fields. Follow this shape exactly. Use
 }
 ```
 
+### Example 6: Job Application / Internship
+**Email:** "Hello Dify team, I am applying for a remote ML/GenAI internship. I attached my resume and would love to be considered for future roles."
+
+**Classification:**
+```json
+{
+  "category": "recruiting",
+  "sub_type": "job_application",
+  "is_paid_user": false,
+  "is_premium": false,
+  "urgency": "normal",
+  "sender_email": "candidate@example.com",
+  "summary": "Candidate is applying for a remote ML/GenAI internship and attached a resume",
+  "confidence": 0.95,
+  "flags": [],
+  "secondary_intents": [],
+  "evidence": ["applying for a remote ML/GenAI internship", "attached my resume", "considered for future roles"]
+}
+```
+
 ### Bobby-Confirmed Example
 **Email summary:** User requesting refund (message in Chinese: 需要退款)
 
@@ -153,7 +173,8 @@ Every example below includes all required fields. Follow this shape exactly. Use
 
 - Pick the category that determines the immediate operational route.
 - If the email has mixed intents, set the primary `category` to the highest-risk or most actionable intent and put the rest in `secondary_intents`.
-- If the sender is offering ads, SEO, backlinks, guest posts, generic promotion packages, lead generation, or other unsolicited vendor services, classify as `spam` even if the text mentions marketing or partnership.
+- If the sender is offering ads, SEO, backlinks, guest posts, generic promotion packages, lead generation, recruiting/staffing services, or other unsolicited vendor services, classify as `spam` even if the text mentions marketing, partnership, or hiring.
+- Classify candidate job applications, internship requests, resume submissions, and employment inquiries as `recruiting`, not `unclear`.
 - Classify YouTube/video/podcast/newsletter/content creator or media channel collaboration pitches as `marketing` with sub_type `collaboration`, unless the email is clearly an unrelated mass ad service pitch. These should be moved to the Marketing inbox, not auto-closed as spam.
 - Classify Marketplace/plugin/template ecosystem cooperation as `partnership`; that route is forwarded to `marketing@dify.ai` by the system.
 - Classify security reports, vulnerabilities, abuse reports, data leaks, hacked accounts with active compromise, or responsible disclosure as `security` unless the primary issue is ordinary account login help.
@@ -206,6 +227,8 @@ Every example below includes all required fields. Follow this shape exactly. Use
 | investment | fundraising | Investment inquiries, funding, VC, investor relations |
 | business | enterprise_inquiry | Enterprise plan, sales, business development, demo requests |
 | data_export | null | Requesting export of their personal data |
+| recruiting | job_application | Candidate applying for a job, internship, or submitting a resume/portfolio |
+| recruiting | careers_question | Asking about open roles, hiring status, or how to apply |
 | unclear | null | Cannot determine category with confidence |
 
 ## Paid User Detection
