@@ -121,3 +121,6 @@
 - [refactor] 自进化系统去掉 git push：update_skill_file/rollback_skill_file 只写本地文件（services/file_git.py）
 - [fix] 置信度 < 0.3 才通知 Bobby（极低才打扰），其余全自动处理（agent/orchestrator.py）
 - [fix] unclear 分类也直接 archive（agent/orchestrator.py）
+
+## 2026-07-06
+- [fix] 不确定分类转发 Bobby 后保持 Front 会话 open；Linear 创建成功后主动 reopen，并拦截后续 done/closed_spam 状态写入（agent/orchestrator.py, agent/tool_registry.py, tests/test_routing.py）

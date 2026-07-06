@@ -219,6 +219,49 @@ def test_close_tool_is_not_exposed_to_model():
     assert '"name": "front_close_conversation"' not in schemas_source
 
 
+def test_keep_open_guard_coerces_linear_done_state():
+    from agent.orchestrator import _coerce_keep_open_state_args
+
+    args = {
+        "conversation_id": "cnv_test",
+        "category": "technical",
+        "step": "done",
+        "payload": {"linear_url": "https://linear.app/test/issue/CUS-1"},
+        "waiting": True,
+    }
+
+    coerced = _coerce_keep_open_state_args(args, "draft_created")
+
+    assert args["step"] == "done"
+    assert coerced["step"] == "draft_created"
+    assert coerced["waiting"] is False
+    assert coerced["payload"]["keep_open_guard"] == "linear_or_bobby_handoff"
+    assert coerced["payload"]["requested_step"] == "done"
+
+
+def test_keep_open_guard_coerces_unclear_done_state_to_manual_review():
+    from agent.orchestrator import _coerce_keep_open_state_args
+
+    args = {
+        "conversation_id": "cnv_test",
+        "category": "unclear",
+        "step": "done",
+        "payload": {},
+    }
+
+    coerced = _coerce_keep_open_state_args(args, "forwarded_keep_open")
+
+    assert coerced["step"] == "manual_review"
+    assert coerced["waiting"] is False
+
+
+def test_tool_registry_reopens_after_bobby_forward_and_linear():
+    source = Path("agent/tool_registry.py").read_text()
+
+    assert '_safe_reopen_conversation(conversation_id, "linear_create_ticket")' in source
+    assert '_safe_reopen_conversation(conv_id, "front_forward_to_bobby")' in source
+
+
 def test_legal_threat_does_not_notify_bobby_from_orchestrator():
     source = Path("agent/orchestrator.py").read_text()
     assert 'or "legal_threat" in flags' not in source

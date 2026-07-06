@@ -68,6 +68,20 @@ async def _safe_add_comment(conversation_id: str, body: str) -> bool:
         return False
 
 
+async def _safe_reopen_conversation(conversation_id: str, reason: str) -> bool:
+    """Reopen Front without blocking the primary action."""
+    if not conversation_id:
+        return False
+    try:
+        ok = await front.reopen_conversation(conversation_id)
+        if not ok:
+            logger.warning("Non-blocking Front reopen failed for %s after %s", conversation_id, reason)
+        return ok
+    except Exception as e:
+        logger.warning("Non-blocking Front reopen errored for %s after %s: %s", conversation_id, reason, e)
+        return False
+
+
 # Tool schemas for GPT-4o function calling
 TOOL_SCHEMAS = [
     {
@@ -551,6 +565,7 @@ async def _execute_tool_call_uncached(tool_name: str, args: dict, db: AsyncSessi
             conversation_id = args.get("conversation_id")
             if conversation_id:
                 await _safe_add_comment(conversation_id, f"Linear issue created: [{identifier}]({url})")
+                await _safe_reopen_conversation(conversation_id, "linear_create_ticket")
             return json.dumps({"status": "ticket_created", "url": url, "identifier": identifier})
         return "ticket_failed"
 
@@ -558,6 +573,8 @@ async def _execute_tool_call_uncached(tool_name: str, args: dict, db: AsyncSessi
         msg = args["message"]
         conv_id = args.get("conversation_id", "")
         ok = await handoff.forward_to_bobby(msg, conversation_id=conv_id)
+        if ok:
+            await _safe_reopen_conversation(conv_id, "front_forward_to_bobby")
         return "forwarded" if ok else "forward_failed"
 
     elif tool_name == "front_forward_to_limin":

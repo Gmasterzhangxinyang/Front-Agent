@@ -15,6 +15,13 @@ from services.case_memory import build_case_memory_context
 logger = logging.getLogger(__name__)
 client = make_async_openai_client(settings)
 SKILLS_DIR = Path(__file__).parent.parent / "skills"
+KEEP_OPEN_TERMINAL_STEPS = {"done", "closed_spam"}
+KEEP_OPEN_HANDOFF_TOOLS = {
+    "front_forward_to_bobby",
+    "front_forward_to_limin",
+    "front_forward_to_sybil",
+    "feishu_notify_sybil_group",
+}
 
 
 def load_skill(name: str) -> str:
@@ -186,6 +193,7 @@ Global safety rules:
 - When unsure, create a Front draft or no customer reply; keep the conversation open.
 - Internal handoff must use dedicated allowlisted tools only; never invent recipients or use a generic forwarding tool.
 - Non-spam handoffs must use state step forwarded_keep_open or manual_review, not done.
+- After creating a Linear ticket, keep the Front conversation open; use draft_created or forwarded_keep_open state, never done.
 
 Skill instructions for this category:
 {skill_md}
@@ -369,8 +377,48 @@ def _tool_result_failed(result: str) -> bool:
     return any(marker in result for marker in failed_markers)
 
 
+def _tool_result_succeeded(result: str) -> bool:
+    failed_markers = ("failed", "blocked", "unknown_tool")
+    return not any(marker in result for marker in failed_markers)
+
+
+def _remember_keep_open_step(current_step: str | None, tool_name: str, result: str) -> str | None:
+    if not _tool_result_succeeded(result):
+        return current_step
+    if tool_name in KEEP_OPEN_HANDOFF_TOOLS:
+        return "forwarded_keep_open"
+    if tool_name == "linear_create_ticket":
+        try:
+            payload = json.loads(result)
+        except (TypeError, json.JSONDecodeError):
+            payload = {}
+        if payload.get("status") == "ticket_created":
+            return current_step or "draft_created"
+    return current_step
+
+
+def _coerce_keep_open_state_args(args: dict, preferred_step: str) -> dict:
+    requested_step = args.get("step")
+    if requested_step not in KEEP_OPEN_TERMINAL_STEPS:
+        return args
+
+    coerced = dict(args)
+    if coerced.get("category") == "unclear":
+        coerced["step"] = "manual_review"
+    else:
+        coerced["step"] = preferred_step if preferred_step != "manual_review" else "forwarded_keep_open"
+    coerced["waiting"] = False
+
+    payload = dict(coerced.get("payload") or {})
+    payload.setdefault("keep_open_guard", "linear_or_bobby_handoff")
+    payload.setdefault("requested_step", requested_step)
+    coerced["payload"] = payload
+    return coerced
+
+
 async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int = 10, sender_email: str = "", message_body: str = "") -> None:
     notified_conversations: set[str] = set()  # deduplicate Bobby handoff forwards per conv
+    keep_open_state_step: str | None = None
     for _ in range(max_iterations):
         response = await client.chat.completions.create(**chat_completion_kwargs(
             settings.openai_model,
@@ -413,8 +461,12 @@ async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int 
                 if message_body and not args.get("original_message"):
                     args["original_message"] = message_body
 
+            if tool_name == "state_set" and keep_open_state_step:
+                args = _coerce_keep_open_state_args(args, keep_open_state_step)
+
             result = await execute_tool_call(tool_name, args, db)
             logger.info(f"Tool {tool_name} → {result}")
+            keep_open_state_step = _remember_keep_open_step(keep_open_state_step, tool_name, result)
 
             messages.append({
                 "role": "tool",
