@@ -11,6 +11,7 @@ from sqlalchemy import func, or_, select
 from config import settings
 from database import AsyncSessionLocal
 from models import ConversationAction, ConversationState, OpsReport, SybilNotification, WebhookEvent
+from services.draft_adoption import draft_adoption_metrics, refresh_draft_adoptions
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -449,6 +450,7 @@ async def ops_summary():
                 or_(ConversationState.sender_email.is_(None), ConversationState.sender_email == "")
             ),
         )
+        draft_adoption_7d = await draft_adoption_metrics(db, since=datetime.utcnow() - timedelta(days=7))
         report_rows = await db.execute(
             select(OpsReport).order_by(OpsReport.generated_at.desc()).limit(20)
         )
@@ -514,6 +516,7 @@ async def ops_summary():
             "by_category": {category or "uncategorized": count for category, count in category_rows.all()},
             "actions_24h_by_type": {action or "unknown": count for action, count in action_rows.all()},
             "sybil_by_status": {status or "unknown": count for status, count in sybil_rows.all()},
+            "draft_adoption_7d": draft_adoption_7d,
             "data_health": {
                 "missing_sender_count": missing_sender_count,
                 "latest_webhook_at": _iso(latest_webhook.scalar()),
@@ -622,6 +625,7 @@ async def _build_ops_report_payload(period: str, db) -> dict[str, Any]:
 
     attention_states = list(attention_rows.scalars().all())
     period_states = list(period_rows.scalars().all())
+    draft_adoption = await draft_adoption_metrics(db, since=since)
 
     by_step = _rows_to_dict(step_rows.all())
     by_action = _rows_to_dict(action_rows.all())
@@ -649,6 +653,8 @@ async def _build_ops_report_payload(period: str, db) -> dict[str, Any]:
         "handled_signal": handled,
         "attention_rate": _rate(current_attention, total_tracked),
         "failure_rate_period": _rate(failed_updated, updated),
+        "draft_direct_adoption_rate": draft_adoption["direct_adoption_rate"],
+        "draft_sent_or_replied_rate": draft_adoption["sent_or_replied_rate"],
     }
     by_category = _rows_to_dict(category_rows.all())
     analysis = _build_report_analysis(period_states, attention_states, metrics, by_category, by_step)
@@ -661,6 +667,7 @@ async def _build_ops_report_payload(period: str, db) -> dict[str, Any]:
         "window_end": _iso(now),
         "source_note": "Metrics come from local SQLite tables: conversation_states, conversation_actions, webhook_events, and sybil_notifications. They reflect conversations tracked by Front-Agent, not every message that may exist in Front.",
         "metrics": metrics,
+        "draft_adoption": draft_adoption,
         "by_category": by_category,
         "by_step": by_step,
         "by_action": by_action,
@@ -719,6 +726,15 @@ async def ops_report(period: str = "daily", fresh: bool = False):
         db.add(report)
         await db.commit()
         return payload
+
+
+@router.post("/ops/api/draft-adoption/refresh")
+async def refresh_draft_adoption(days: int = Query(default=7, ge=1, le=30), limit: int = Query(default=80, ge=1, le=300), force: bool = False):
+    since = datetime.utcnow() - timedelta(days=days)
+    async with AsyncSessionLocal() as db:
+        result = await refresh_draft_adoptions(db, since=since, limit=limit, force=force)
+        metrics = await draft_adoption_metrics(db, since=since)
+        return {"window_days": days, "refresh": result, "draft_adoption": metrics}
 
 
 @router.get("/ops/api/conversations")

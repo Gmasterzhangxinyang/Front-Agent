@@ -52,6 +52,20 @@ class ConversationAction(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
 
 
+class DraftAdoption(Base):
+    __tablename__ = "draft_adoptions"
+
+    action_id: Mapped[int] = mapped_column(primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    action_key: Mapped[str] = mapped_column(String, nullable=False)
+    draft_hash: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    sent_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    checked_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    error: Mapped[str] = mapped_column(Text, default="")
+    draft_created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+
+
 class OpsReport(Base):
     __tablename__ = "ops_reports"
 
