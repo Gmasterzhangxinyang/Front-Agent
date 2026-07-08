@@ -266,6 +266,12 @@ def test_classify_few_shot_examples_are_complete_json():
         assert isinstance(data.get("secondary_intents"), list)
         assert isinstance(data.get("evidence"), list)
 
+
+def test_recruiting_reply_points_to_joinus_email_only():
+    text = _skill_text("recruiting")
+    assert "joinus@dify.ai" in text
+    assert "official careers page" not in text
+
 def run_all():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):

@@ -9,6 +9,7 @@ Handle candidate job applications, internship requests, resume submissions, port
 - If required facts are missing, ask for the minimum specific information needed instead of guessing.
 - Do not mention internal tools, Linear, Sybil, Bobby, action logs, routing, or internal handoffs in customer-facing drafts.
 - Do not promise that an application will be reviewed, shortlisted, forwarded, or receive a response.
+- For job applications, internships, resumes, portfolios, and careers questions, direct the sender to email joinus@dify.ai.
 - End with a clear next step.
 
 ## Steps by Sub-type
@@ -25,9 +26,7 @@ Dear [Candidate Name / there],
 
 Thank you for your interest in Dify and for sharing your background with us.
 
-For career opportunities, please check the open roles listed on Dify's official careers page and apply through the role that best matches your experience. Applications sent through the careers channel are the best way for the hiring team to review your profile.
-
-If there is no suitable opening at the moment, please keep an eye on future updates. We are not able to guarantee individual review or follow-up for applications sent to the support inbox.
+For job opportunities, internships, or resume submissions, please email joinus@dify.ai.
 
 Best regards,
 Dify Support Team
