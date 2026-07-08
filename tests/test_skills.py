@@ -170,9 +170,10 @@ def test_sybil_group_message_is_single_mention_prefixed_body():
 def test_technical_support_has_paid_and_non_paid_paths():
     text = _skill_text("technical")
     for expected in [
-        "Settings -> Support -> Contact Us",
+        "question mark icon next to the personal avatar",
         "GitHub issues",
-        "Dify community",
+        "https://docs.dify.ai",
+        "https://github.com/langgenius/dify/issues",
         "no clear paid-plan evidence",
         "Do not create Linear tickets for non-paid technical support",
     ]:
@@ -271,6 +272,19 @@ def test_recruiting_reply_points_to_joinus_email_only():
     text = _skill_text("recruiting")
     assert "joinus@dify.ai" in text
     assert "official careers page" not in text
+
+
+def test_technical_support_uses_channel_guidance_not_direct_fixes():
+    text = _skill_text("technical")
+    for expected in [
+        "Do not provide step-by-step technical fixes",
+        "https://docs.dify.ai",
+        "https://github.com/langgenius/dify/issues",
+        "business@dify.ai",
+        "subscription verification details",
+        "not to remove",
+    ]:
+        assert expected in text, f"technical.md missing {expected!r}"
 
 def run_all():
     for name, fn in sorted(globals().items()):

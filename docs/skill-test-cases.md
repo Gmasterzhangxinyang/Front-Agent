@@ -32,7 +32,7 @@ Can you help me troubleshoot this?
 
 ### TECH-02 api_issue
 
-Expected: `technical/api_issue`, create Front draft guiding paid user to Settings -> Support -> Contact Us ticket path, keep open.
+Expected: `technical/api_issue`, create Front draft guiding paid user to question mark icon next to the personal avatar, then Contact Us ticket path, keep open.
 
 ```text
 Subject: API key returns unauthorized
