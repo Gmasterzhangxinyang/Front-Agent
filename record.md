@@ -128,3 +128,4 @@
 
 ## 2026-07-13
 - [docs] document the approved runtime boundary hardening design (docs/superpowers/specs/2026-07-13-runtime-boundary-hardening-design.md)
+- [docs] add the test-driven runtime boundary hardening implementation plan (docs/superpowers/plans/2026-07-13-runtime-boundary-hardening.md)
