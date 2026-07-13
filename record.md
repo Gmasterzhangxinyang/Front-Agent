@@ -125,3 +125,6 @@
 ## 2026-07-06
 - [fix] 不确定分类转发 Bobby 后保持 Front 会话 open；Linear 创建成功后主动 reopen，并拦截后续 done/closed_spam 状态写入（agent/orchestrator.py, agent/tool_registry.py, tests/test_routing.py）
 - [feat] 新增 recruiting 求职/招聘分类和 skill：候选人求职、实习、简历邮件创建 careers 草稿，不再走 unclear 转 Bobby（agent/classification.py, agent/routing.py, skills/classify.md, skills/recruiting.md, tests/test_routing.py, tests/test_skills.py）
+
+## 2026-07-13
+- [docs] document the approved runtime boundary hardening design (docs/superpowers/specs/2026-07-13-runtime-boundary-hardening-design.md)
