@@ -85,16 +85,22 @@ Handle education plan applications, rejections, and discount issues.
 ### no_discount (edu verified but discount not showing)
 
 **Step: initial**
-1. Check if user mentions they can see the "edu" badge in their account
-2. If they see the edu badge but no discount:
+1. First check whether the user says the education discount/qualification is already verified but activation is blocked by credit card binding, no supported international credit card, regional card restrictions, or asks support to manually bypass card binding.
+   - Policy: card binding cannot be bypassed. If the user has no supported international credit card, they cannot complete the Education Plan activation at this time.
+   - Do NOT create Linear tickets for this case.
+   - Do NOT notify Sybil for this case.
+   - Call `front_create_draft` with "card binding cannot be bypassed" template.
+   - Call `state_set` with step="draft_created".
+2. Check if user mentions they can see the "edu" badge in their account.
+3. If they see the edu badge but no discount:
    - Call `front_create_draft` with billing guidance template
    - Call `state_set` with step="draft_created"
-3. If they don't see the edu badge (not verified):
+4. If they do not see the edu badge (not verified):
    - Call `front_create_draft` with "please provide school info" template
    - Call `state_set` with step="awaiting_school_info", waiting=true
 
 **Step: awaiting_school_info** (user replied with school info after no_discount)
-- Follow the same logic as `rejected` → `awaiting_school_info` step above
+- Follow the same logic as `rejected` -> `awaiting_school_info` step above
 
 ### email_expired_graduated (graduated, school email no longer works)
 
@@ -215,6 +221,22 @@ To apply your education discount, please follow these steps:
 Please note that the discount only applies to the Pro plan with annual billing. If you've selected monthly billing, the discount will not show.
 
 If you've followed these steps and still don't see the discount, please reply and let us know — we'll be happy to investigate further.
+
+Best regards,
+Dify Support Team
+```
+
+### Card binding cannot be bypassed
+```
+Dear [User Name / Valued Customer],
+
+Thank you for reaching out and for sharing the screenshot.
+
+At the moment, Education Plan activation requires completing the payment method / credit card binding step in the dashboard. We are not able to manually bypass this requirement or activate the Professional Education Plan directly from our side.
+
+If you do not have a supported international credit card available, unfortunately you will not be able to complete the Education Plan activation at this time.
+
+Thank you for your understanding.
 
 Best regards,
 Dify Support Team

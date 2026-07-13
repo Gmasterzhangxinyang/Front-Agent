@@ -133,3 +133,4 @@
 - [fix] bind LLM tools to trusted conversation context, require explicit webhook trust, bound authenticated attachments, and return truthful handler failures without recording them as processed (agent/orchestrator.py, agent/tool_registry.py, config.py, main.py, tools/attachments.py, tools/front.py, webhooks/front_webhook.py, tests/test_runtime_boundaries.py)
 - [docs] add the runtime boundary operations guide and synchronize README, repository guidance, verification, and deployment requirements (docs/runtime-boundaries.md, README.md, CLAUDE.md)
 - [docs] document the Front Rule Webhook API secret source and correct automatic-retry claims to match Front's delivery behavior (.env.example, README.md, docs/runtime-boundaries.md, runtime hardening design and plan)
+- [fix] handle verified Education Plan users blocked by unsupported credit cards with a final no-bypass draft and no Linear or Sybil escalation (skills/education.md, tests/test_skills.py)

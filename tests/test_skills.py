@@ -136,6 +136,18 @@ def test_internal_forwarding_skill_targets_are_current():
 
 
 
+def test_education_card_binding_without_supported_card_is_final_draft():
+    text = _skill_text("education")
+    for expected in [
+        "card binding cannot be bypassed",
+        "no supported international credit card",
+        "Do NOT create Linear tickets",
+        "Do NOT notify Sybil",
+        'step="draft_created"',
+    ]:
+        assert expected in text, f"education.md missing {expected!r}"
+
+
 def test_account_login_requires_deployment_and_saas_handoff():
     text = _skill_text("account")
     for expected in [
