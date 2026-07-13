@@ -17,6 +17,20 @@ _webhook_semaphore = asyncio.Semaphore(MAX_CONCURRENT_WEBHOOKS)
 _conversation_locks: dict[str, asyncio.Lock] = {}
 
 
+def validate_webhook_security_config() -> None:
+    if settings.front_webhook_secret:
+        return
+    if settings.allow_unsigned_front_webhooks:
+        logger.warning(
+            "Front webhook signature verification is explicitly disabled"
+        )
+        return
+    raise RuntimeError(
+        "FRONT_WEBHOOK_SECRET is required unless "
+        "ALLOW_UNSIGNED_FRONT_WEBHOOKS=true"
+    )
+
+
 def _get_conversation_lock(conversation_id: str) -> asyncio.Lock:
     lock = _conversation_locks.get(conversation_id)
     if lock is None:
@@ -28,7 +42,7 @@ def _get_conversation_lock(conversation_id: str) -> asyncio.Lock:
 
 def verify_signature(body: bytes, signature: str) -> bool:
     if not settings.front_webhook_secret:
-        return True  # skip verification if secret not configured
+        return settings.allow_unsigned_front_webhooks
     expected = hmac.new(settings.front_webhook_secret.encode(), body, hashlib.sha1)
     import base64
     expected_b64 = base64.b64encode(expected.digest()).decode()

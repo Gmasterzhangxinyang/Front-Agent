@@ -213,6 +213,8 @@ Use `.env.example` as the template. Do not commit real secrets.
 ```bash
 FRONT_API_TOKEN=
 FRONT_WEBHOOK_SECRET=
+# Local development only. Keep false in production.
+ALLOW_UNSIGNED_FRONT_WEBHOOKS=false
 FRONT_APP_BASE_URL=https://app.frontapp.com/open
 
 OPENAI_API_KEY=
@@ -238,6 +240,9 @@ DATABASE_URL=sqlite+aiosqlite:///./email_automation.db
 ENABLE_SCHEDULER=true
 PORT=8000
 ```
+
+`FRONT_WEBHOOK_SECRET` is required by default. For local webhook fixtures only,
+set `ALLOW_UNSIGNED_FRONT_WEBHOOKS=true`; never enable it in production.
 
 ## Local Run
 

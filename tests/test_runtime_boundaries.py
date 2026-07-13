@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -7,6 +8,11 @@ from agent.tool_registry import (
     ToolCallValidationError,
     ToolExecutionContext,
     prepare_llm_tool_call,
+)
+from config import settings
+from webhooks.front_webhook import (
+    validate_webhook_security_config,
+    verify_signature,
 )
 
 
@@ -113,6 +119,31 @@ def test_llm_tool_rejects_invalid_argument_types():
         assert "invalid type for body: expected string" in str(exc)
     else:
         raise AssertionError("invalid argument types must be rejected")
+
+
+def test_unsigned_webhooks_fail_closed_by_default():
+    with (
+        patch.object(settings, "front_webhook_secret", ""),
+        patch.object(settings, "allow_unsigned_front_webhooks", False),
+    ):
+        assert not verify_signature(b"{}", "")
+        try:
+            validate_webhook_security_config()
+        except RuntimeError as exc:
+            assert "FRONT_WEBHOOK_SECRET" in str(exc)
+        else:
+            raise AssertionError("missing webhook secret must fail startup")
+
+
+def test_unsigned_webhooks_require_explicit_local_override():
+    with (
+        patch.object(settings, "front_webhook_secret", ""),
+        patch.object(settings, "allow_unsigned_front_webhooks", True),
+        patch("webhooks.front_webhook.logger.warning") as warning,
+    ):
+        validate_webhook_security_config()
+        assert verify_signature(b"{}", "")
+        warning.assert_called_once()
 
 
 def run_all():

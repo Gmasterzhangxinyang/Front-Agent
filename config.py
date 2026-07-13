@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     # Front
     front_api_token: str
     front_webhook_secret: str = ""
+    # Local-only opt-out. Production should always verify Front signatures.
+    allow_unsigned_front_webhooks: bool = False
 
     # OpenAI / MiniMax (OpenAI-compatible)
     openai_api_key: str
