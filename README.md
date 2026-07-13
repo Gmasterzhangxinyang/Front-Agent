@@ -11,6 +11,8 @@ Current production screen runs this branch from release directories under `/tmp/
 - Local production port: `8080` in screen `front-agent-v2`
 - Start command: `bash start.sh`
 - Health check: `GET /health`
+- Webhook trust: signed Front webhooks are required by default
+- Attachments: authenticated downloads are restricted to exact HTTPS hosts and hard limits
 - Customer replies: draft-only by default; direct customer send tools are blocked
 - Spam: deterministic route may archive only clear spam/ads
 - Non-spam: keep conversations open for review
@@ -108,13 +110,16 @@ LLM cannot call arbitrary APIs. It can only call schemas in `agent/tool_registry
 
 Important constraints:
 
+- LLM tool names and arguments are validated against the registered schema.
+- Conversation IDs are rebound to the trusted webhook context before execution.
+- Draft recipients are forced to the original sender immediately before the Front side effect.
 - No generic `front_forward` tool is exposed.
 - `front_close_conversation` is not exposed to the LLM; only deterministic spam can close.
 - Deprecated direct reply tools are blocked.
 - `front_create_draft` creates a Front draft only.
 - Internal handoffs use dedicated `front_forward_to_*` tools.
 - Internal recipients are restricted to `@dify.ai` where applicable.
-- Handler exceptions notify Bobby, explicitly reopen the original conversation, save `failed_needs_review`, and do not mark the webhook event processed.
+- Handler exceptions notify Bobby through the deduplicated action log, explicitly reopen the original conversation, save `failed_needs_review`, do not mark the webhook event processed, and return HTTP 503 for retry.
 
 ## Idempotency and Original Sender Guard
 
@@ -251,6 +256,9 @@ set `ALLOW_UNSIGNED_FRONT_WEBHOOKS=true`; never enable it in production.
 hosts used by the deployment. Attachment count, byte, and text limits bound
 memory use and model prompt growth.
 
+See [Runtime Security and Retry Boundaries](docs/runtime-boundaries.md) for
+deployment checks, failure semantics, and the exact verification commands.
+
 ## Local Run
 
 ```bash
@@ -273,11 +281,17 @@ Production-like local screen currently uses port `8080` and release directories 
 Run before commit/deploy:
 
 ```bash
-.venv/bin/python -m py_compile config.py agent/routing.py agent/tool_registry.py tests/test_routing.py tests/test_skills.py
+.venv/bin/python tests/test_runtime_boundaries.py
 .venv/bin/python tests/test_routing.py
 .venv/bin/python tests/test_skills.py
+.venv/bin/python tests/test_draft_adoption.py
+.venv/bin/python -m compileall -q agent tools webhooks tests config.py main.py
+.venv/bin/python -m pip check
 git diff --check
 ```
+
+The tests are offline. After deployment, send a signed Front webhook as a live
+smoke test; the repository suite does not call Front or the configured LLM.
 
 ## Maintenance Notes
 
