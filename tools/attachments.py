@@ -1,10 +1,30 @@
 import base64
-import io
+import logging
+
+from config import settings
 from tools.front import get_attachment
+
+logger = logging.getLogger(__name__)
 
 IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp", "image/jpg"}
 DOC_TYPES = {"application/pdf", "application/msword",
              "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
+
+
+def bounded_attachments(attachments: list[dict]) -> list[dict]:
+    limit = max(0, settings.max_attachment_count)
+    if len(attachments) > limit:
+        logger.warning(
+            "Ignoring %s attachments above configured limit %s",
+            len(attachments) - limit,
+            limit,
+        )
+    return attachments[:limit]
+
+
+def clip_attachment_text(text: str) -> str:
+    limit = max(0, settings.max_attachment_text_chars)
+    return text[:limit]
 
 
 async def fetch_attachments_as_base64(attachments: list[dict]) -> list[dict]:
@@ -20,8 +40,12 @@ async def fetch_attachments_as_base64(attachments: list[dict]) -> list[dict]:
             data = await get_attachment(url)
             b64 = base64.b64encode(data).decode("utf-8")
             result.append({"type": "image_url", "image_url": {"url": f"data:{content_type};base64,{b64}"}})
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "Failed to load attachment %s: %s",
+                att.get("filename", "attachment"),
+                exc,
+            )
     return result
 
 
@@ -40,9 +64,17 @@ async def fetch_attachments_as_text(attachments: list[dict]) -> list[dict]:
             data = await get_attachment(url)
             text = await _extract_text(data, content_type, filename)
             if text:
-                result.append({"filename": filename, "content_type": content_type, "text": text})
-        except Exception:
-            pass
+                result.append({
+                    "filename": filename,
+                    "content_type": content_type,
+                    "text": clip_attachment_text(text),
+                })
+        except Exception as exc:
+            logger.warning(
+                "Failed to load attachment %s: %s",
+                filename,
+                exc,
+            )
     return result
 
 
@@ -62,5 +94,5 @@ async def _extract_text(data: bytes, content_type: str, filename: str) -> str:
             doc = Document(doc_file)
             return "\n".join([para.text for para in doc.paragraphs if para.text.strip()])
     except Exception as e:
-        logging.getLogger(__name__).warning(f"Failed to extract text from {filename}: {e}")
+        logger.warning("Failed to extract text from %s: %s", filename, e)
     return ""

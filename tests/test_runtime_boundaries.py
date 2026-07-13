@@ -1,6 +1,9 @@
+import asyncio
 import sys
 from pathlib import Path
 from unittest.mock import patch
+
+import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -10,10 +13,30 @@ from agent.tool_registry import (
     prepare_llm_tool_call,
 )
 from config import settings
+from tools.attachments import bounded_attachments, clip_attachment_text
+from tools.front import (
+    AttachmentDownloadRejected,
+    AttachmentTooLarge,
+    get_attachment,
+    read_limited_attachment,
+    validate_attachment_url,
+)
 from webhooks.front_webhook import (
     validate_webhook_security_config,
     verify_signature,
 )
+
+
+class _ChunkStream(httpx.AsyncByteStream):
+    def __init__(self, chunks):
+        self.chunks = chunks
+
+    async def __aiter__(self):
+        for chunk in self.chunks:
+            yield chunk
+
+    async def aclose(self):
+        return None
 
 
 def _context() -> ToolExecutionContext:
@@ -143,6 +166,93 @@ def test_unsigned_webhooks_require_explicit_local_override():
     ):
         validate_webhook_security_config()
         assert verify_signature(b"{}", "")
+        warning.assert_called_once()
+
+
+def test_attachment_url_requires_https_and_exact_allowed_host():
+    with patch.object(
+        settings,
+        "front_attachment_allowed_hosts",
+        "api2.frontapp.com,files.frontapp.com",
+    ):
+        url = "https://api2.frontapp.com/download/attachment"
+        assert validate_attachment_url(url) == url
+
+        rejected = [
+            "http://api2.frontapp.com/download/attachment",
+            "https://api2.frontapp.com.evil.test/attachment",
+            "https://user:pass@api2.frontapp.com/attachment",
+            "https://api2.frontapp.com:8443/attachment",
+        ]
+        for unsafe_url in rejected:
+            try:
+                validate_attachment_url(unsafe_url)
+            except AttachmentDownloadRejected:
+                pass
+            else:
+                raise AssertionError(
+                    f"unsafe attachment URL accepted: {unsafe_url}"
+                )
+
+
+def test_rejected_attachment_url_does_not_create_http_client():
+    async def run_case():
+        with (
+            patch.object(
+                settings,
+                "front_attachment_allowed_hosts",
+                "api2.frontapp.com",
+            ),
+            patch("tools.front.httpx.AsyncClient") as client,
+        ):
+            try:
+                await get_attachment("https://attacker.example/file")
+            except AttachmentDownloadRejected:
+                pass
+            else:
+                raise AssertionError("unapproved attachment host was accepted")
+            client.assert_not_called()
+
+    asyncio.run(run_case())
+
+
+def test_attachment_size_is_enforced_from_header_and_stream():
+    request = httpx.Request("GET", "https://api2.frontapp.com/file")
+    declared = httpx.Response(
+        200,
+        headers={"Content-Length": "11"},
+        content=b"",
+        request=request,
+    )
+    try:
+        asyncio.run(read_limited_attachment(declared, max_bytes=10))
+    except AttachmentTooLarge:
+        pass
+    else:
+        raise AssertionError("oversized Content-Length must be rejected")
+
+    streamed = httpx.Response(
+        200,
+        stream=_ChunkStream([b"123456", b"78901"]),
+        request=request,
+    )
+    try:
+        asyncio.run(read_limited_attachment(streamed, max_bytes=10))
+    except AttachmentTooLarge:
+        pass
+    else:
+        raise AssertionError("oversized streamed body must be rejected")
+
+
+def test_attachment_count_and_text_limits_are_deterministic():
+    attachments = [{"filename": str(index)} for index in range(7)]
+    with (
+        patch.object(settings, "max_attachment_count", 5),
+        patch.object(settings, "max_attachment_text_chars", 8),
+        patch("tools.attachments.logger.warning") as warning,
+    ):
+        assert len(bounded_attachments(attachments)) == 5
+        assert clip_attachment_text("1234567890") == "12345678"
         warning.assert_called_once()
 
 

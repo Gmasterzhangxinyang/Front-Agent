@@ -4,7 +4,11 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from config import settings
 from tools import state as state_tool
-from tools.attachments import fetch_attachments_as_base64, fetch_attachments_as_text
+from tools.attachments import (
+    bounded_attachments,
+    fetch_attachments_as_base64,
+    fetch_attachments_as_text,
+)
 from tools.front import get_conversation_messages
 from agent.classification import ClassificationResult, normalize_classification, parse_classification_json
 from agent.llm_client import chat_completion_kwargs, make_async_openai_client
@@ -73,8 +77,9 @@ async def handle_email(
     conversation_text = build_conversation_text(all_messages)
 
     # Download attachments for vision (images) and text extraction (PDF/Word)
-    attachment_content = await fetch_attachments_as_base64(attachments)
-    doc_attachments = await fetch_attachments_as_text(attachments)
+    bounded = bounded_attachments(attachments)
+    attachment_content = await fetch_attachments_as_base64(bounded)
+    doc_attachments = await fetch_attachments_as_text(bounded)
     doc_text = "\n".join([f"[附件: {d['filename']}]\n{d['text']}" for d in doc_attachments]) if doc_attachments else ""
 
     case_memory_query = f"{conversation_text}\n\n{message_body}"

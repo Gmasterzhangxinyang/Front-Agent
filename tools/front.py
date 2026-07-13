@@ -2,6 +2,7 @@ import asyncio
 import html
 import logging
 import re
+from urllib.parse import urlsplit
 
 import httpx
 from config import settings
@@ -23,6 +24,72 @@ FRONT_TRANSIENT_EXCEPTIONS = (
     httpx.RemoteProtocolError,
     httpx.NetworkError,
 )
+
+
+class AttachmentDownloadRejected(ValueError):
+    pass
+
+
+class AttachmentTooLarge(ValueError):
+    pass
+
+
+def _attachment_allowed_hosts() -> set[str]:
+    return {
+        host.strip().lower().rstrip(".")
+        for host in settings.front_attachment_allowed_hosts.split(",")
+        if host.strip()
+    }
+
+
+def validate_attachment_url(attachment_url: str) -> str:
+    try:
+        parsed = urlsplit(attachment_url)
+        port = parsed.port
+    except (TypeError, ValueError) as exc:
+        raise AttachmentDownloadRejected("invalid attachment URL") from exc
+
+    hostname = (parsed.hostname or "").lower().rstrip(".")
+    if parsed.scheme.lower() != "https":
+        raise AttachmentDownloadRejected("attachment URL must use HTTPS")
+    if parsed.username or parsed.password:
+        raise AttachmentDownloadRejected(
+            "attachment URL cannot contain credentials"
+        )
+    if port not in (None, 443):
+        raise AttachmentDownloadRejected(
+            "attachment URL uses a non-default port"
+        )
+    if hostname not in _attachment_allowed_hosts():
+        raise AttachmentDownloadRejected(
+            f"attachment host is not allowed: {hostname or '<missing>'}"
+        )
+    return attachment_url
+
+
+async def read_limited_attachment(
+    response: httpx.Response,
+    max_bytes: int,
+) -> bytes:
+    content_length = response.headers.get("Content-Length")
+    if content_length:
+        try:
+            declared_size = int(content_length)
+        except ValueError:
+            declared_size = 0
+        if declared_size > max_bytes:
+            raise AttachmentTooLarge(
+                f"attachment exceeds {max_bytes} bytes"
+            )
+
+    content = bytearray()
+    async for chunk in response.aiter_bytes():
+        if len(content) + len(chunk) > max_bytes:
+            raise AttachmentTooLarge(
+                f"attachment exceeds {max_bytes} bytes"
+            )
+        content.extend(chunk)
+    return bytes(content)
 
 
 async def front_request(method: str, url: str, *, retries: int = 5, headers: dict | None = None, **kwargs) -> httpx.Response:
@@ -470,10 +537,16 @@ async def add_tag(conversation_id: str, tag_id: str) -> bool:
 
 
 async def get_attachment(attachment_url: str) -> bytes:
-    r = await front_request(
-        "GET",
-        attachment_url,
-        headers={"Authorization": f"Bearer {settings.front_api_token}"},
-    )
-    r.raise_for_status()
-    return r.content
+    validated_url = validate_attachment_url(attachment_url)
+    headers = {"Authorization": f"Bearer {settings.front_api_token}"}
+    async with httpx.AsyncClient(timeout=FRONT_TIMEOUT) as client:
+        async with client.stream(
+            "GET",
+            validated_url,
+            headers=headers,
+        ) as response:
+            response.raise_for_status()
+            return await read_limited_attachment(
+                response,
+                settings.max_attachment_bytes,
+            )

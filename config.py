@@ -7,6 +7,11 @@ class Settings(BaseSettings):
     front_webhook_secret: str = ""
     # Local-only opt-out. Production should always verify Front signatures.
     allow_unsigned_front_webhooks: bool = False
+    # Attachment downloads carry the Front token and must stay bounded.
+    front_attachment_allowed_hosts: str = "api2.frontapp.com"
+    max_attachment_count: int = 5
+    max_attachment_bytes: int = 10 * 1024 * 1024
+    max_attachment_text_chars: int = 50_000
 
     # OpenAI / MiniMax (OpenAI-compatible)
     openai_api_key: str

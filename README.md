@@ -216,6 +216,10 @@ FRONT_WEBHOOK_SECRET=
 # Local development only. Keep false in production.
 ALLOW_UNSIGNED_FRONT_WEBHOOKS=false
 FRONT_APP_BASE_URL=https://app.frontapp.com/open
+FRONT_ATTACHMENT_ALLOWED_HOSTS=api2.frontapp.com
+MAX_ATTACHMENT_COUNT=5
+MAX_ATTACHMENT_BYTES=10485760
+MAX_ATTACHMENT_TEXT_CHARS=50000
 
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-5.5
@@ -243,6 +247,9 @@ PORT=8000
 
 `FRONT_WEBHOOK_SECRET` is required by default. For local webhook fixtures only,
 set `ALLOW_UNSIGNED_FRONT_WEBHOOKS=true`; never enable it in production.
+`FRONT_ATTACHMENT_ALLOWED_HOSTS` must contain only exact Front-managed HTTPS
+hosts used by the deployment. Attachment count, byte, and text limits bound
+memory use and model prompt growth.
 
 ## Local Run
 
