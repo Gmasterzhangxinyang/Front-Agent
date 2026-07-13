@@ -55,7 +55,7 @@ FastAPI app that receives Front webhook events, classifies emails with an OpenAI
 **Idempotency rules:**
 - `webhook_events` deduplicates successful Front webhook deliveries by event ID.
 - `conversation_actions` deduplicates successful drafts, tickets, and handoffs by conversation plus action-specific content.
-- Failed webhook handling is not recorded as processed, so Front can retry it.
+- Failed webhook handling is not recorded as processed and returns HTTP 503 instead of a false success.
 
 ## Runtime security boundaries
 
@@ -64,7 +64,7 @@ FastAPI app that receives Front webhook events, classifies emails with an OpenAI
 - LLM-originated tool calls are schema validated; trusted conversation and sender context override model values.
 - Front attachment credentials are sent only to exact HTTPS hosts in `FRONT_ATTACHMENT_ALLOWED_HOSTS`.
 - Attachment count, bytes per file, and extracted text are bounded by settings.
-- Unexpected handler failures return HTTP 503, are not recorded as processed, and `failed_needs_review` can re-enter classification on retry.
+- Unexpected handler failures return HTTP 503, are not recorded as processed, and `failed_needs_review` can re-enter classification on a later delivery.
 - Operational details and deploy checks are in `docs/runtime-boundaries.md`.
 
 ## Verification

@@ -303,7 +303,7 @@ def test_only_failed_review_state_reenters_initial_flow():
     assert not orchestrator_module.is_failed_retry_state(None)
 
 
-def test_handler_failure_returns_503_without_recording_event():
+def test_handler_failure_is_not_acknowledged_or_recorded():
     async def run_case():
         session = _FakeSession()
         handle_email = AsyncMock(side_effect=RuntimeError("temporary failure"))
@@ -342,7 +342,7 @@ def test_handler_failure_returns_503_without_recording_event():
                 assert exc.status_code == 503
                 assert exc.detail == "handler_error"
             else:
-                raise AssertionError("handler failures must remain retryable")
+                raise AssertionError("handler failures must not return success")
 
         assert session.added == []
         execute_tool_call.assert_awaited_once_with(

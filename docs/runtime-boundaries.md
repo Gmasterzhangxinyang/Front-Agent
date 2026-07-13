@@ -11,12 +11,18 @@ processing, authenticated attachment downloads, and LLM-triggered tool calls.
 | LLM tools | Model arguments are checked against the registered schema before execution. |
 | Trusted context | Conversation IDs and draft recipients come from the webhook/state context, not model output. |
 | Attachments | Only exact allowlisted HTTPS hosts receive the Front bearer token. Downloads, counts, and extracted text are bounded. |
-| Handler failures | Unexpected processing failures return HTTP 503, remain unrecorded in `webhook_events`, and can be retried. |
+| Handler failures | Unexpected processing failures return HTTP 503 and remain unrecorded in `webhook_events` instead of being acknowledged as successful. |
 | Retry deduplication | Failure handoffs use the action log so repeated deliveries do not repeat successful notifications. |
 
 ## Required Configuration
 
-Production must set a real webhook secret:
+This service currently receives Front Rule Webhooks and validates their
+HMAC-SHA1 `X-Front-Signature`. A Front company admin can copy the required value
+from **Settings > Company > App store > Webhooks > Configure app > API secret**.
+It is not `FRONT_API_TOKEN` and it is not an Application Webhook signing token.
+See [Front Rule Webhooks](https://dev.frontapp.com/docs/rule-webhooks).
+
+Production must set that value as the webhook secret:
 
 ```bash
 FRONT_WEBHOOK_SECRET=replace-with-real-secret
@@ -65,7 +71,7 @@ state immediately before the Front side effect.
 Deterministic Python routes continue to call the internal dispatcher directly.
 They are not treated as untrusted model input.
 
-## Failure and Retry Behavior
+## Failure and Redelivery Behavior
 
 When `handle_email` raises unexpectedly, the webhook handler:
 
@@ -73,10 +79,17 @@ When `handle_email` raises unexpectedly, the webhook handler:
 2. reopens the Front conversation;
 3. stores `failed_needs_review` with a bounded error summary;
 4. does not add the event to `webhook_events`;
-5. raises HTTP 503 so Front can retry the delivery.
+5. raises HTTP 503 instead of reporting a false success.
 
-On retry, `failed_needs_review` re-enters the initial classification flow. Other
-existing conversation states keep their previous multi-turn behavior.
+On a later delivery, `failed_needs_review` re-enters the initial classification
+flow. Other existing conversation states keep their previous multi-turn
+behavior.
+
+Front's Rule Webhook documentation states that failed deliveries are not
+automatically retried. HTTP 503 keeps the response truthful and supports a
+retrying proxy or manual redelivery, but durable recovery requires monitoring
+`failed_needs_review` and adding an internal queue or polling Front's List events
+API.
 
 ## Deploy Checklist
 
@@ -86,6 +99,7 @@ existing conversation states keep their previous multi-turn behavior.
 4. Review count, byte, and text limits for the deployment's expected traffic.
 5. Run the verification commands below before restarting the service.
 6. Send one signed test webhook and confirm `/health` and service logs after deployment.
+7. Monitor `failed_needs_review`; Front Rule Webhooks do not automatically retry failed deliveries.
 
 ## Verification
 

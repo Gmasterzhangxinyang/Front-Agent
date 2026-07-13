@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Prevent LLM-originated cross-conversation actions, fail closed for unsigned webhooks and unsafe attachments, and make handler failures retryable.
+**Goal:** Prevent LLM-originated cross-conversation actions, fail closed for unsigned webhooks and unsafe attachments, and report handler failures truthfully without recording them as processed.
 
 **Architecture:** Add one centralized preparation boundary for LLM tool calls while keeping internal deterministic tool calls unchanged. Add secure runtime configuration checks at application startup, validate and stream attachment downloads with hard limits, and change failed webhook processing to return HTTP 503 while allowing `failed_needs_review` states to re-enter the initial flow.
 
@@ -811,7 +811,7 @@ def test_failed_needs_review_is_retryable():
     assert not is_failed_retry_state(None)
 
 
-def test_handler_failure_returns_503_without_recording_event():
+def test_handler_failure_is_not_acknowledged_or_recorded():
     session = _FakeSession()
     payload = {
         "target": {
@@ -863,7 +863,7 @@ def test_handler_failure_returns_503_without_recording_event():
                 assert exc.status_code == 503
                 assert exc.detail == "handler_error"
             else:
-                raise AssertionError("handler failure must return HTTP 503")
+                raise AssertionError("handler failure must not return success")
 
     asyncio.run(run_case())
     assert session.added == []
@@ -986,7 +986,7 @@ Expected: every command exits 0.
 Append to `record.md`:
 
 ```markdown
-- [fix] bind LLM tools to trusted conversation context, require explicit webhook trust, bound authenticated attachments, and return retryable handler failures (agent/orchestrator.py, agent/tool_registry.py, config.py, main.py, tools/attachments.py, tools/front.py, webhooks/front_webhook.py, tests/test_runtime_boundaries.py)
+- [fix] bind LLM tools to trusted conversation context, require explicit webhook trust, bound authenticated attachments, and return truthful handler failures without recording them as processed (agent/orchestrator.py, agent/tool_registry.py, config.py, main.py, tools/attachments.py, tools/front.py, webhooks/front_webhook.py, tests/test_runtime_boundaries.py)
 ```
 
 Then commit only Task 4 and the record:

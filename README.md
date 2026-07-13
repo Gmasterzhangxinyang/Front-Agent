@@ -119,7 +119,7 @@ Important constraints:
 - `front_create_draft` creates a Front draft only.
 - Internal handoffs use dedicated `front_forward_to_*` tools.
 - Internal recipients are restricted to `@dify.ai` where applicable.
-- Handler exceptions notify Bobby through the deduplicated action log, explicitly reopen the original conversation, save `failed_needs_review`, do not mark the webhook event processed, and return HTTP 503 for retry.
+- Handler exceptions notify Bobby through the deduplicated action log, explicitly reopen the original conversation, save `failed_needs_review`, do not mark the webhook event processed, and return HTTP 503 instead of a false success.
 
 ## Idempotency and Original Sender Guard
 
@@ -250,7 +250,8 @@ ENABLE_SCHEDULER=true
 PORT=8000
 ```
 
-`FRONT_WEBHOOK_SECRET` is required by default. For local webhook fixtures only,
+`FRONT_WEBHOOK_SECRET` is the API secret shown by Front's Webhooks app, not the
+Front API token. It is required by default. For local webhook fixtures only,
 set `ALLOW_UNSIGNED_FRONT_WEBHOOKS=true`; never enable it in production.
 `FRONT_ATTACHMENT_ALLOWED_HOSTS` must contain only exact Front-managed HTTPS
 hosts used by the deployment. Attachment count, byte, and text limits bound

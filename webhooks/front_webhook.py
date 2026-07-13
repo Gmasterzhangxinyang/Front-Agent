@@ -195,8 +195,8 @@ async def _process_front_webhook_event(payload: dict, event_id: str | None, conv
             except Exception as state_error:
                 logger.warning("Failed to save handler error state for %s: %s", conversation_id, state_error)
 
-            # Do not record the webhook event as processed; Front retries should
-            # still have a chance to recover from transient failures.
+            # Do not acknowledge or record a failed event as successfully
+            # processed. A retrying proxy or manual redelivery can replay it.
             raise HTTPException(status_code=503, detail="handler_error") from e
 
         if event_id:
