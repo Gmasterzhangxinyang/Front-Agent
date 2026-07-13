@@ -9,7 +9,13 @@ from tools.front import get_conversation_messages
 from agent.classification import ClassificationResult, normalize_classification, parse_classification_json
 from agent.llm_client import chat_completion_kwargs, make_async_openai_client
 from agent.routing import RouteDecision, decide_initial_route
-from agent.tool_registry import TOOL_SCHEMAS, execute_tool_call
+from agent.tool_registry import (
+    TOOL_SCHEMAS,
+    ToolCallValidationError,
+    ToolExecutionContext,
+    execute_tool_call,
+    prepare_llm_tool_call,
+)
 from services.case_memory import build_case_memory_context
 
 logger = logging.getLogger(__name__)
@@ -218,7 +224,13 @@ Sender email: {sender_email}
             {"role": "user", "content": user_content},
         ]
 
-        await _run_agent_loop(messages, db, sender_email=sender_email, message_body=message_body)
+        await _run_agent_loop(
+            messages,
+            db,
+            conversation_id=conversation_id,
+            sender_email=sender_email,
+            message_body=message_body,
+        )
 
 
         # If a skill took actions but never saved state, do not mark the case done.
@@ -247,7 +259,13 @@ Sender email: {sender_email}
             {"role": "user", "content": user_content},
         ]
 
-        await _run_agent_loop(messages, db, sender_email=sender_email, message_body=message_body)
+        await _run_agent_loop(
+            messages,
+            db,
+            conversation_id=conversation_id,
+            sender_email=sender_email,
+            message_body=message_body,
+        )
 
 
 
@@ -416,9 +434,20 @@ def _coerce_keep_open_state_args(args: dict, preferred_step: str) -> dict:
     return coerced
 
 
-async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int = 10, sender_email: str = "", message_body: str = "") -> None:
+async def _run_agent_loop(
+    messages: list,
+    db: AsyncSession,
+    conversation_id: str,
+    max_iterations: int = 10,
+    sender_email: str = "",
+    message_body: str = "",
+) -> None:
     notified_conversations: set[str] = set()  # deduplicate Bobby handoff forwards per conv
     keep_open_state_step: str | None = None
+    context = ToolExecutionContext(
+        conversation_id=conversation_id,
+        sender_email=sender_email,
+    )
     for _ in range(max_iterations):
         response = await client.chat.completions.create(**chat_completion_kwargs(
             settings.openai_model,
@@ -437,9 +466,21 @@ async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int 
         for tc in msg.tool_calls:
             tool_name = tc.function.name
             try:
-                args = json.loads(tc.function.arguments)
-            except Exception:
-                args = {}
+                raw_args = json.loads(tc.function.arguments)
+                args = prepare_llm_tool_call(tool_name, raw_args, context)
+            except (json.JSONDecodeError, TypeError, ToolCallValidationError) as exc:
+                result = f"tool_validation_failed: {exc}"
+                logger.warning("Rejected LLM tool call %s: %s", tool_name, exc)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": result,
+                })
+                continue
+
+            # Reassert the trusted recipient immediately before side effects.
+            if tool_name == "front_create_draft" and sender_email:
+                args["to_email"] = sender_email
 
             # Deduplicate Bobby handoff forwards per conversation per agent run
             if tool_name == "front_forward_to_bobby":
@@ -450,10 +491,6 @@ async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int 
                     messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
                     continue
                 notified_conversations.add(conv_id)
-
-            # Auto-inject immutable customer context for tools that write outside the model.
-            if tool_name == "front_create_draft" and sender_email and not args.get("to_email"):
-                args["to_email"] = sender_email
 
             if tool_name == "linear_create_ticket":
                 if sender_email and not args.get("sender_email"):
