@@ -33,3 +33,6 @@ Thumbs.db
 __MACOSX/
 ._*
 screenlog.*
+
+# Isolated feature worktrees
+.worktrees/
