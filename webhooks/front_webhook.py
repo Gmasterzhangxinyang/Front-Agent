@@ -17,6 +17,20 @@ _webhook_semaphore = asyncio.Semaphore(MAX_CONCURRENT_WEBHOOKS)
 _conversation_locks: dict[str, asyncio.Lock] = {}
 
 
+def validate_webhook_security_config() -> None:
+    if settings.front_webhook_secret:
+        return
+    if settings.allow_unsigned_front_webhooks:
+        logger.warning(
+            "Front webhook signature verification is explicitly disabled"
+        )
+        return
+    raise RuntimeError(
+        "FRONT_WEBHOOK_SECRET is required unless "
+        "ALLOW_UNSIGNED_FRONT_WEBHOOKS=true"
+    )
+
+
 def _get_conversation_lock(conversation_id: str) -> asyncio.Lock:
     lock = _conversation_locks.get(conversation_id)
     if lock is None:
@@ -28,7 +42,7 @@ def _get_conversation_lock(conversation_id: str) -> asyncio.Lock:
 
 def verify_signature(body: bytes, signature: str) -> bool:
     if not settings.front_webhook_secret:
-        return True  # skip verification if secret not configured
+        return settings.allow_unsigned_front_webhooks
     expected = hmac.new(settings.front_webhook_secret.encode(), body, hashlib.sha1)
     import base64
     expected_b64 = base64.b64encode(expected.digest()).decode()
@@ -137,9 +151,22 @@ async def _process_front_webhook_event(payload: dict, event_id: str | None, conv
             error_summary = f"❌ 邮件处理出错！对话ID: {conversation_id}, 错误: {str(e)[:200]}"
 
             try:
-                from tools.handoff import forward_to_bobby
+                from agent.tool_registry import execute_tool_call
 
-                await forward_to_bobby(error_summary, conversation_id=conversation_id)
+                notify_result = await execute_tool_call(
+                    "front_forward_to_bobby",
+                    {
+                        "message": error_summary,
+                        "conversation_id": conversation_id,
+                    },
+                    db,
+                )
+                if "failed" in notify_result:
+                    logger.warning(
+                        "Failed to forward handler error for %s: %s",
+                        conversation_id,
+                        notify_result,
+                    )
             except Exception as notify_error:
                 logger.warning("Failed to forward handler error for %s: %s", conversation_id, notify_error)
 
@@ -168,9 +195,9 @@ async def _process_front_webhook_event(payload: dict, event_id: str | None, conv
             except Exception as state_error:
                 logger.warning("Failed to save handler error state for %s: %s", conversation_id, state_error)
 
-            # Do not record the webhook event as processed; Front retries should
-            # still have a chance to recover from transient failures.
-            return {"status": "failed", "reason": "handler_error"}
+            # Do not acknowledge or record a failed event as successfully
+            # processed. A retrying proxy or manual redelivery can replay it.
+            raise HTTPException(status_code=503, detail="handler_error") from e
 
         if event_id:
             db.add(WebhookEvent(event_id=event_id))

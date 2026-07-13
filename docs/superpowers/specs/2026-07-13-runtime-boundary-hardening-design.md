@@ -9,8 +9,8 @@ highest immediate risk:
    conversation.
 2. Require an explicit webhook trust configuration and constrain attachment
    downloads.
-3. Return a retryable HTTP status after handler failures and allow failed
-   conversations to be processed again.
+3. Return a truthful HTTP failure status after handler errors and allow failed
+   conversations to be processed again on a later delivery.
 
 The change must preserve the existing deterministic routing and skill behavior.
 
@@ -130,7 +130,7 @@ enters a model prompt. Existing behavior remains fail-soft: an invalid or
 oversized attachment is logged and skipped while the email body is still
 processed.
 
-## 4. Handler Failure and Retry Semantics
+## 4. Handler Failure and Redelivery Semantics
 
 After an unexpected handler exception, the webhook path retains its current
 best-effort cleanup:
@@ -140,15 +140,18 @@ best-effort cleanup:
 3. save `failed_needs_review` with a bounded error summary.
 
 It then raises HTTP 503 instead of returning a JSON body with HTTP 200. The
-event is not added to `webhook_events`.
+event is not added to `webhook_events`. Front Rule Webhooks do not automatically
+retry failed deliveries, so this preserves truthful failure semantics for
+monitoring, a retrying proxy, or manual redelivery rather than guaranteeing
+automatic recovery.
 
-On the next delivery, `handle_email` treats `failed_needs_review` as a retryable
-entry state and runs the initial classification/route flow again. Existing
+On the next delivery, `handle_email` treats `failed_needs_review` as a re-entry
+state and runs the initial classification/route flow again. Existing
 action-log deduplication protects already-recorded successful side effects.
 Other completed non-education states keep their current skip behavior.
 
 This design intentionally does not distinguish permanent and transient handler
-exceptions. Durable retry policies belong to the future queue/outbox work.
+exceptions. Durable recovery belongs to future queue, polling, or outbox work.
 
 ## 5. Tests
 
@@ -164,7 +167,7 @@ runner style. They must cover:
 - declared and streamed attachment sizes are capped;
 - attachment count and extracted text are capped;
 - handler exceptions result in HTTP 503 and no processed event record;
-- `failed_needs_review` enters the new-message flow on retry.
+- `failed_needs_review` enters the new-message flow on a later delivery.
 
 Run the existing routing, skill, and draft-adoption tests in addition to the new
 suite. No test may make a real Front, OpenAI, Linear, or Feishu request.
@@ -175,5 +178,6 @@ suite. No test may make a real Front, OpenAI, Linear, or Feishu request.
 - An unsigned webhook cannot be accepted without an explicit development flag.
 - Front credentials are never sent to an unapproved attachment host.
 - Attachment memory and prompt growth have deterministic upper bounds.
-- Unexpected handler failures return HTTP 503 and remain retryable.
+- Unexpected handler failures return HTTP 503 instead of a false success and
+  remain visible for monitoring or redelivery.
 - Existing deterministic routes and skill policy tests still pass.

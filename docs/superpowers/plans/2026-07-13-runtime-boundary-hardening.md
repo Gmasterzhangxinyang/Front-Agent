@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Prevent LLM-originated cross-conversation actions, fail closed for unsigned webhooks and unsafe attachments, and make handler failures retryable.
+**Goal:** Prevent LLM-originated cross-conversation actions, fail closed for unsigned webhooks and unsafe attachments, and report handler failures truthfully without recording them as processed.
 
 **Architecture:** Add one centralized preparation boundary for LLM tool calls while keeping internal deterministic tool calls unchanged. Add secure runtime configuration checks at application startup, validate and stream attachment downloads with hard limits, and change failed webhook processing to return HTTP 503 while allowing `failed_needs_review` states to re-enter the initial flow.
 
@@ -48,7 +48,7 @@
 - Produces: `prepare_llm_tool_call(tool_name: str, args: dict, context: ToolExecutionContext) -> dict`
 - Consumes: existing `TOOL_SCHEMAS` and `execute_tool_call`
 
-- [ ] **Step 1: Write failing tool-boundary tests**
+- [x] **Step 1: Write failing tool-boundary tests**
 
 Create `tests/test_runtime_boundaries.py` with:
 
@@ -152,13 +152,13 @@ if __name__ == "__main__":
     print("runtime boundary tests passed")
 ```
 
-- [ ] **Step 2: Run the new suite and verify the import failure**
+- [x] **Step 2: Run the new suite and verify the import failure**
 
 Run: `.venv/bin/python tests/test_runtime_boundaries.py`
 
 Expected: FAIL because `ToolCallValidationError`, `ToolExecutionContext`, and `prepare_llm_tool_call` do not exist.
 
-- [ ] **Step 3: Add the tool execution context and schema validator**
+- [x] **Step 3: Add the tool execution context and schema validator**
 
 In `agent/tool_registry.py`, import `dataclass`, then add these definitions immediately after `TOOL_SCHEMAS`:
 
@@ -236,7 +236,7 @@ def prepare_llm_tool_call(
     return prepared
 ```
 
-- [ ] **Step 4: Bind every LLM call in the orchestrator**
+- [x] **Step 4: Bind every LLM call in the orchestrator**
 
 In `agent/orchestrator.py`:
 
@@ -280,7 +280,7 @@ trusted conversation ID. Remove:
                 args["to_email"] = sender_email
 ```
 
-- [ ] **Step 5: Run focused and existing tests**
+- [x] **Step 5: Run focused and existing tests**
 
 Run:
 
@@ -292,7 +292,7 @@ Run:
 
 Expected: all three scripts exit 0 and print their passing messages.
 
-- [ ] **Step 6: Commit only Task 1 files**
+- [x] **Step 6: Commit only Task 1 files**
 
 ```bash
 git add agent/tool_registry.py agent/orchestrator.py tests/test_runtime_boundaries.py
@@ -317,7 +317,7 @@ git commit -m "fix: bind llm tool calls to trusted context"
 - Consumes: `settings.front_webhook_secret`
 - Consumes: `settings.allow_unsigned_front_webhooks`
 
-- [ ] **Step 1: Add failing signature configuration tests**
+- [x] **Step 1: Add failing signature configuration tests**
 
 Append these imports and tests to `tests/test_runtime_boundaries.py`:
 
@@ -354,13 +354,13 @@ def test_unsigned_webhooks_require_explicit_local_override():
         assert verify_signature(b"{}", "")
 ```
 
-- [ ] **Step 2: Run the suite and verify the missing-interface failure**
+- [x] **Step 2: Run the suite and verify the missing-interface failure**
 
 Run: `.venv/bin/python tests/test_runtime_boundaries.py`
 
 Expected: FAIL because `validate_webhook_security_config` and `allow_unsigned_front_webhooks` do not exist.
 
-- [ ] **Step 3: Add secure webhook configuration**
+- [x] **Step 3: Add secure webhook configuration**
 
 Add to `Settings` in `config.py`:
 
@@ -411,7 +411,7 @@ async def lifespan(app: FastAPI):
     yield
 ```
 
-- [ ] **Step 4: Document the explicit local override**
+- [x] **Step 4: Document the explicit local override**
 
 Add to `.env.example` below `FRONT_WEBHOOK_SECRET`:
 
@@ -427,7 +427,7 @@ Add to the README configuration and local-run sections:
 set `ALLOW_UNSIGNED_FRONT_WEBHOOKS=true`; never enable it in production.
 ```
 
-- [ ] **Step 5: Run focused and startup compilation checks**
+- [x] **Step 5: Run focused and startup compilation checks**
 
 Run:
 
@@ -438,7 +438,7 @@ Run:
 
 Expected: both commands exit 0.
 
-- [ ] **Step 6: Commit only Task 2 files**
+- [x] **Step 6: Commit only Task 2 files**
 
 ```bash
 git add config.py webhooks/front_webhook.py main.py .env.example README.md tests/test_runtime_boundaries.py
@@ -467,7 +467,7 @@ git commit -m "fix: require explicit webhook trust configuration"
 - Produces: `bounded_attachments(attachments: list[dict]) -> list[dict]`
 - Produces: `clip_attachment_text(text: str) -> str`
 
-- [ ] **Step 1: Add failing attachment boundary tests**
+- [x] **Step 1: Add failing attachment boundary tests**
 
 Append these imports, helper, and tests to `tests/test_runtime_boundaries.py`:
 
@@ -562,13 +562,13 @@ def test_attachment_count_and_text_limits_are_deterministic():
         assert clip_attachment_text("1234567890") == "12345678"
 ```
 
-- [ ] **Step 2: Run the suite and verify the missing-interface failure**
+- [x] **Step 2: Run the suite and verify the missing-interface failure**
 
 Run: `.venv/bin/python tests/test_runtime_boundaries.py`
 
 Expected: FAIL because the attachment boundary classes and functions do not exist.
 
-- [ ] **Step 3: Add attachment limit settings**
+- [x] **Step 3: Add attachment limit settings**
 
 Add to `Settings` in `config.py`:
 
@@ -580,7 +580,7 @@ Add to `Settings` in `config.py`:
     max_attachment_text_chars: int = 50_000
 ```
 
-- [ ] **Step 4: Implement exact-host validation and bounded streaming**
+- [x] **Step 4: Implement exact-host validation and bounded streaming**
 
 In `tools/front.py`, import `urlsplit` from `urllib.parse` and add:
 
@@ -666,7 +666,7 @@ async def get_attachment(attachment_url: str) -> bytes:
             )
 ```
 
-- [ ] **Step 5: Bound attachment selection and extracted text**
+- [x] **Step 5: Bound attachment selection and extracted text**
 
 In `tools/attachments.py`, add `logging` and `settings`, define a module logger, and add:
 
@@ -709,7 +709,7 @@ In `agent/orchestrator.py`, import `bounded_attachments` and apply it before bot
     doc_attachments = await fetch_attachments_as_text(bounded)
 ```
 
-- [ ] **Step 6: Document attachment settings**
+- [x] **Step 6: Document attachment settings**
 
 Add to `.env.example`:
 
@@ -722,7 +722,7 @@ MAX_ATTACHMENT_TEXT_CHARS=50000
 
 Add the same variables to the README configuration example and explain that the host list must contain only exact Front-managed HTTPS hosts used by the deployment.
 
-- [ ] **Step 7: Run focused and regression tests**
+- [x] **Step 7: Run focused and regression tests**
 
 Run:
 
@@ -735,7 +735,7 @@ Run:
 
 Expected: all four scripts exit 0.
 
-- [ ] **Step 8: Commit only Task 3 files**
+- [x] **Step 8: Commit only Task 3 files**
 
 ```bash
 git add config.py tools/front.py tools/attachments.py agent/orchestrator.py .env.example README.md tests/test_runtime_boundaries.py
@@ -757,7 +757,7 @@ git commit -m "fix: constrain authenticated attachment downloads"
 - Consumes: `execute_tool_call` for deduplicated Bobby failure notification.
 - Preserves: event rows are created only after successful handling.
 
-- [ ] **Step 1: Add failing failed-state and HTTP status tests**
+- [x] **Step 1: Add failing failed-state and HTTP status tests**
 
 Append these imports, fakes, and tests to `tests/test_runtime_boundaries.py`:
 
@@ -811,7 +811,7 @@ def test_failed_needs_review_is_retryable():
     assert not is_failed_retry_state(None)
 
 
-def test_handler_failure_returns_503_without_recording_event():
+def test_handler_failure_is_not_acknowledged_or_recorded():
     session = _FakeSession()
     payload = {
         "target": {
@@ -863,19 +863,19 @@ def test_handler_failure_returns_503_without_recording_event():
                 assert exc.status_code == 503
                 assert exc.detail == "handler_error"
             else:
-                raise AssertionError("handler failure must return HTTP 503")
+                raise AssertionError("handler failure must not return success")
 
     asyncio.run(run_case())
     assert session.added == []
 ```
 
-- [ ] **Step 2: Run the suite and verify both behaviors fail**
+- [x] **Step 2: Run the suite and verify both behaviors fail**
 
 Run: `.venv/bin/python tests/test_runtime_boundaries.py`
 
 Expected: FAIL because `is_failed_retry_state` does not exist and the handler currently returns HTTP 200.
 
-- [ ] **Step 3: Let failed states re-enter the initial flow**
+- [x] **Step 3: Let failed states re-enter the initial flow**
 
 In `agent/orchestrator.py`, add:
 
@@ -924,7 +924,7 @@ Include `failed_needs_review` in both initial-flow checks:
 
 This same condition must be used for prompt selection and classification/route selection.
 
-- [ ] **Step 4: Deduplicate the failure handoff and return HTTP 503**
+- [x] **Step 4: Deduplicate the failure handoff and return HTTP 503**
 
 In the handler exception block in `webhooks/front_webhook.py`, replace the direct handoff call with:
 
@@ -965,7 +965,7 @@ Replace the final successful return from the exception path with:
 
 Do not add the event to `webhook_events` in this branch.
 
-- [ ] **Step 5: Run focused and full repository verification**
+- [x] **Step 5: Run focused and full repository verification**
 
 Run:
 
@@ -981,12 +981,12 @@ git diff --check
 
 Expected: every command exits 0.
 
-- [ ] **Step 6: Record and commit the completed runtime hardening**
+- [x] **Step 6: Record and commit the completed runtime hardening**
 
 Append to `record.md`:
 
 ```markdown
-- [fix] bind LLM tools to trusted conversation context, require explicit webhook trust, bound authenticated attachments, and return retryable handler failures (agent/orchestrator.py, agent/tool_registry.py, config.py, main.py, tools/attachments.py, tools/front.py, webhooks/front_webhook.py, tests/test_runtime_boundaries.py)
+- [fix] bind LLM tools to trusted conversation context, require explicit webhook trust, bound authenticated attachments, and return truthful handler failures without recording them as processed (agent/orchestrator.py, agent/tool_registry.py, config.py, main.py, tools/attachments.py, tools/front.py, webhooks/front_webhook.py, tests/test_runtime_boundaries.py)
 ```
 
 Then commit only Task 4 and the record:
@@ -997,7 +997,7 @@ git diff --cached --check
 git commit -m "fix: preserve retry semantics after handler failures"
 ```
 
-- [ ] **Step 7: Confirm the final worktree and commits**
+- [x] **Step 7: Confirm the final worktree and commits**
 
 Run:
 

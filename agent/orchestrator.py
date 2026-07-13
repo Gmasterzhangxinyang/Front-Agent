@@ -4,12 +4,22 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from config import settings
 from tools import state as state_tool
-from tools.attachments import fetch_attachments_as_base64, fetch_attachments_as_text
+from tools.attachments import (
+    bounded_attachments,
+    fetch_attachments_as_base64,
+    fetch_attachments_as_text,
+)
 from tools.front import get_conversation_messages
 from agent.classification import ClassificationResult, normalize_classification, parse_classification_json
 from agent.llm_client import chat_completion_kwargs, make_async_openai_client
 from agent.routing import RouteDecision, decide_initial_route
-from agent.tool_registry import TOOL_SCHEMAS, execute_tool_call
+from agent.tool_registry import (
+    TOOL_SCHEMAS,
+    ToolCallValidationError,
+    ToolExecutionContext,
+    execute_tool_call,
+    prepare_llm_tool_call,
+)
 from services.case_memory import build_case_memory_context
 
 logger = logging.getLogger(__name__)
@@ -38,6 +48,12 @@ def build_conversation_text(messages: list[dict]) -> str:
     return "\n\n---\n\n".join(parts)
 
 
+def is_failed_retry_state(existing_state) -> bool:
+    return bool(
+        existing_state and existing_state.step == "failed_needs_review"
+    )
+
+
 async def handle_email(
     conversation_id: str,
     message_body: str,
@@ -46,10 +62,15 @@ async def handle_email(
     db: AsyncSession,
 ) -> None:
     existing_state = await state_tool.get_state(db, conversation_id)
+    retrying_failed_state = is_failed_retry_state(existing_state)
+    initial_flow = (
+        not existing_state
+        or existing_state.step in ("initial", "done", "failed_needs_review")
+    )
 
     # Existing-state webhook events are replies on conversations we have already handled.
     # Only education replies continue through the skill flow; other categories are ignored.
-    if existing_state:
+    if existing_state and not retrying_failed_state:
         category = existing_state.category or ""
         step = existing_state.step or ""
         if category != "education":
@@ -67,8 +88,9 @@ async def handle_email(
     conversation_text = build_conversation_text(all_messages)
 
     # Download attachments for vision (images) and text extraction (PDF/Word)
-    attachment_content = await fetch_attachments_as_base64(attachments)
-    doc_attachments = await fetch_attachments_as_text(attachments)
+    bounded = bounded_attachments(attachments)
+    attachment_content = await fetch_attachments_as_base64(bounded)
+    doc_attachments = await fetch_attachments_as_text(bounded)
     doc_text = "\n".join([f"[附件: {d['filename']}]\n{d['text']}" for d in doc_attachments]) if doc_attachments else ""
 
     case_memory_query = f"{conversation_text}\n\n{message_body}"
@@ -77,7 +99,7 @@ async def handle_email(
 
     # Check if we need user history (only for new conversations)
     user_history_text = ""
-    if not existing_state or existing_state.step in ("initial", "done"):
+    if initial_flow:
         classification_case_memory = await build_case_memory_context(db, case_memory_query, limit=4)
         should_fetch = await _should_fetch_history(conversation_text, message_body, sender_email)
         if should_fetch:
@@ -94,7 +116,7 @@ async def handle_email(
 
 
     # Determine which skill to load
-    if existing_state and existing_state.step not in ("initial", "done"):
+    if existing_state and not initial_flow:
         skill_name = existing_state.category
         skill_md = load_skill(skill_name)
         system_prompt = f"""You are a Dify support email automation agent handling a multi-turn conversation.
@@ -144,7 +166,7 @@ Use the tools available to you to handle the email completely.
     user_content.extend(attachment_content)
 
     # If classifying, do a two-step: first classify, then load skill and act
-    if not existing_state or existing_state.step in ("initial", "done"):
+    if initial_flow:
         classification = await _classify(
             conversation_text,
             message_body,
@@ -218,7 +240,13 @@ Sender email: {sender_email}
             {"role": "user", "content": user_content},
         ]
 
-        await _run_agent_loop(messages, db, sender_email=sender_email, message_body=message_body)
+        await _run_agent_loop(
+            messages,
+            db,
+            conversation_id=conversation_id,
+            sender_email=sender_email,
+            message_body=message_body,
+        )
 
 
         # If a skill took actions but never saved state, do not mark the case done.
@@ -247,7 +275,13 @@ Sender email: {sender_email}
             {"role": "user", "content": user_content},
         ]
 
-        await _run_agent_loop(messages, db, sender_email=sender_email, message_body=message_body)
+        await _run_agent_loop(
+            messages,
+            db,
+            conversation_id=conversation_id,
+            sender_email=sender_email,
+            message_body=message_body,
+        )
 
 
 
@@ -416,9 +450,20 @@ def _coerce_keep_open_state_args(args: dict, preferred_step: str) -> dict:
     return coerced
 
 
-async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int = 10, sender_email: str = "", message_body: str = "") -> None:
+async def _run_agent_loop(
+    messages: list,
+    db: AsyncSession,
+    conversation_id: str,
+    max_iterations: int = 10,
+    sender_email: str = "",
+    message_body: str = "",
+) -> None:
     notified_conversations: set[str] = set()  # deduplicate Bobby handoff forwards per conv
     keep_open_state_step: str | None = None
+    context = ToolExecutionContext(
+        conversation_id=conversation_id,
+        sender_email=sender_email,
+    )
     for _ in range(max_iterations):
         response = await client.chat.completions.create(**chat_completion_kwargs(
             settings.openai_model,
@@ -437,9 +482,21 @@ async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int 
         for tc in msg.tool_calls:
             tool_name = tc.function.name
             try:
-                args = json.loads(tc.function.arguments)
-            except Exception:
-                args = {}
+                raw_args = json.loads(tc.function.arguments)
+                args = prepare_llm_tool_call(tool_name, raw_args, context)
+            except (json.JSONDecodeError, TypeError, ToolCallValidationError) as exc:
+                result = f"tool_validation_failed: {exc}"
+                logger.warning("Rejected LLM tool call %s: %s", tool_name, exc)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": result,
+                })
+                continue
+
+            # Reassert the trusted recipient immediately before side effects.
+            if tool_name == "front_create_draft" and sender_email:
+                args["to_email"] = sender_email
 
             # Deduplicate Bobby handoff forwards per conversation per agent run
             if tool_name == "front_forward_to_bobby":
@@ -450,10 +507,6 @@ async def _run_agent_loop(messages: list, db: AsyncSession, max_iterations: int 
                     messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
                     continue
                 notified_conversations.add(conv_id)
-
-            # Auto-inject immutable customer context for tools that write outside the model.
-            if tool_name == "front_create_draft" and sender_email and not args.get("to_email"):
-                args["to_email"] = sender_email
 
             if tool_name == "linear_create_ticket":
                 if sender_email and not args.get("sender_email"):

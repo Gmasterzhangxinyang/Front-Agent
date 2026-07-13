@@ -4,7 +4,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from config import settings
 from database import init_db
-from webhooks.front_webhook import router as webhook_router
+from webhooks.front_webhook import (
+    router as webhook_router,
+    validate_webhook_security_config,
+)
 from routes.ops import router as ops_router
 from tasks.scheduler import start_scheduler
 
@@ -17,6 +20,7 @@ logging.basicConfig(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    validate_webhook_security_config()
     await init_db()
     if settings.enable_scheduler:
         start_scheduler()

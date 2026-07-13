@@ -3,6 +3,8 @@ import json
 import logging
 import sys
 import os
+from dataclasses import dataclass
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from tools import front, linear, handoff, state as state_tool, github, docs_search
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -387,6 +389,79 @@ TOOL_SCHEMAS = [
         },
     },
 ]
+
+
+@dataclass(frozen=True)
+class ToolExecutionContext:
+    conversation_id: str
+    sender_email: str = ""
+
+
+class ToolCallValidationError(ValueError):
+    pass
+
+
+TOOL_SCHEMAS_BY_NAME = {
+    item["function"]["name"]: item["function"]
+    for item in TOOL_SCHEMAS
+}
+
+
+def _matches_json_type(value, expected_type: str) -> bool:
+    validators = {
+        "string": lambda item: isinstance(item, str),
+        "boolean": lambda item: isinstance(item, bool),
+        "object": lambda item: isinstance(item, dict),
+    }
+    validator = validators.get(expected_type)
+    return True if validator is None else validator(value)
+
+
+def prepare_llm_tool_call(
+    tool_name: str,
+    args: dict,
+    context: ToolExecutionContext,
+) -> dict:
+    schema = TOOL_SCHEMAS_BY_NAME.get(tool_name)
+    if schema is None:
+        raise ToolCallValidationError(f"unknown tool: {tool_name}")
+    if not isinstance(args, dict):
+        raise ToolCallValidationError("arguments must be a JSON object")
+
+    parameters = schema["parameters"]
+    properties = parameters.get("properties", {})
+    required = set(parameters.get("required", []))
+    missing = sorted(required - set(args))
+    if missing:
+        raise ToolCallValidationError(
+            "missing required arguments: " + ", ".join(missing)
+        )
+
+    unknown = sorted(set(args) - set(properties))
+    if unknown:
+        raise ToolCallValidationError(
+            "unknown arguments: " + ", ".join(unknown)
+        )
+
+    for name, value in args.items():
+        property_schema = properties[name]
+        expected_type = property_schema.get("type")
+        if expected_type and not _matches_json_type(value, expected_type):
+            raise ToolCallValidationError(
+                f"invalid type for {name}: expected {expected_type}"
+            )
+        allowed_values = property_schema.get("enum")
+        if allowed_values is not None and value not in allowed_values:
+            raise ToolCallValidationError(
+                f"invalid enum value for {name}: {value}"
+            )
+
+    prepared = dict(args)
+    if "conversation_id" in properties:
+        prepared["conversation_id"] = context.conversation_id
+    if tool_name == "front_create_draft" and context.sender_email:
+        prepared["to_email"] = context.sender_email
+    return prepared
 
 
 async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str:
