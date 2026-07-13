@@ -151,9 +151,22 @@ async def _process_front_webhook_event(payload: dict, event_id: str | None, conv
             error_summary = f"❌ 邮件处理出错！对话ID: {conversation_id}, 错误: {str(e)[:200]}"
 
             try:
-                from tools.handoff import forward_to_bobby
+                from agent.tool_registry import execute_tool_call
 
-                await forward_to_bobby(error_summary, conversation_id=conversation_id)
+                notify_result = await execute_tool_call(
+                    "front_forward_to_bobby",
+                    {
+                        "message": error_summary,
+                        "conversation_id": conversation_id,
+                    },
+                    db,
+                )
+                if "failed" in notify_result:
+                    logger.warning(
+                        "Failed to forward handler error for %s: %s",
+                        conversation_id,
+                        notify_result,
+                    )
             except Exception as notify_error:
                 logger.warning("Failed to forward handler error for %s: %s", conversation_id, notify_error)
 
@@ -184,7 +197,7 @@ async def _process_front_webhook_event(payload: dict, event_id: str | None, conv
 
             # Do not record the webhook event as processed; Front retries should
             # still have a chance to recover from transient failures.
-            return {"status": "failed", "reason": "handler_error"}
+            raise HTTPException(status_code=503, detail="handler_error") from e
 
         if event_id:
             db.add(WebhookEvent(event_id=event_id))

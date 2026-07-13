@@ -130,3 +130,4 @@
 - [docs] document the approved runtime boundary hardening design (docs/superpowers/specs/2026-07-13-runtime-boundary-hardening-design.md)
 - [docs] add the test-driven runtime boundary hardening implementation plan (docs/superpowers/plans/2026-07-13-runtime-boundary-hardening.md)
 - [chore] ignore project-local Git worktrees used for isolated feature implementation (.gitignore)
+- [fix] bind LLM tools to trusted conversation context, require explicit webhook trust, bound authenticated attachments, and return retryable handler failures (agent/orchestrator.py, agent/tool_registry.py, config.py, main.py, tools/attachments.py, tools/front.py, webhooks/front_webhook.py, tests/test_runtime_boundaries.py)

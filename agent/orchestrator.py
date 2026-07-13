@@ -48,6 +48,12 @@ def build_conversation_text(messages: list[dict]) -> str:
     return "\n\n---\n\n".join(parts)
 
 
+def is_failed_retry_state(existing_state) -> bool:
+    return bool(
+        existing_state and existing_state.step == "failed_needs_review"
+    )
+
+
 async def handle_email(
     conversation_id: str,
     message_body: str,
@@ -56,10 +62,15 @@ async def handle_email(
     db: AsyncSession,
 ) -> None:
     existing_state = await state_tool.get_state(db, conversation_id)
+    retrying_failed_state = is_failed_retry_state(existing_state)
+    initial_flow = (
+        not existing_state
+        or existing_state.step in ("initial", "done", "failed_needs_review")
+    )
 
     # Existing-state webhook events are replies on conversations we have already handled.
     # Only education replies continue through the skill flow; other categories are ignored.
-    if existing_state:
+    if existing_state and not retrying_failed_state:
         category = existing_state.category or ""
         step = existing_state.step or ""
         if category != "education":
@@ -88,7 +99,7 @@ async def handle_email(
 
     # Check if we need user history (only for new conversations)
     user_history_text = ""
-    if not existing_state or existing_state.step in ("initial", "done"):
+    if initial_flow:
         classification_case_memory = await build_case_memory_context(db, case_memory_query, limit=4)
         should_fetch = await _should_fetch_history(conversation_text, message_body, sender_email)
         if should_fetch:
@@ -105,7 +116,7 @@ async def handle_email(
 
 
     # Determine which skill to load
-    if existing_state and existing_state.step not in ("initial", "done"):
+    if existing_state and not initial_flow:
         skill_name = existing_state.category
         skill_md = load_skill(skill_name)
         system_prompt = f"""You are a Dify support email automation agent handling a multi-turn conversation.
@@ -155,7 +166,7 @@ Use the tools available to you to handle the email completely.
     user_content.extend(attachment_content)
 
     # If classifying, do a two-step: first classify, then load skill and act
-    if not existing_state or existing_state.step in ("initial", "done"):
+    if initial_flow:
         classification = await _classify(
             conversation_text,
             message_body,

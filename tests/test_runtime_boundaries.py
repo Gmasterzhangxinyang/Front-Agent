@@ -1,9 +1,11 @@
 import asyncio
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import httpx
+from fastapi import HTTPException
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -12,6 +14,8 @@ from agent.tool_registry import (
     ToolExecutionContext,
     prepare_llm_tool_call,
 )
+import agent.orchestrator as orchestrator_module
+import webhooks.front_webhook as front_webhook_module
 from config import settings
 from tools.attachments import bounded_attachments, clip_attachment_text
 from tools.front import (
@@ -37,6 +41,39 @@ class _ChunkStream(httpx.AsyncByteStream):
 
     async def aclose(self):
         return None
+
+
+class _ScalarResult:
+    def scalar_one_or_none(self):
+        return None
+
+
+class _FakeSession:
+    def __init__(self):
+        self.added = []
+        self.commits = 0
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return None
+
+    async def execute(self, statement):
+        return _ScalarResult()
+
+    def add(self, value):
+        self.added.append(value)
+
+    async def commit(self):
+        self.commits += 1
+
+
+class _InboxResponse:
+    status_code = 200
+
+    def json(self):
+        return {"_results": [{"id": "inb_f9fvf"}]}
 
 
 def _context() -> ToolExecutionContext:
@@ -254,6 +291,73 @@ def test_attachment_count_and_text_limits_are_deterministic():
         assert len(bounded_attachments(attachments)) == 5
         assert clip_attachment_text("1234567890") == "12345678"
         warning.assert_called_once()
+
+
+def test_only_failed_review_state_reenters_initial_flow():
+    assert orchestrator_module.is_failed_retry_state(
+        SimpleNamespace(step="failed_needs_review")
+    )
+    assert not orchestrator_module.is_failed_retry_state(
+        SimpleNamespace(step="waiting_for_user")
+    )
+    assert not orchestrator_module.is_failed_retry_state(None)
+
+
+def test_handler_failure_returns_503_without_recording_event():
+    async def run_case():
+        session = _FakeSession()
+        handle_email = AsyncMock(side_effect=RuntimeError("temporary failure"))
+        execute_tool_call = AsyncMock(return_value="forwarded")
+
+        payload = {
+            "target": {
+                "data": {
+                    "text": "hello",
+                    "from": {"handle": "customer@example.com"},
+                }
+            }
+        }
+
+        with (
+            patch.object(
+                front_webhook_module,
+                "AsyncSessionLocal",
+                lambda: session,
+            ),
+            patch.object(front_webhook_module, "handle_email", handle_email),
+            patch.object(front_webhook_module.logger, "error"),
+            patch("tools.front.front_request", AsyncMock(return_value=_InboxResponse())),
+            patch("tools.front.reopen_conversation", AsyncMock(return_value=True)),
+            patch("tools.state.set_state", AsyncMock()),
+            patch("tools.handoff.forward_to_bobby", AsyncMock()),
+            patch("agent.tool_registry.execute_tool_call", execute_tool_call),
+        ):
+            try:
+                await front_webhook_module._process_front_webhook_event(
+                    payload,
+                    "evt_retryable",
+                    "cnv_retryable",
+                )
+            except HTTPException as exc:
+                assert exc.status_code == 503
+                assert exc.detail == "handler_error"
+            else:
+                raise AssertionError("handler failures must remain retryable")
+
+        assert session.added == []
+        execute_tool_call.assert_awaited_once_with(
+            "front_forward_to_bobby",
+            {
+                "message": (
+                    "❌ 邮件处理出错！对话ID: cnv_retryable, "
+                    "错误: temporary failure"
+                ),
+                "conversation_id": "cnv_retryable",
+            },
+            session,
+        )
+
+    asyncio.run(run_case())
 
 
 def run_all():
