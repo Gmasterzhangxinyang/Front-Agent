@@ -261,6 +261,9 @@ def test_ops_page_marks_historical_gaps_and_exposes_health_panels():
     assert "missingValue()" in source
     assert 'class="kpi-strip"' in source
     assert 'class="priority-table"' in source
+    assert "教育版账号异常队列" in source
+    assert "教育异常待发送" in source
+    assert "navSybil:'Sybil 队列'" not in source
     assert "item.sender_email||'-'" not in source
     assert "renderAttention" not in source
     for removed_id in (
