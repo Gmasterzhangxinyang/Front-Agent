@@ -600,10 +600,138 @@ def test_route_persists_before_starting_processing():
     asyncio.run(run_case())
 
 
+def test_semaphore_wait_does_not_start_lease_before_execution_capacity():
+    async def run_case():
+        class ObservedSemaphore(asyncio.Semaphore):
+            def __init__(self):
+                super().__init__(0)
+                self.waiting = asyncio.Event()
+
+            async def acquire(self):
+                self.waiting.set()
+                return await super().acquire()
+
+        claim = _claim_snapshot(event_id="evt_capacity_wait")
+        current = SimpleNamespace(
+            status="pending",
+            conversation_id=claim.conversation_id,
+        )
+        simulated_now = datetime(2026, 7, 14, 10, 0, 0)
+        claim_times = []
+
+        async def claim_after_capacity(_event_id):
+            claim_times.append(simulated_now)
+            return claim
+
+        capacity = ObservedSemaphore()
+        claim_mock = AsyncMock(side_effect=claim_after_capacity)
+        with (
+            patch.object(
+                front_webhook_module,
+                "get_webhook",
+                AsyncMock(return_value=current),
+            ),
+            patch.object(front_webhook_module, "claim_webhook", claim_mock),
+            patch.object(
+                front_webhook_module,
+                "_process_front_webhook_event",
+                AsyncMock(return_value={"status": "ok"}),
+            ),
+            patch.object(
+                front_webhook_module,
+                "complete_webhook",
+                AsyncMock(return_value=True),
+            ),
+            patch.object(front_webhook_module, "_webhook_semaphore", capacity),
+            patch.object(front_webhook_module, "_conversation_locks", {}),
+        ):
+            task = asyncio.create_task(
+                front_webhook_module.process_inbox_event(claim.event_id)
+            )
+            await asyncio.wait_for(capacity.waiting.wait(), timeout=1)
+
+            simulated_now += timedelta(minutes=16)
+            claim_mock.assert_not_awaited()
+
+            capacity.release()
+            result = await asyncio.wait_for(task, timeout=1)
+
+        assert result == {"status": "ok"}
+        assert claim_times == [simulated_now]
+
+    asyncio.run(run_case())
+
+
+def test_conversation_lock_wait_does_not_start_lease():
+    async def run_case():
+        claim = _claim_snapshot(event_id="evt_conversation_wait")
+        current = SimpleNamespace(
+            status="pending",
+            conversation_id=claim.conversation_id,
+        )
+        conversation_lock = asyncio.Lock()
+        await conversation_lock.acquire()
+        lookup_finished = asyncio.Event()
+
+        async def get_current(_event_id):
+            lookup_finished.set()
+            return current
+
+        claim_mock = AsyncMock(return_value=claim)
+        with (
+            patch.object(
+                front_webhook_module,
+                "get_webhook",
+                AsyncMock(side_effect=get_current),
+            ),
+            patch.object(front_webhook_module, "claim_webhook", claim_mock),
+            patch.object(
+                front_webhook_module,
+                "_process_front_webhook_event",
+                AsyncMock(return_value={"status": "ok"}),
+            ),
+            patch.object(
+                front_webhook_module,
+                "complete_webhook",
+                AsyncMock(return_value=True),
+            ),
+            patch.object(
+                front_webhook_module,
+                "_get_conversation_lock",
+                return_value=conversation_lock,
+            ) as get_lock,
+            patch.object(
+                front_webhook_module,
+                "_webhook_semaphore",
+                asyncio.Semaphore(1),
+            ),
+        ):
+            task = asyncio.create_task(
+                front_webhook_module.process_inbox_event(claim.event_id)
+            )
+            await asyncio.wait_for(lookup_finished.wait(), timeout=1)
+            await asyncio.sleep(0)
+            claim_mock.assert_not_awaited()
+
+            conversation_lock.release()
+            result = await asyncio.wait_for(task, timeout=1)
+
+        assert result == {"status": "ok"}
+        get_lock.assert_called_once_with(claim.conversation_id)
+        claim_mock.assert_awaited_once_with(claim.event_id)
+
+    asyncio.run(run_case())
+
+
 def test_claimed_success_marks_inbox_processed():
     async def run_case():
         claim = _claim_snapshot()
         with (
+            patch.object(
+                front_webhook_module,
+                "get_webhook",
+                AsyncMock(return_value=claim),
+            ),
             patch.object(
                 front_webhook_module,
                 "claim_webhook",
@@ -637,6 +765,11 @@ def test_claimed_ignored_event_is_terminal():
         with (
             patch.object(
                 front_webhook_module,
+                "get_webhook",
+                AsyncMock(return_value=claim),
+            ),
+            patch.object(
+                front_webhook_module,
                 "claim_webhook",
                 AsyncMock(return_value=claim),
             ),
@@ -668,6 +801,11 @@ def test_claimed_failure_is_scheduled_before_503_returns():
         failure = HTTPException(status_code=503, detail="temporary")
         fail = AsyncMock(return_value=retry)
         with (
+            patch.object(
+                front_webhook_module,
+                "get_webhook",
+                AsyncMock(return_value=claim),
+            ),
             patch.object(
                 front_webhook_module,
                 "claim_webhook",
@@ -746,7 +884,12 @@ def test_retry_loop_counts_claim_competition_as_queued():
             patch.object(
                 front_webhook_module,
                 "get_webhook",
-                AsyncMock(return_value=SimpleNamespace(status="processing")),
+                AsyncMock(
+                    return_value=SimpleNamespace(
+                        status="processing",
+                        conversation_id="cnv_claim_competition",
+                    )
+                ),
             ),
             patch.object(front_webhook_module.logger, "error") as error_log,
         ):
@@ -768,6 +911,11 @@ def test_claim_database_failure_is_normalized_to_503():
         with (
             patch.object(
                 front_webhook_module,
+                "get_webhook",
+                AsyncMock(return_value=_claim_snapshot(event_id="evt_claim_db")),
+            ),
+            patch.object(
+                front_webhook_module,
                 "claim_webhook",
                 AsyncMock(side_effect=RuntimeError("database unavailable")),
             ),
@@ -786,11 +934,12 @@ def test_claim_database_failure_is_normalized_to_503():
 
 def test_status_lookup_database_failure_is_normalized_to_503():
     async def run_case():
+        claim = AsyncMock(return_value=None)
         with (
             patch.object(
                 front_webhook_module,
                 "claim_webhook",
-                AsyncMock(return_value=None),
+                claim,
             ),
             patch.object(
                 front_webhook_module,
@@ -806,6 +955,8 @@ def test_status_lookup_database_failure_is_normalized_to_503():
                 assert exc.detail == "Webhook status lookup failed"
             else:
                 raise AssertionError("status database failure must return 503")
+
+        claim.assert_not_awaited()
 
     asyncio.run(run_case())
 

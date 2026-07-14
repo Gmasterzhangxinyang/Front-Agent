@@ -125,7 +125,38 @@ async def _save_processing_failure(claim, error: Exception):
     return outcome
 
 
+async def _get_webhook_or_503(event_id: str):
+    try:
+        return await get_webhook(event_id)
+    except Exception as exc:
+        logger.exception("Could not read Front webhook status %s", event_id)
+        raise HTTPException(
+            status_code=503,
+            detail="Webhook status lookup failed",
+        ) from exc
+
+
+def _unclaimed_result(current):
+    if current is not None and current.status == "processed":
+        return {"status": "already_processed"}
+    return {
+        "status": "queued",
+        "queue_status": current.status if current is not None else "missing",
+    }
+
+
 async def process_inbox_event(event_id: str):
+    current = await _get_webhook_or_503(event_id)
+    if current is None or current.status == "processed":
+        return _unclaimed_result(current)
+
+    lock = _get_conversation_lock(current.conversation_id)
+    async with lock:
+        async with _webhook_semaphore:
+            return await _process_inbox_event_with_capacity(event_id)
+
+
+async def _process_inbox_event_with_capacity(event_id: str):
     try:
         claim = await claim_webhook(event_id)
     except Exception as exc:
@@ -136,30 +167,15 @@ async def process_inbox_event(event_id: str):
         ) from exc
 
     if claim is None:
-        try:
-            current = await get_webhook(event_id)
-        except Exception as exc:
-            logger.exception("Could not read Front webhook status %s", event_id)
-            raise HTTPException(
-                status_code=503,
-                detail="Webhook status lookup failed",
-            ) from exc
-        if current is not None and current.status == "processed":
-            return {"status": "already_processed"}
-        return {
-            "status": "queued",
-            "queue_status": current.status if current is not None else "missing",
-        }
+        current = await _get_webhook_or_503(event_id)
+        return _unclaimed_result(current)
 
     try:
-        async with _webhook_semaphore:
-            lock = _get_conversation_lock(claim.conversation_id)
-            async with lock:
-                result = await _process_front_webhook_event(
-                    claim.payload,
-                    claim.event_id,
-                    claim.conversation_id,
-                )
+        result = await _process_front_webhook_event(
+            claim.payload,
+            claim.event_id,
+            claim.conversation_id,
+        )
     except HTTPException as exc:
         await _save_processing_failure(claim, exc)
         raise
