@@ -1,0 +1,1016 @@
+import asyncio
+import hashlib
+import json
+import sys
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from fastapi import HTTPException
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from database import Base
+from models import WebhookInbox
+import services.webhook_inbox as webhook_inbox
+import tasks.scheduler as scheduler_module
+import webhooks.front_webhook as front_webhook_module
+from services.webhook_inbox import InboxSnapshot, derive_event_id
+
+
+class _WebhookRequest:
+    def __init__(self, payload):
+        self._body = json.dumps(payload, separators=(",", ":")).encode()
+        self.headers = {"X-Front-Signature": "valid"}
+
+    async def body(self):
+        return self._body
+
+
+def _claim_snapshot(event_id="evt_flow", attempts=1):
+    return InboxSnapshot(
+        event_id=event_id,
+        conversation_id="cnv_flow",
+        payload={"id": event_id, "conversation_id": "cnv_flow"},
+        status="processing",
+        attempts=attempts,
+        available_at=datetime(2026, 7, 14, 10, 0, 0),
+        lease_token="lease_flow",
+        lease_expires_at=datetime(2026, 7, 14, 10, 15, 0),
+        last_error="",
+    )
+
+
+@asynccontextmanager
+async def _isolated_inbox():
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    try:
+        async with engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+        with patch.object(webhook_inbox, "AsyncSessionLocal", session_factory):
+            yield session_factory
+    finally:
+        await engine.dispose()
+
+
+async def _store_event(
+    session_factory,
+    event_id,
+    *,
+    available_at,
+    created_at=None,
+    status="pending",
+    attempts=0,
+    lease_token=None,
+    lease_expires_at=None,
+    last_error="",
+    payload=None,
+):
+    timestamp = created_at or available_at
+    async with session_factory() as session:
+        session.add(
+            WebhookInbox(
+                event_id=event_id,
+                conversation_id=f"cnv_{event_id}",
+                payload=payload or {"id": event_id},
+                status=status,
+                attempts=attempts,
+                available_at=available_at,
+                lease_token=lease_token,
+                lease_expires_at=lease_expires_at,
+                last_error=last_error,
+                created_at=timestamp,
+                updated_at=timestamp,
+                processed_at=None,
+            )
+        )
+        await session.commit()
+
+
+def test_derive_event_id_prefers_front_id_and_hashes_missing_id():
+    raw_body = b'{"type":"message","target":{"data":{"id":null}}}'
+
+    assert derive_event_id(
+        {"id": "evt_front", "event_id": "evt_other"},
+        raw_body,
+    ) == "evt_front"
+    assert derive_event_id({"event_id": "evt_legacy"}, raw_body) == "evt_legacy"
+    assert derive_event_id({}, raw_body) == (
+        f"sha256:{hashlib.sha256(raw_body).hexdigest()}"
+    )
+
+
+def test_enqueue_is_durable_and_duplicate_safe():
+    async def run_case():
+        engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+        session_factory = async_sessionmaker(engine, expire_on_commit=False)
+        now = datetime(2026, 7, 14, 9, 30, 0)
+        original_payload = {"id": "evt_enqueue", "type": "message"}
+
+        try:
+            async with engine.begin() as connection:
+                await connection.run_sync(Base.metadata.create_all)
+
+            with patch.object(
+                webhook_inbox,
+                "AsyncSessionLocal",
+                session_factory,
+            ):
+                first = await webhook_inbox.enqueue_webhook(
+                    "evt_enqueue",
+                    "cnv_enqueue",
+                    original_payload,
+                    now=now,
+                )
+                duplicate = await webhook_inbox.enqueue_webhook(
+                    "evt_enqueue",
+                    "cnv_changed",
+                    {"id": "evt_enqueue", "type": "changed"},
+                    now=now + timedelta(minutes=1),
+                )
+
+            assert first.event_id == "evt_enqueue"
+            assert first.conversation_id == "cnv_enqueue"
+            assert first.payload == original_payload
+            assert first.status == "pending"
+            assert first.attempts == 0
+            assert first.available_at == now
+            assert duplicate == first
+
+            async with session_factory() as session:
+                stored = await session.get(WebhookInbox, "evt_enqueue")
+
+            assert stored is not None
+            assert stored.conversation_id == "cnv_enqueue"
+            assert stored.payload == original_payload
+            assert stored.available_at == now
+        finally:
+            await engine.dispose()
+
+    asyncio.run(run_case())
+
+
+def test_only_due_pending_and_retry_records_can_be_claimed():
+    async def run_case():
+        now = datetime(2026, 7, 14, 10, 0, 0)
+        async with _isolated_inbox() as session_factory:
+            await _store_event(
+                session_factory, "evt_pending_due", available_at=now
+            )
+            await _store_event(
+                session_factory,
+                "evt_pending_future",
+                available_at=now + timedelta(seconds=1),
+            )
+            await _store_event(
+                session_factory,
+                "evt_retry_due",
+                available_at=now - timedelta(minutes=1),
+                status="retry",
+                attempts=1,
+            )
+            await _store_event(
+                session_factory,
+                "evt_retry_future",
+                available_at=now + timedelta(minutes=1),
+                status="retry",
+                attempts=1,
+            )
+            await _store_event(
+                session_factory,
+                "evt_retry_exhausted",
+                available_at=now - timedelta(minutes=1),
+                status="retry",
+                attempts=webhook_inbox.MAX_ATTEMPTS,
+            )
+            await _store_event(
+                session_factory,
+                "evt_processed",
+                available_at=now - timedelta(hours=1),
+                status="processed",
+                attempts=1,
+            )
+
+            assert await webhook_inbox.list_due_event_ids(now=now) == [
+                "evt_retry_due",
+                "evt_pending_due",
+            ]
+            assert await webhook_inbox.get_webhook("evt_pending_due") is not None
+            assert await webhook_inbox.get_webhook("evt_missing") is None
+            assert (
+                await webhook_inbox.claim_webhook("evt_pending_due", now=now)
+                is not None
+            )
+            assert (
+                await webhook_inbox.claim_webhook("evt_retry_due", now=now)
+                is not None
+            )
+            assert (
+                await webhook_inbox.claim_webhook("evt_pending_future", now=now)
+                is None
+            )
+            assert (
+                await webhook_inbox.claim_webhook("evt_retry_future", now=now)
+                is None
+            )
+            assert (
+                await webhook_inbox.claim_webhook("evt_retry_exhausted", now=now)
+                is None
+            )
+            assert (
+                await webhook_inbox.claim_webhook("evt_processed", now=now)
+                is None
+            )
+
+    asyncio.run(run_case())
+
+
+def test_first_claim_creates_an_active_fifteen_minute_lease():
+    async def run_case():
+        now = datetime(2026, 7, 14, 10, 30, 0)
+        async with _isolated_inbox() as session_factory:
+            await _store_event(session_factory, "evt_claim", available_at=now)
+
+            claimed = await webhook_inbox.claim_webhook("evt_claim", now=now)
+
+            assert claimed is not None
+            assert claimed.status == "processing"
+            assert claimed.attempts == 1
+            assert claimed.lease_token
+            assert claimed.lease_expires_at == now + timedelta(minutes=15)
+            assert await webhook_inbox.claim_webhook("evt_claim", now=now) is None
+            assert await webhook_inbox.list_due_event_ids(now=now) == []
+
+    asyncio.run(run_case())
+
+
+def test_expired_lease_can_be_reclaimed_with_a_new_token():
+    async def run_case():
+        now = datetime(2026, 7, 14, 11, 0, 0)
+        async with _isolated_inbox() as session_factory:
+            await _store_event(session_factory, "evt_expired", available_at=now)
+            first = await webhook_inbox.claim_webhook("evt_expired", now=now)
+            assert first is not None
+
+            recovery_time = now + timedelta(minutes=15)
+            assert await webhook_inbox.list_due_event_ids(now=recovery_time) == [
+                "evt_expired"
+            ]
+            recovered = await webhook_inbox.claim_webhook(
+                "evt_expired",
+                now=recovery_time,
+            )
+
+            assert recovered is not None
+            assert recovered.status == "processing"
+            assert recovered.attempts == 2
+            assert recovered.lease_token != first.lease_token
+            assert recovered.lease_expires_at == recovery_time + timedelta(minutes=15)
+
+    asyncio.run(run_case())
+
+
+def test_stale_token_cannot_complete_a_newer_claim():
+    async def run_case():
+        now = datetime(2026, 7, 14, 11, 30, 0)
+        async with _isolated_inbox() as session_factory:
+            await _store_event(session_factory, "evt_stale_complete", available_at=now)
+            first = await webhook_inbox.claim_webhook("evt_stale_complete", now=now)
+            assert first is not None
+            recovered = await webhook_inbox.claim_webhook(
+                "evt_stale_complete", now=now + timedelta(minutes=15)
+            )
+            assert recovered is not None
+
+            assert not await webhook_inbox.complete_webhook(
+                "evt_stale_complete",
+                first.lease_token,
+                now=now + timedelta(minutes=16),
+            )
+            stored = await webhook_inbox.get_webhook("evt_stale_complete")
+            assert stored is not None
+            assert stored.status == "processing"
+            assert stored.lease_token == recovered.lease_token
+            assert stored.attempts == 2
+
+    asyncio.run(run_case())
+
+
+def test_stale_token_cannot_fail_a_newer_claim():
+    async def run_case():
+        now = datetime(2026, 7, 14, 12, 0, 0)
+        async with _isolated_inbox() as session_factory:
+            await _store_event(session_factory, "evt_stale_fail", available_at=now)
+            first = await webhook_inbox.claim_webhook("evt_stale_fail", now=now)
+            assert first is not None
+            recovered = await webhook_inbox.claim_webhook(
+                "evt_stale_fail", now=now + timedelta(minutes=15)
+            )
+            assert recovered is not None
+
+            assert (
+                await webhook_inbox.fail_webhook(
+                    "evt_stale_fail",
+                    first.lease_token,
+                    RuntimeError("stale worker"),
+                    now=now + timedelta(minutes=16),
+                )
+                is None
+            )
+            stored = await webhook_inbox.get_webhook("evt_stale_fail")
+            assert stored is not None
+            assert stored.status == "processing"
+            assert stored.lease_token == recovered.lease_token
+            assert stored.last_error == ""
+            assert stored.attempts == 2
+
+    asyncio.run(run_case())
+
+
+def test_complete_clears_sensitive_state_and_removes_due_work():
+    async def run_case():
+        now = datetime(2026, 7, 14, 12, 30, 0)
+        completed_at = now + timedelta(minutes=2)
+        async with _isolated_inbox() as session_factory:
+            await _store_event(
+                session_factory,
+                "evt_complete",
+                available_at=now,
+                payload={"id": "evt_complete", "secret": "discard me"},
+                last_error="old failure",
+            )
+            claim = await webhook_inbox.claim_webhook("evt_complete", now=now)
+            assert claim is not None
+
+            assert not await webhook_inbox.complete_webhook(
+                "evt_complete",
+                None,
+                now=completed_at,
+            )
+            assert await webhook_inbox.complete_webhook(
+                "evt_complete",
+                claim.lease_token,
+                now=completed_at,
+            )
+
+            async with session_factory() as session:
+                stored = await session.get(WebhookInbox, "evt_complete")
+            assert stored is not None
+            assert stored.status == "processed"
+            assert stored.payload == {}
+            assert stored.lease_token is None
+            assert stored.lease_expires_at is None
+            assert stored.last_error == ""
+            assert stored.processed_at == completed_at
+            assert stored.updated_at == completed_at
+            assert await webhook_inbox.list_due_event_ids(
+                now=completed_at + timedelta(days=1)
+            ) == []
+
+    asyncio.run(run_case())
+
+
+def test_retry_delays_follow_the_exact_backoff_sequence():
+    async def run_case():
+        now = datetime(2026, 7, 14, 13, 0, 0)
+        expected_delays = (1, 5, 15, 60, 180)
+        async with _isolated_inbox() as session_factory:
+            await _store_event(session_factory, "evt_backoff", available_at=now)
+            claim_time = now
+
+            for attempt, delay_minutes in enumerate(expected_delays, start=1):
+                claimed = await webhook_inbox.claim_webhook(
+                    "evt_backoff",
+                    now=claim_time,
+                )
+                assert claimed is not None
+                assert claimed.attempts == attempt
+
+                failed_at = claim_time + timedelta(seconds=30)
+                failed = await webhook_inbox.fail_webhook(
+                    "evt_backoff",
+                    claimed.lease_token,
+                    f"attempt {attempt}",
+                    now=failed_at,
+                )
+                assert failed is not None
+                assert failed.status == "retry"
+                assert failed.available_at == failed_at + timedelta(
+                    minutes=delay_minutes
+                )
+                assert failed.lease_token is None
+                assert failed.lease_expires_at is None
+                claim_time = failed.available_at
+
+    asyncio.run(run_case())
+
+
+def test_sixth_failure_dead_letters_and_retains_bounded_diagnostics():
+    async def run_case():
+        now = datetime(2026, 7, 14, 14, 0, 0)
+        payload = {"id": "evt_dead", "body": "retain me"}
+        token = "sixth-attempt-token"
+        async with _isolated_inbox() as session_factory:
+            await _store_event(
+                session_factory,
+                "evt_dead",
+                available_at=now - timedelta(hours=1),
+                status="processing",
+                attempts=6,
+                lease_token=token,
+                lease_expires_at=now + timedelta(minutes=15),
+                payload=payload,
+            )
+
+            assert (
+                await webhook_inbox.fail_webhook(
+                    "evt_dead",
+                    None,
+                    "ignored",
+                    now=now,
+                )
+                is None
+            )
+            failed = await webhook_inbox.fail_webhook(
+                "evt_dead",
+                token,
+                "x" * 600,
+                now=now,
+            )
+
+            assert failed is not None
+            assert failed.status == "dead_letter"
+            assert failed.payload == payload
+            assert failed.last_error == "x" * 500
+            assert failed.lease_token is None
+            assert failed.lease_expires_at is None
+            assert await webhook_inbox.list_due_event_ids(
+                now=now + timedelta(days=365)
+            ) == []
+
+    asyncio.run(run_case())
+
+
+def test_due_list_respects_limit_and_orders_by_availability_then_creation():
+    async def run_case():
+        now = datetime(2026, 7, 14, 15, 0, 0)
+        async with _isolated_inbox() as session_factory:
+            await _store_event(
+                session_factory,
+                "evt_second",
+                available_at=now - timedelta(minutes=1),
+                created_at=now - timedelta(hours=2),
+            )
+            await _store_event(
+                session_factory,
+                "evt_third",
+                available_at=now - timedelta(minutes=1),
+                created_at=now - timedelta(hours=1),
+            )
+            await _store_event(
+                session_factory,
+                "evt_first",
+                available_at=now - timedelta(minutes=2),
+                created_at=now,
+            )
+            await _store_event(
+                session_factory,
+                "evt_fourth",
+                available_at=now,
+                created_at=now - timedelta(hours=3),
+            )
+
+            assert await webhook_inbox.list_due_event_ids(
+                now=now,
+                limit=3,
+            ) == ["evt_first", "evt_second", "evt_third"]
+
+    asyncio.run(run_case())
+
+
+def test_abandoned_sixth_claim_terminalizes_instead_of_attempting_seven():
+    async def run_case():
+        now = datetime(2026, 7, 14, 16, 0, 0)
+        payload = {"id": "evt_abandoned", "body": "retain me"}
+        async with _isolated_inbox() as session_factory:
+            await _store_event(
+                session_factory,
+                "evt_abandoned",
+                available_at=now,
+                payload=payload,
+            )
+            claim_time = now
+
+            for expected_attempts in range(1, 7):
+                claimed = await webhook_inbox.claim_webhook(
+                    "evt_abandoned",
+                    now=claim_time,
+                )
+                assert claimed is not None
+                assert claimed.attempts == expected_attempts
+                claim_time = claimed.lease_expires_at
+
+            assert await webhook_inbox.list_due_event_ids(now=claim_time) == [
+                "evt_abandoned"
+            ]
+            assert (
+                await webhook_inbox.claim_webhook(
+                    "evt_abandoned",
+                    now=claim_time,
+                )
+                is None
+            )
+
+            stored = await webhook_inbox.get_webhook("evt_abandoned")
+            assert stored is not None
+            assert stored.status == "dead_letter"
+            assert stored.attempts == 6
+            assert stored.payload == payload
+            assert stored.lease_token is None
+            assert stored.lease_expires_at is None
+            assert stored.last_error
+            assert len(stored.last_error) <= webhook_inbox.ERROR_SUMMARY_LIMIT
+            assert await webhook_inbox.list_due_event_ids(
+                now=claim_time + timedelta(days=1)
+            ) == []
+
+    asyncio.run(run_case())
+
+
+def test_due_list_uses_event_id_to_break_exact_timestamp_ties():
+    async def run_case():
+        now = datetime(2026, 7, 14, 17, 0, 0)
+        async with _isolated_inbox() as session_factory:
+            await _store_event(
+                session_factory,
+                "evt_zeta",
+                available_at=now,
+                created_at=now,
+            )
+            await _store_event(
+                session_factory,
+                "evt_alpha",
+                available_at=now,
+                created_at=now,
+            )
+
+            assert await webhook_inbox.list_due_event_ids(now=now) == [
+                "evt_alpha",
+                "evt_zeta",
+            ]
+
+    asyncio.run(run_case())
+
+
+def test_route_persists_before_starting_processing():
+    async def run_case():
+        order = []
+
+        async def enqueue(*_args, **_kwargs):
+            order.append("persist")
+            return SimpleNamespace(status="pending")
+
+        async def process(event_id):
+            order.append(f"process:{event_id}")
+            return {"status": "ok"}
+
+        payload = {"id": "evt_order", "conversation_id": "cnv_order"}
+        with (
+            patch.object(
+                front_webhook_module,
+                "verify_signature",
+                return_value=True,
+            ),
+            patch.object(front_webhook_module, "enqueue_webhook", enqueue),
+            patch.object(front_webhook_module, "process_inbox_event", process),
+        ):
+            result = await front_webhook_module.front_webhook(
+                _WebhookRequest(payload)
+            )
+
+        assert result == {"status": "ok"}
+        assert order == ["persist", "process:evt_order"]
+
+    asyncio.run(run_case())
+
+
+def test_semaphore_wait_does_not_start_lease_before_execution_capacity():
+    async def run_case():
+        class ObservedSemaphore(asyncio.Semaphore):
+            def __init__(self):
+                super().__init__(0)
+                self.waiting = asyncio.Event()
+
+            async def acquire(self):
+                self.waiting.set()
+                return await super().acquire()
+
+        claim = _claim_snapshot(event_id="evt_capacity_wait")
+        current = SimpleNamespace(
+            status="pending",
+            conversation_id=claim.conversation_id,
+        )
+        simulated_now = datetime(2026, 7, 14, 10, 0, 0)
+        claim_times = []
+
+        async def claim_after_capacity(_event_id):
+            claim_times.append(simulated_now)
+            return claim
+
+        capacity = ObservedSemaphore()
+        claim_mock = AsyncMock(side_effect=claim_after_capacity)
+        with (
+            patch.object(
+                front_webhook_module,
+                "get_webhook",
+                AsyncMock(return_value=current),
+            ),
+            patch.object(front_webhook_module, "claim_webhook", claim_mock),
+            patch.object(
+                front_webhook_module,
+                "_process_front_webhook_event",
+                AsyncMock(return_value={"status": "ok"}),
+            ),
+            patch.object(
+                front_webhook_module,
+                "complete_webhook",
+                AsyncMock(return_value=True),
+            ),
+            patch.object(front_webhook_module, "_webhook_semaphore", capacity),
+            patch.object(front_webhook_module, "_conversation_locks", {}),
+        ):
+            task = asyncio.create_task(
+                front_webhook_module.process_inbox_event(claim.event_id)
+            )
+            await asyncio.wait_for(capacity.waiting.wait(), timeout=1)
+
+            simulated_now += timedelta(minutes=16)
+            claim_mock.assert_not_awaited()
+
+            capacity.release()
+            result = await asyncio.wait_for(task, timeout=1)
+
+        assert result == {"status": "ok"}
+        assert claim_times == [simulated_now]
+
+    asyncio.run(run_case())
+
+
+def test_conversation_lock_wait_does_not_start_lease():
+    async def run_case():
+        claim = _claim_snapshot(event_id="evt_conversation_wait")
+        current = SimpleNamespace(
+            status="pending",
+            conversation_id=claim.conversation_id,
+        )
+        conversation_lock = asyncio.Lock()
+        await conversation_lock.acquire()
+        lookup_finished = asyncio.Event()
+
+        async def get_current(_event_id):
+            lookup_finished.set()
+            return current
+
+        claim_mock = AsyncMock(return_value=claim)
+        with (
+            patch.object(
+                front_webhook_module,
+                "get_webhook",
+                AsyncMock(side_effect=get_current),
+            ),
+            patch.object(front_webhook_module, "claim_webhook", claim_mock),
+            patch.object(
+                front_webhook_module,
+                "_process_front_webhook_event",
+                AsyncMock(return_value={"status": "ok"}),
+            ),
+            patch.object(
+                front_webhook_module,
+                "complete_webhook",
+                AsyncMock(return_value=True),
+            ),
+            patch.object(
+                front_webhook_module,
+                "_get_conversation_lock",
+                return_value=conversation_lock,
+            ) as get_lock,
+            patch.object(
+                front_webhook_module,
+                "_webhook_semaphore",
+                asyncio.Semaphore(1),
+            ),
+        ):
+            task = asyncio.create_task(
+                front_webhook_module.process_inbox_event(claim.event_id)
+            )
+            await asyncio.wait_for(lookup_finished.wait(), timeout=1)
+            await asyncio.sleep(0)
+            claim_mock.assert_not_awaited()
+
+            conversation_lock.release()
+            result = await asyncio.wait_for(task, timeout=1)
+
+        assert result == {"status": "ok"}
+        get_lock.assert_called_once_with(claim.conversation_id)
+        claim_mock.assert_awaited_once_with(claim.event_id)
+
+    asyncio.run(run_case())
+
+
+def test_claimed_success_marks_inbox_processed():
+    async def run_case():
+        claim = _claim_snapshot()
+        with (
+            patch.object(
+                front_webhook_module,
+                "get_webhook",
+                AsyncMock(return_value=claim),
+            ),
+            patch.object(
+                front_webhook_module,
+                "claim_webhook",
+                AsyncMock(return_value=claim),
+            ),
+            patch.object(
+                front_webhook_module,
+                "_process_front_webhook_event",
+                AsyncMock(return_value={"status": "ok"}),
+            ),
+            patch.object(
+                front_webhook_module,
+                "complete_webhook",
+                AsyncMock(return_value=True),
+            ) as complete,
+        ):
+            result = await front_webhook_module.process_inbox_event(
+                claim.event_id
+            )
+
+        assert result == {"status": "ok"}
+        complete.assert_awaited_once_with(claim.event_id, claim.lease_token)
+
+    asyncio.run(run_case())
+
+
+def test_claimed_ignored_event_is_terminal():
+    async def run_case():
+        claim = _claim_snapshot(event_id="evt_ignored")
+        ignored = {"status": "ignored", "reason": "not inbound user message"}
+        with (
+            patch.object(
+                front_webhook_module,
+                "get_webhook",
+                AsyncMock(return_value=claim),
+            ),
+            patch.object(
+                front_webhook_module,
+                "claim_webhook",
+                AsyncMock(return_value=claim),
+            ),
+            patch.object(
+                front_webhook_module,
+                "_process_front_webhook_event",
+                AsyncMock(return_value=ignored),
+            ),
+            patch.object(
+                front_webhook_module,
+                "complete_webhook",
+                AsyncMock(return_value=True),
+            ) as complete,
+        ):
+            result = await front_webhook_module.process_inbox_event(
+                claim.event_id
+            )
+
+        assert result == ignored
+        complete.assert_awaited_once_with(claim.event_id, claim.lease_token)
+
+    asyncio.run(run_case())
+
+
+def test_claimed_failure_is_scheduled_before_503_returns():
+    async def run_case():
+        claim = _claim_snapshot()
+        retry = SimpleNamespace(status="retry", attempts=1)
+        failure = HTTPException(status_code=503, detail="temporary")
+        fail = AsyncMock(return_value=retry)
+        with (
+            patch.object(
+                front_webhook_module,
+                "get_webhook",
+                AsyncMock(return_value=claim),
+            ),
+            patch.object(
+                front_webhook_module,
+                "claim_webhook",
+                AsyncMock(return_value=claim),
+            ),
+            patch.object(
+                front_webhook_module,
+                "_process_front_webhook_event",
+                AsyncMock(side_effect=failure),
+            ),
+            patch.object(front_webhook_module, "fail_webhook", fail),
+        ):
+            try:
+                await front_webhook_module.process_inbox_event(claim.event_id)
+            except HTTPException as exc:
+                assert exc.status_code == 503
+            else:
+                raise AssertionError("retryable processing failure must return 503")
+
+        fail.assert_awaited_once_with(
+            claim.event_id,
+            claim.lease_token,
+            failure,
+        )
+
+    asyncio.run(run_case())
+
+
+def test_retry_loop_counts_terminalized_expired_lease_as_failed():
+    async def run_case():
+        now = datetime(2000, 1, 1)
+        async with _isolated_inbox() as session_factory:
+            await _store_event(
+                session_factory,
+                "evt_retry_dead_letter",
+                available_at=now - timedelta(hours=1),
+                status="processing",
+                attempts=webhook_inbox.MAX_ATTEMPTS,
+                lease_token="expired-sixth-lease",
+                lease_expires_at=now - timedelta(minutes=1),
+            )
+
+            with patch.object(front_webhook_module.logger, "error") as error_log:
+                result = await front_webhook_module.retry_due_front_webhooks()
+
+            stored = await webhook_inbox.get_webhook("evt_retry_dead_letter")
+
+        assert result == {
+            "due": 1,
+            "processed": 0,
+            "queued": 0,
+            "failed": 1,
+        }
+        assert stored is not None
+        assert stored.status == "dead_letter"
+        error_log.assert_called_once()
+        assert "dead_letter" in error_log.call_args.args[0]
+
+    asyncio.run(run_case())
+
+
+def test_retry_loop_counts_claim_competition_as_queued():
+    async def run_case():
+        event_id = "evt_claim_competition"
+        with (
+            patch.object(
+                front_webhook_module,
+                "list_due_event_ids",
+                AsyncMock(return_value=[event_id]),
+            ),
+            patch.object(
+                front_webhook_module,
+                "claim_webhook",
+                AsyncMock(return_value=None),
+            ),
+            patch.object(
+                front_webhook_module,
+                "get_webhook",
+                AsyncMock(
+                    return_value=SimpleNamespace(
+                        status="processing",
+                        conversation_id="cnv_claim_competition",
+                    )
+                ),
+            ),
+            patch.object(front_webhook_module.logger, "error") as error_log,
+        ):
+            result = await front_webhook_module.retry_due_front_webhooks()
+
+        assert result == {
+            "due": 1,
+            "processed": 0,
+            "queued": 1,
+            "failed": 0,
+        }
+        error_log.assert_not_called()
+
+    asyncio.run(run_case())
+
+
+def test_claim_database_failure_is_normalized_to_503():
+    async def run_case():
+        with (
+            patch.object(
+                front_webhook_module,
+                "get_webhook",
+                AsyncMock(return_value=_claim_snapshot(event_id="evt_claim_db")),
+            ),
+            patch.object(
+                front_webhook_module,
+                "claim_webhook",
+                AsyncMock(side_effect=RuntimeError("database unavailable")),
+            ),
+            patch.object(front_webhook_module.logger, "exception"),
+        ):
+            try:
+                await front_webhook_module.process_inbox_event("evt_claim_db")
+            except HTTPException as exc:
+                assert exc.status_code == 503
+                assert exc.detail == "Webhook claim failed"
+            else:
+                raise AssertionError("claim database failure must return 503")
+
+    asyncio.run(run_case())
+
+
+def test_status_lookup_database_failure_is_normalized_to_503():
+    async def run_case():
+        claim = AsyncMock(return_value=None)
+        with (
+            patch.object(
+                front_webhook_module,
+                "claim_webhook",
+                claim,
+            ),
+            patch.object(
+                front_webhook_module,
+                "get_webhook",
+                AsyncMock(side_effect=RuntimeError("database unavailable")),
+            ),
+            patch.object(front_webhook_module.logger, "exception"),
+        ):
+            try:
+                await front_webhook_module.process_inbox_event("evt_lookup_db")
+            except HTTPException as exc:
+                assert exc.status_code == 503
+                assert exc.detail == "Webhook status lookup failed"
+            else:
+                raise AssertionError("status database failure must return 503")
+
+        claim.assert_not_awaited()
+
+    asyncio.run(run_case())
+
+
+def test_scheduler_registers_bounded_webhook_retry_job():
+    isolated_scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
+    try:
+        with (
+            patch.object(scheduler_module, "scheduler", isolated_scheduler),
+            patch.object(isolated_scheduler, "start") as start,
+        ):
+            scheduler_module.start_scheduler()
+
+            start.assert_called_once_with()
+            job = isolated_scheduler.get_job(
+                "retry_pending_front_webhooks_every_minute"
+            )
+            assert job is not None
+            assert job.func is scheduler_module.retry_pending_front_webhooks
+            assert job.trigger.interval == timedelta(seconds=60)
+            assert job.coalesce is True
+            assert job.max_instances == 1
+            assert not isolated_scheduler.running
+    finally:
+        if isolated_scheduler.running:
+            isolated_scheduler.shutdown(wait=False)
+        else:
+            isolated_scheduler.remove_all_jobs()
+
+
+def test_scheduler_wrapper_isolates_retry_failures():
+    async def run_case():
+        retry = AsyncMock(side_effect=RuntimeError("database unavailable"))
+        with (
+            patch.object(front_webhook_module, "retry_due_front_webhooks", retry),
+            patch.object(scheduler_module.logger, "exception") as exception_log,
+        ):
+            result = await scheduler_module.retry_pending_front_webhooks()
+
+        assert result is None
+        retry.assert_awaited_once_with()
+        exception_log.assert_called_once_with(
+            "retry_pending_front_webhooks failed"
+        )
+
+    asyncio.run(run_case())
+
+
+def run_all():
+    for name, fn in sorted(globals().items()):
+        if name.startswith("test_"):
+            fn()
+
+
+if __name__ == "__main__":
+    run_all()
+    print("webhook recovery tests passed")

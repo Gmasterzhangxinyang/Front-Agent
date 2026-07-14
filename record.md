@@ -142,3 +142,7 @@
 - [docs] add the test-driven Sybil queue soft-dismissal implementation plan (docs/superpowers/plans/2026-07-14-sybil-queue-dismissal.md)
 - [feat] add authenticated soft dismissal for individual pending Sybil queue records while retaining dismissed history and audit actions (config.py, routes/ops.py, routes/static/ops.html, tools/sybil_digest.py, tests/test_ops_sybil_dismissal.py)
 - [docs] document the Ops write secret, leased digest claims, and Sybil dismissed-state semantics without committing the real secret (.env.example, README.md, CLAUDE.md, Sybil design and plan)
+- [feat] persist authenticated Front webhooks before processing and retry temporary failures with leased SQLite inbox records and APScheduler (models.py, services/webhook_inbox.py, webhooks/front_webhook.py, tasks/scheduler.py, tests/test_webhook_recovery.py)
+- [docs] document durable webhook recovery, retry timing, dead letters, and verification (README.md, CLAUDE.md, docs/runtime-boundaries.md)
+- [fix] start webhook leases only after execution capacity, drain APScheduler jobs for up to 60 seconds, and document at-least-once external side-effect semantics (webhooks/front_webhook.py, main.py, tests/test_webhook_recovery.py, tests/test_runtime_boundaries.py, README.md, CLAUDE.md, docs/runtime-boundaries.md)
+- [docs] clarify the 60-second graceful scheduler drain guarantee and residual timeout boundary (README.md, CLAUDE.md, docs/runtime-boundaries.md)

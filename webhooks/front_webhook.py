@@ -9,6 +9,15 @@ from database import AsyncSessionLocal
 from models import WebhookEvent
 from agent.orchestrator import handle_email
 from config import settings
+from services.webhook_inbox import (
+    claim_webhook,
+    complete_webhook,
+    derive_event_id,
+    enqueue_webhook,
+    fail_webhook,
+    get_webhook,
+    list_due_event_ids,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -77,17 +86,157 @@ async def front_webhook(request: Request):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    event_id = payload.get("id") or payload.get("event_id")
+    event_id = derive_event_id(payload, body)
     conversation = payload.get("conversation") or {}
     conversation_id = conversation.get("id") or payload.get("conversation_id")
 
     if not conversation_id:
         return {"status": "ignored", "reason": "no conversation_id"}
 
-    async with _webhook_semaphore:
-        lock = _get_conversation_lock(conversation_id)
-        async with lock:
-            return await _process_front_webhook_event(payload, event_id, conversation_id)
+    try:
+        await enqueue_webhook(event_id, conversation_id, payload)
+    except Exception as exc:
+        logger.exception("Could not persist Front webhook %s", event_id)
+        raise HTTPException(
+            status_code=503,
+            detail="Webhook persistence failed",
+        ) from exc
+
+    return await process_inbox_event(event_id)
+
+
+async def _save_processing_failure(claim, error: Exception):
+    try:
+        outcome = await fail_webhook(claim.event_id, claim.lease_token, error)
+    except Exception:
+        logger.exception(
+            "Could not persist retry state for Front webhook %s",
+            claim.event_id,
+        )
+        return None
+    if outcome is not None and outcome.status == "dead_letter":
+        logger.error(
+            "Front webhook moved to dead_letter "
+            "event_id=%s conversation_id=%s attempts=%s",
+            claim.event_id,
+            claim.conversation_id,
+            outcome.attempts,
+        )
+    return outcome
+
+
+async def _get_webhook_or_503(event_id: str):
+    try:
+        return await get_webhook(event_id)
+    except Exception as exc:
+        logger.exception("Could not read Front webhook status %s", event_id)
+        raise HTTPException(
+            status_code=503,
+            detail="Webhook status lookup failed",
+        ) from exc
+
+
+def _unclaimed_result(current):
+    if current is not None and current.status == "processed":
+        return {"status": "already_processed"}
+    return {
+        "status": "queued",
+        "queue_status": current.status if current is not None else "missing",
+    }
+
+
+async def process_inbox_event(event_id: str):
+    current = await _get_webhook_or_503(event_id)
+    if current is None or current.status == "processed":
+        return _unclaimed_result(current)
+
+    lock = _get_conversation_lock(current.conversation_id)
+    async with lock:
+        async with _webhook_semaphore:
+            return await _process_inbox_event_with_capacity(event_id)
+
+
+async def _process_inbox_event_with_capacity(event_id: str):
+    try:
+        claim = await claim_webhook(event_id)
+    except Exception as exc:
+        logger.exception("Could not claim Front webhook %s", event_id)
+        raise HTTPException(
+            status_code=503,
+            detail="Webhook claim failed",
+        ) from exc
+
+    if claim is None:
+        current = await _get_webhook_or_503(event_id)
+        return _unclaimed_result(current)
+
+    try:
+        result = await _process_front_webhook_event(
+            claim.payload,
+            claim.event_id,
+            claim.conversation_id,
+        )
+    except HTTPException as exc:
+        await _save_processing_failure(claim, exc)
+        raise
+    except Exception as exc:
+        logger.exception(
+            "Unexpected queued webhook failure for %s",
+            claim.event_id,
+        )
+        await _save_processing_failure(claim, exc)
+        raise HTTPException(status_code=503, detail="handler_error") from exc
+
+    try:
+        completed = await complete_webhook(claim.event_id, claim.lease_token)
+    except Exception as exc:
+        logger.exception(
+            "Could not complete Front webhook inbox row %s",
+            claim.event_id,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Webhook completion failed",
+        ) from exc
+    if not completed:
+        raise HTTPException(
+            status_code=503,
+            detail="Webhook processing lease lost",
+        )
+    return result
+
+
+async def retry_due_front_webhooks() -> dict[str, int]:
+    event_ids = await list_due_event_ids(limit=20)
+    result = {
+        "due": len(event_ids),
+        "processed": 0,
+        "queued": 0,
+        "failed": 0,
+    }
+    for event_id in event_ids:
+        try:
+            outcome = await process_inbox_event(event_id)
+            if outcome.get("queue_status") == "dead_letter":
+                logger.error(
+                    "Front webhook recovery found dead_letter event_id=%s",
+                    event_id,
+                )
+                result["failed"] += 1
+                continue
+            if outcome.get("status") == "queued":
+                result["queued"] += 1
+                continue
+            result["processed"] += 1
+        except HTTPException:
+            result["failed"] += 1
+        except Exception:
+            result["failed"] += 1
+            logger.exception(
+                "Retry loop failed for Front webhook %s",
+                event_id,
+            )
+    return result
 
 
 async def _process_front_webhook_event(payload: dict, event_id: str | None, conversation_id: str):

@@ -90,8 +90,9 @@ entry point every minute with `coalesce=True` and `max_instances=1`.
 2. Parse JSON and extract the conversation ID.
 3. For any conversation-bearing event, derive its stable event ID and commit
    the inbox record before calling Front, the model provider, or any tool.
-4. Claim the record for immediate processing.
-5. Enter the existing global semaphore and per-conversation lock.
+4. Enter the existing per-conversation lock and global semaphore.
+5. Claim the record for immediate processing, starting the lease only after
+   execution capacity is available.
 6. Recheck `webhook_events`, then run the existing inbound-message filter,
    allowed-inbox check, and `handle_email` flow.
 7. On success or a deterministic ignore outcome, write `webhook_events`, mark
@@ -118,13 +119,16 @@ valid only when the record is due in `pending` or `retry`, or when a
 4. sets a 15-minute lease expiry.
 
 Completion and failure updates require the same lease token. A stale worker
-therefore cannot overwrite the result of a later recovery claim. The existing
-webhook semaphore limits total work, and the conversation lock prevents two
+therefore cannot overwrite the result of a later recovery claim. The worker
+acquires the conversation lock and webhook semaphore before claiming, so queue
+wait time cannot expire a lease or consume an attempt. The lock prevents two
 events for one conversation from running simultaneously within the process.
 
-The lease is deliberately longer than the usual handler duration. If a handler
-runs beyond the lease during a severe outage, existing event and action ledgers
-remain the final protection against duplicate successful side effects.
+The lease is deliberately longer than the usual handler duration. Recovery is
+at-least-once: if an external provider accepts a write and the process exits
+before the local action or event record commits, a retry can repeat that write.
+Provider idempotency or reconciliation is required for exactly-once side
+effects; the local ledgers only deduplicate results already committed locally.
 
 ## Retry and Terminal States
 
@@ -225,7 +229,8 @@ that Front itself retries Rule Webhooks.
 
 - A valid conversation webhook is durably stored before external processing.
 - A process crash or temporary dependency failure does not silently lose the
-  event.
+  event; processing is at-least-once and can repeat an externally accepted write
+  whose local success record was not committed.
 - Normal successful mail continues to be processed immediately.
 - A duplicated delivery or competing scheduler run cannot claim an active
   event twice.

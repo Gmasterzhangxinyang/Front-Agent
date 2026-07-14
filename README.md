@@ -12,6 +12,7 @@ Current production screen runs this branch from release directories under `/tmp/
 - Start command: `bash start.sh`
 - Health check: `GET /health`
 - Webhook trust: signed Front webhooks are required by default
+- Webhook recovery: authenticated conversation events are committed to `webhook_inbox` before immediate processing
 - Attachments: authenticated downloads are restricted to exact HTTPS hosts and hard limits
 - Customer replies: draft-only by default; direct customer send tools are blocked
 - Spam: deterministic route may archive only clear spam/ads
@@ -25,8 +26,10 @@ Current production screen runs this branch from release directories under `/tmp/
 ```mermaid
 flowchart TD
     A[Front webhook] --> B[Verify signature and event_id]
-    B --> C[Allowed Support inbox filter]
-    C --> D[Load full conversation, attachments, state]
+    B --> WI[Commit to webhook_inbox]
+    WI --> C[Immediate request-path processing]
+    C --> D0[Allowed Support inbox filter]
+    D0 --> D[Load full conversation, attachments, state]
     D --> CM[Retrieve strong historical case matches]
     CM --> E[Classify with skills/classify.md]
     E --> F{Deterministic route?}
@@ -119,16 +122,38 @@ Important constraints:
 - `front_create_draft` creates a Front draft only.
 - Internal handoffs use dedicated `front_forward_to_*` tools.
 - Internal recipients are restricted to `@dify.ai` where applicable.
-- Handler exceptions notify Bobby through the deduplicated action log, explicitly reopen the original conversation, save `failed_needs_review`, do not mark the webhook event processed, and return HTTP 503 instead of a false success.
+- Handler exceptions notify Bobby through the deduplicated action log, explicitly reopen the original conversation, save `failed_needs_review`, do not mark the webhook event processed, and return HTTP 503 instead of a false success. The inbox row remains durable for internal retry.
 
 ## Idempotency and Original Sender Guard
 
-There are two idempotency layers:
+There are two idempotency layers plus a durable recovery queue:
 
 | Layer | Table | Key | Purpose |
 |---|---|---|---|
+| Recovery | `webhook_inbox` | Front `event_id` or deterministic body hash | persist authenticated conversation events before processing |
 | Webhook | `webhook_events` | Front `event_id` | skip duplicate webhook deliveries |
 | Tool side effects | `conversation_actions` | `conversation_id + action_type + action_key` | skip duplicate successful writes |
+
+Normal handling still starts immediately in the HTTP request path. APScheduler
+checks the durable inbox every minute because Front Rule Webhooks do not retry
+failed deliveries. After the immediate attempt, failures wait 1, 5, 15, 60,
+and 180 minutes. A failed attempt 6 becomes `dead_letter` and is logged for
+manual review. Claims use a 15-minute lease so a process crash does not leave a
+row permanently stuck in `processing`.
+
+Successful processing clears the stored payload. Dead-letter rows retain their
+payload and bounded diagnostic for manual recovery. `webhook_events` remains
+the downstream idempotency ledger and records only successful or
+deterministically ignored events, never retryable failures. Claims begin only
+after the worker has the conversation lock and global execution capacity, so
+queue wait time does not consume the lease.
+
+Recovery provides at-least-once processing, not exactly-once external side
+effects. If Front, Linear, or another provider accepts a write and the process
+exits before the local `conversation_actions` or `webhook_events` commit, a
+retry can repeat that write. Graceful scheduler shutdown waits up to 60
+seconds for active jobs, reducing this window during planned deploys. Provider
+idempotency or reconciliation is still needed for an exactly-once guarantee.
 
 `conversation_actions` covers duplicate-prone writes:
 
@@ -170,6 +195,7 @@ SQLite models are in `models.py` and initialized by `database.py`.
 |---|---|
 | `conversation_states` | category, sub_type, step, waiting, payload, original sender |
 | `conversation_actions` | tool-level action log and dedupe |
+| `webhook_inbox` | durable authenticated webhook payloads, leases, retries, and dead letters |
 | `webhook_events` | Front event idempotency |
 | `sybil_notifications` | pending/sending/sent/dismissed Sybil digest queue; dismissed rows remain retained |
 
@@ -290,12 +316,13 @@ Production-like local screen currently uses port `8080` and release directories 
 Run before commit/deploy:
 
 ```bash
+.venv/bin/python tests/test_webhook_recovery.py
 .venv/bin/python tests/test_runtime_boundaries.py
 .venv/bin/python tests/test_ops_sybil_dismissal.py
 .venv/bin/python tests/test_routing.py
 .venv/bin/python tests/test_skills.py
 .venv/bin/python tests/test_draft_adoption.py
-.venv/bin/python -m compileall -q agent tools webhooks tests config.py main.py
+.venv/bin/python -m compileall -q agent services tasks tools webhooks routes tests config.py main.py models.py
 .venv/bin/python -m pip check
 git diff --check
 ```

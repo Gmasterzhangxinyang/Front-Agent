@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import httpx
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import HTTPException
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -15,6 +16,8 @@ from agent.tool_registry import (
     prepare_llm_tool_call,
 )
 import agent.orchestrator as orchestrator_module
+import main as main_module
+import tasks.scheduler as scheduler_module
 import webhooks.front_webhook as front_webhook_module
 from config import settings
 from tools.attachments import bounded_attachments, clip_attachment_text
@@ -81,6 +84,63 @@ def _context() -> ToolExecutionContext:
         conversation_id="cnv_trusted",
         sender_email="customer@example.com",
     )
+
+
+def test_lifespan_gracefully_stops_started_scheduler():
+    async def run_case():
+        with (
+            patch.object(main_module, "validate_webhook_security_config"),
+            patch.object(main_module, "init_db", AsyncMock()),
+            patch.object(main_module, "start_scheduler") as start,
+            patch.object(main_module, "stop_scheduler", AsyncMock()) as stop,
+            patch.object(settings, "enable_scheduler", True),
+        ):
+            async with main_module.lifespan(main_module.app):
+                pass
+
+        start.assert_called_once_with()
+        stop.assert_awaited_once_with()
+
+    asyncio.run(run_case())
+
+
+def test_stop_scheduler_waits_for_real_asyncio_job():
+    async def run_case():
+        started = asyncio.Event()
+        release = asyncio.Event()
+        finished = False
+        cancelled = False
+        isolated_scheduler = AsyncIOScheduler()
+
+        @scheduler_module._track_scheduler_job
+        async def slow_job():
+            nonlocal finished, cancelled
+            started.set()
+            try:
+                await release.wait()
+                finished = True
+            except asyncio.CancelledError:
+                cancelled = True
+                raise
+
+        with patch.object(scheduler_module, "scheduler", isolated_scheduler):
+            isolated_scheduler.add_job(slow_job, "date")
+            isolated_scheduler.start()
+            await asyncio.wait_for(started.wait(), timeout=1)
+
+            stopping = asyncio.create_task(scheduler_module.stop_scheduler())
+            await asyncio.sleep(0)
+            assert not stopping.done()
+            assert not cancelled
+
+            release.set()
+            await asyncio.wait_for(stopping, timeout=1)
+
+        assert finished
+        assert not cancelled
+        assert not isolated_scheduler.running
+
+    asyncio.run(run_case())
 
 
 def test_llm_tool_context_overrides_conversation_id():
