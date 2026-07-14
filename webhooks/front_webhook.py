@@ -192,7 +192,12 @@ async def process_inbox_event(event_id: str):
 
 async def retry_due_front_webhooks() -> dict[str, int]:
     event_ids = await list_due_event_ids(limit=20)
-    result = {"due": len(event_ids), "processed": 0, "failed": 0}
+    result = {
+        "due": len(event_ids),
+        "processed": 0,
+        "queued": 0,
+        "failed": 0,
+    }
     for event_id in event_ids:
         try:
             outcome = await process_inbox_event(event_id)
@@ -202,6 +207,9 @@ async def retry_due_front_webhooks() -> dict[str, int]:
                     event_id,
                 )
                 result["failed"] += 1
+                continue
+            if outcome.get("status") == "queued":
+                result["queued"] += 1
                 continue
             result["processed"] += 1
         except HTTPException:

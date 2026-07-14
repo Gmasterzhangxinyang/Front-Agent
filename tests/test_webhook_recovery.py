@@ -713,11 +713,50 @@ def test_retry_loop_counts_terminalized_expired_lease_as_failed():
 
             stored = await webhook_inbox.get_webhook("evt_retry_dead_letter")
 
-        assert result == {"due": 1, "processed": 0, "failed": 1}
+        assert result == {
+            "due": 1,
+            "processed": 0,
+            "queued": 0,
+            "failed": 1,
+        }
         assert stored is not None
         assert stored.status == "dead_letter"
         error_log.assert_called_once()
         assert "dead_letter" in error_log.call_args.args[0]
+
+    asyncio.run(run_case())
+
+
+def test_retry_loop_counts_claim_competition_as_queued():
+    async def run_case():
+        event_id = "evt_claim_competition"
+        with (
+            patch.object(
+                front_webhook_module,
+                "list_due_event_ids",
+                AsyncMock(return_value=[event_id]),
+            ),
+            patch.object(
+                front_webhook_module,
+                "claim_webhook",
+                AsyncMock(return_value=None),
+            ),
+            patch.object(
+                front_webhook_module,
+                "get_webhook",
+                AsyncMock(return_value=SimpleNamespace(status="processing")),
+            ),
+            patch.object(front_webhook_module.logger, "error") as error_log,
+        ):
+            result = await front_webhook_module.retry_due_front_webhooks()
+
+        assert result == {
+            "due": 1,
+            "processed": 0,
+            "queued": 1,
+            "failed": 0,
+        }
+        error_log.assert_not_called()
 
     asyncio.run(run_case())
 
