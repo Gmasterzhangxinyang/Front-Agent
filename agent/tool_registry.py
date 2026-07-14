@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 DEDUPE_TOOL_NAMES = {
     "front_create_draft",
+    "front_add_comment",
     "front_forward_to_bobby",
     "front_forward_to_limin",
     "front_forward_to_partnerships",
@@ -39,6 +40,8 @@ def _action_identity(tool_name: str, args: dict) -> tuple[str, str, str] | None:
         return None
 
     if tool_name == "front_create_draft":
+        key = f"body:{_hash_text(args.get('body', ''))}"
+    elif tool_name == "front_add_comment":
         key = f"body:{_hash_text(args.get('body', ''))}"
     elif tool_name == "linear_create_ticket":
         sender_email = (args.get("sender_email") or "").strip().lower()

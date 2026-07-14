@@ -160,6 +160,7 @@ idempotency or reconciliation is still needed for an exactly-once guarantee.
 | Tool | Action key |
 |---|---|
 | `front_create_draft` | normalized draft body hash |
+| `front_add_comment` | normalized internal comment body hash |
 | `linear_create_ticket` | trusted sender + original-message hash across conversations for 24 hours |
 | `feishu_notify_sybil_group` / `front_forward_to_sybil` | handoff type + Linear URL, or message hash |
 | `front_forward_to_bobby` / `front_forward_to_limin` / other internal forwards | summary/message hash |
@@ -183,7 +184,7 @@ Business rules live in `skills/`. Update a skill when changing classification ex
 | `classify.md` | classification JSON schema, examples, routing-oriented rules |
 | `technical.md` | technical drafts, docs/GitHub grounding, paid/non-paid handling |
 | `account.md` | login, deletion, transfer, email change, account anomaly, hacked account |
-| `billing.md` | refund, duplicate charge, invoice, downgrade/cancel drafts |
+| `billing.md` | refund, duplicate charge, invoice, downgrade/cancel drafts; existing-invoice Credit Note confirmation |
 | `education.md` | education review, Sybil digest handoff, proof requests |
 | `purchase.md` | pricing, Enterprise contact guidance, reseller routing |
 | `business.md` | documents deterministic Business inbox behavior |
@@ -216,6 +217,14 @@ Important steps:
 | `moved_inbox` | moved to another Front inbox |
 | `failed_needs_review` | tool or handler did not safely complete |
 | `closed_spam` | deterministic spam route archived |
+
+Existing-invoice correction requests create a draft explaining that finalized
+invoices cannot be changed, that updated billing details apply to future
+invoices, and asking whether the customer wants a supplementary Credit Note.
+Only an explicit second customer reply while in
+`awaiting_credit_note_confirmation` adds a deduplicated internal Front comment
+stating that the case should go to Elsie; it does not assign the conversation,
+create a ticket, enter an Ops queue, or perform the Credit Note action.
 
 ## Code Map
 

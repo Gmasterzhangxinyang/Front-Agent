@@ -60,6 +60,7 @@ FastAPI app that receives Front webhook events, classifies emails with an OpenAI
 - `webhook_inbox` durably stores each authenticated conversation event before processing, keyed by Front event ID or a deterministic body hash.
 - `webhook_events` deduplicates successful Front webhook deliveries by event ID.
 - `conversation_actions` deduplicates successful drafts and handoffs by conversation plus action-specific content. Linear tickets use trusted sender plus normalized original-message content across conversations for 24 hours, with an in-process concurrency lock.
+- Front internal comments are also deduplicated by normalized comment content within the conversation.
 - `webhook_events` is written only after successful processing or deterministic ignore; retryable failures are not recorded as processed.
 - Front Rule Webhooks do not retry failed deliveries. Internal APScheduler recovery runs every minute with 1/5/15/60/180-minute delays after the immediate attempt.
 - Claims start only after the conversation lock and global webhook capacity are acquired, then use a 15-minute lease. Failed attempt 6 becomes `dead_letter`; processed payloads are cleared while dead-letter payloads remain for manual recovery.
@@ -77,6 +78,7 @@ FastAPI app that receives Front webhook events, classifies emails with an OpenAI
 - `OPS_WRITE_SECRET` protects Ops mutations. Sybil dismissal changes only `pending` to `dismissed`, retains the row and audit action, and must use HTTPS remotely.
 - The digest claims pending Sybil rows as `sending` before network I/O, so in-flight sends cannot be reported as dismissed.
 - Operational details and deploy checks are in `docs/runtime-boundaries.md`.
+- Billing multi-turn handling is limited to `billing/invoice` at `awaiting_credit_note_confirmation`: an explicit second customer confirmation adds only the approved internal Elsie comment, with no assignment, ticket, Ops queue, or billing-provider action.
 
 ## Verification
 

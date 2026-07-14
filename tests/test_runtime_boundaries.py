@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from agent.tool_registry import (
     ToolCallValidationError,
     ToolExecutionContext,
+    _action_identity,
     prepare_llm_tool_call,
 )
 import agent.orchestrator as orchestrator_module
@@ -77,6 +78,70 @@ class _InboxResponse:
 
     def json(self):
         return {"_results": [{"id": "inb_f9fvf"}]}
+
+
+def test_only_waiting_invoice_credit_note_reply_continues_billing_flow():
+    async def run_case(state, should_continue):
+        run_loop = AsyncMock()
+        fetch_messages = AsyncMock(return_value=[])
+        with (
+            patch.object(orchestrator_module.state_tool, "get_state", AsyncMock(return_value=state)),
+            patch.object(orchestrator_module, "get_conversation_messages", fetch_messages),
+            patch.object(orchestrator_module, "fetch_attachments_as_base64", AsyncMock(return_value=[])),
+            patch.object(orchestrator_module, "fetch_attachments_as_text", AsyncMock(return_value=[])),
+            patch.object(orchestrator_module, "build_case_memory_context", AsyncMock(return_value="")),
+            patch.object(orchestrator_module, "_run_agent_loop", run_loop),
+        ):
+            await orchestrator_module.handle_email(
+                "cnv_billing",
+                "Yes, please provide the Credit Note.",
+                "customer@example.com",
+                [],
+                object(),
+            )
+
+        if should_continue:
+            fetch_messages.assert_awaited_once()
+            run_loop.assert_awaited_once()
+            prompt = run_loop.await_args.args[0][0]["content"]
+            assert "Step: awaiting_credit_note_confirmation" in prompt
+        else:
+            fetch_messages.assert_not_awaited()
+            run_loop.assert_not_awaited()
+
+    waiting = SimpleNamespace(
+        category="billing",
+        sub_type="invoice",
+        step="awaiting_credit_note_confirmation",
+        payload={"invoice": "#0NOROUBA-0001"},
+    )
+    completed = SimpleNamespace(
+        category="billing",
+        sub_type="invoice",
+        step="credit_note_requested",
+        payload={"invoice": "#0NOROUBA-0001"},
+    )
+    asyncio.run(run_case(waiting, True))
+    asyncio.run(run_case(completed, False))
+
+
+def test_front_internal_comments_have_content_level_deduplication():
+    first = _action_identity(
+        "front_add_comment",
+        {"conversation_id": "cnv_billing", "body": "Credit Note requested"},
+    )
+    same = _action_identity(
+        "front_add_comment",
+        {"conversation_id": "cnv_billing", "body": "  Credit   Note requested  "},
+    )
+    different = _action_identity(
+        "front_add_comment",
+        {"conversation_id": "cnv_billing", "body": "Different comment"},
+    )
+
+    assert first is not None
+    assert first == same
+    assert first != different
 
 
 def _context() -> ToolExecutionContext:

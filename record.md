@@ -136,6 +136,7 @@
 - [fix] handle verified Education Plan users blocked by unsupported credit cards with a final no-bypass draft and no Linear or Sybil escalation (skills/education.md, tests/test_skills.py)
 
 ## 2026-07-14
+- [feat] add the approved existing-invoice Credit Note flow: first create a policy/confirmation draft, then on explicit second customer confirmation add a deduplicated Front internal comment saying the case should go to Elsie, without assignment, Ops queue, Linear ticket, or billing-provider action (skills/billing.md, skills/classify.md, agent/orchestrator.py, agent/tool_registry.py, tests/test_skills.py, tests/test_runtime_boundaries.py, README.md, CLAUDE.md)
 - [docs] document the approved durable Front webhook recovery design (docs/superpowers/specs/2026-07-14-durable-webhook-recovery-design.md)
 - [docs] add the test-driven durable Front webhook recovery implementation plan (docs/superpowers/plans/2026-07-14-durable-webhook-recovery.md)
 - [docs] document authenticated soft dismissal for individual pending Sybil queue items (docs/superpowers/specs/2026-07-14-sybil-queue-dismissal-design.md)

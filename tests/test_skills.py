@@ -161,6 +161,44 @@ def test_account_login_requires_deployment_and_saas_handoff():
         assert expected in text, f"account.md missing {expected!r}"
 
 
+def test_invoice_credit_note_flow_is_draft_then_internal_comment_only():
+    billing = _skill_text("billing")
+    for expected in [
+        "awaiting_credit_note_confirmation",
+        "we're unable to modify or reissue the original invoice",
+        "reflected on future invoices",
+        "supplementary Credit Note",
+        "does not modify or replace the original invoice",
+        "Please let us know if you would like us to request a Credit Note for you.",
+        "front_add_comment",
+        "用户二次来信确认需要 Credit Note，应该交给 Elsie 处理。",
+        "Workspace:",
+        "Invoice:",
+        "Organization:",
+        "Tax ID:",
+        "Billing Address:",
+        "credit_note_requested",
+        "Do not call `front_assign`",
+        "Do not call `linear_create_ticket`",
+        'Do not set step="manual_review"',
+    ]:
+        assert expected in billing, f"billing.md missing {expected!r}"
+
+    invoice_section = billing.split("### invoice", 1)[1].split("### other", 1)[0]
+    assert "@Elsie" not in invoice_section
+
+
+def test_invoice_credit_note_flow_has_classification_example():
+    classify = _skill_text("classify")
+    for expected in [
+        "Existing Invoice Correction",
+        '"category": "billing"',
+        '"sub_type": "invoice"',
+        "correct or reissue the existing paid invoice",
+    ]:
+        assert expected in classify, f"classify.md missing {expected!r}"
+
+
 def test_sybil_forward_tool_supports_bobby_cc():
     tool_source = Path("agent/tool_registry.py").read_text(encoding="utf-8")
     handoff_source = Path("tools/handoff.py").read_text(encoding="utf-8")

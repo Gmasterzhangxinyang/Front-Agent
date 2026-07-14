@@ -69,13 +69,19 @@ async def handle_email(
     )
 
     # Existing-state webhook events are replies on conversations we have already handled.
-    # Only education replies continue through the skill flow; other categories are ignored.
+    # Education keeps its existing flow. Billing continues only for the one approved
+    # invoice Credit Note confirmation step; all other billing replies stay ignored.
     if existing_state and not retrying_failed_state:
         category = existing_state.category or ""
         step = existing_state.step or ""
-        if category != "education":
+        billing_credit_note_confirmation = (
+            category == "billing"
+            and existing_state.sub_type == "invoice"
+            and step == "awaiting_credit_note_confirmation"
+        )
+        if category != "education" and not billing_credit_note_confirmation:
             logger.info(
-                "Skipping non-education reply for conv %s — step=%s category=%s",
+                "Skipping reply without an approved continuation for conv %s — step=%s category=%s",
                 conversation_id, existing_state.step, existing_state.category,
             )
             return
