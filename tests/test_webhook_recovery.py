@@ -1,11 +1,14 @@
 import asyncio
 import hashlib
+import json
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -13,7 +16,31 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from database import Base
 from models import WebhookInbox
 import services.webhook_inbox as webhook_inbox
-from services.webhook_inbox import derive_event_id
+import webhooks.front_webhook as front_webhook_module
+from services.webhook_inbox import InboxSnapshot, derive_event_id
+
+
+class _WebhookRequest:
+    def __init__(self, payload):
+        self._body = json.dumps(payload, separators=(",", ":")).encode()
+        self.headers = {"X-Front-Signature": "valid"}
+
+    async def body(self):
+        return self._body
+
+
+def _claim_snapshot(event_id="evt_flow", attempts=1):
+    return InboxSnapshot(
+        event_id=event_id,
+        conversation_id="cnv_flow",
+        payload={"id": event_id, "conversation_id": "cnv_flow"},
+        status="processing",
+        attempts=attempts,
+        available_at=datetime(2026, 7, 14, 10, 0, 0),
+        lease_token="lease_flow",
+        lease_expires_at=datetime(2026, 7, 14, 10, 15, 0),
+        last_error="",
+    )
 
 
 @asynccontextmanager
@@ -538,6 +565,133 @@ def test_due_list_uses_event_id_to_break_exact_timestamp_ties():
 
     asyncio.run(run_case())
 
+
+def test_route_persists_before_starting_processing():
+    async def run_case():
+        order = []
+
+        async def enqueue(*_args, **_kwargs):
+            order.append("persist")
+            return SimpleNamespace(status="pending")
+
+        async def process(event_id):
+            order.append(f"process:{event_id}")
+            return {"status": "ok"}
+
+        payload = {"id": "evt_order", "conversation_id": "cnv_order"}
+        with (
+            patch.object(
+                front_webhook_module,
+                "verify_signature",
+                return_value=True,
+            ),
+            patch.object(front_webhook_module, "enqueue_webhook", enqueue),
+            patch.object(front_webhook_module, "process_inbox_event", process),
+        ):
+            result = await front_webhook_module.front_webhook(
+                _WebhookRequest(payload)
+            )
+
+        assert result == {"status": "ok"}
+        assert order == ["persist", "process:evt_order"]
+
+    asyncio.run(run_case())
+
+
+def test_claimed_success_marks_inbox_processed():
+    async def run_case():
+        claim = _claim_snapshot()
+        with (
+            patch.object(
+                front_webhook_module,
+                "claim_webhook",
+                AsyncMock(return_value=claim),
+            ),
+            patch.object(
+                front_webhook_module,
+                "_process_front_webhook_event",
+                AsyncMock(return_value={"status": "ok"}),
+            ),
+            patch.object(
+                front_webhook_module,
+                "complete_webhook",
+                AsyncMock(return_value=True),
+            ) as complete,
+        ):
+            result = await front_webhook_module.process_inbox_event(
+                claim.event_id
+            )
+
+        assert result == {"status": "ok"}
+        complete.assert_awaited_once_with(claim.event_id, claim.lease_token)
+
+    asyncio.run(run_case())
+
+
+def test_claimed_ignored_event_is_terminal():
+    async def run_case():
+        claim = _claim_snapshot(event_id="evt_ignored")
+        ignored = {"status": "ignored", "reason": "not inbound user message"}
+        with (
+            patch.object(
+                front_webhook_module,
+                "claim_webhook",
+                AsyncMock(return_value=claim),
+            ),
+            patch.object(
+                front_webhook_module,
+                "_process_front_webhook_event",
+                AsyncMock(return_value=ignored),
+            ),
+            patch.object(
+                front_webhook_module,
+                "complete_webhook",
+                AsyncMock(return_value=True),
+            ) as complete,
+        ):
+            result = await front_webhook_module.process_inbox_event(
+                claim.event_id
+            )
+
+        assert result == ignored
+        complete.assert_awaited_once_with(claim.event_id, claim.lease_token)
+
+    asyncio.run(run_case())
+
+
+def test_claimed_failure_is_scheduled_before_503_returns():
+    async def run_case():
+        claim = _claim_snapshot()
+        retry = SimpleNamespace(status="retry", attempts=1)
+        failure = HTTPException(status_code=503, detail="temporary")
+        fail = AsyncMock(return_value=retry)
+        with (
+            patch.object(
+                front_webhook_module,
+                "claim_webhook",
+                AsyncMock(return_value=claim),
+            ),
+            patch.object(
+                front_webhook_module,
+                "_process_front_webhook_event",
+                AsyncMock(side_effect=failure),
+            ),
+            patch.object(front_webhook_module, "fail_webhook", fail),
+        ):
+            try:
+                await front_webhook_module.process_inbox_event(claim.event_id)
+            except HTTPException as exc:
+                assert exc.status_code == 503
+            else:
+                raise AssertionError("retryable processing failure must return 503")
+
+        fail.assert_awaited_once_with(
+            claim.event_id,
+            claim.lease_token,
+            failure,
+        )
+
+    asyncio.run(run_case())
 
 def run_all():
     for name, fn in sorted(globals().items()):
