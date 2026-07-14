@@ -140,3 +140,4 @@
 - [docs] add the test-driven durable Front webhook recovery implementation plan (docs/superpowers/plans/2026-07-14-durable-webhook-recovery.md)
 - [feat] persist authenticated Front webhooks before processing and retry temporary failures with leased SQLite inbox records and APScheduler (models.py, services/webhook_inbox.py, webhooks/front_webhook.py, tasks/scheduler.py, tests/test_webhook_recovery.py)
 - [docs] document durable webhook recovery, retry timing, dead letters, and verification (README.md, CLAUDE.md, docs/runtime-boundaries.md)
+- [fix] start webhook leases only after execution capacity, gracefully stop APScheduler, and document at-least-once external side-effect semantics (webhooks/front_webhook.py, main.py, tests/test_webhook_recovery.py, tests/test_runtime_boundaries.py, README.md, CLAUDE.md, docs/runtime-boundaries.md)

@@ -109,7 +109,22 @@ operator can investigate and recover them.
 `webhook_events` remains separate from the recovery inbox. It records only
 events that finished successfully or were deterministically ignored. Retryable
 failures are never inserted there, so recovery does not mistake a failed event
-for completed work.
+for completed work. Claims start only after the worker has both its conversation
+lock and global execution capacity, so time spent queued does not age the lease.
+
+## At-Least-Once Side Effects
+
+Durable recovery guarantees at-least-once event processing, not exactly-once
+external writes. `conversation_actions` prevents a repeat after its successful
+record commits. An abrupt exit after Front, Linear, or another provider accepts
+a write but before that local commit leaves an uncertain result; the recovered
+event can repeat the write. Exactly-once behavior requires a stable provider
+idempotency key or reconciliation of uncertain actions before retry.
+
+The FastAPI lifespan waits for this process's APScheduler jobs during a normal
+shutdown. This reduces the uncertain window during planned deployments, but it
+does not protect against forced termination, host loss, or a provider response
+whose local commit never completes.
 
 ## Deploy Checklist
 
@@ -118,8 +133,9 @@ for completed work.
 3. Confirm every required attachment hostname is explicitly allowlisted.
 4. Review count, byte, and text limits for the deployment's expected traffic.
 5. Run the verification commands below before restarting the service.
-6. Send one signed test webhook and confirm `/health` and service logs after deployment.
-7. Monitor `dead_letter` inbox rows and `failed_needs_review`; Front Rule Webhooks do not automatically retry failed deliveries.
+6. Stop the old process gracefully and allow its scheduler jobs to finish.
+7. Send one signed test webhook and confirm `/health` and service logs after deployment.
+8. Monitor `dead_letter`, `failed_needs_review`, and provider-side duplicate writes; Front Rule Webhooks do not automatically retry failed deliveries.
 
 ## Verification
 

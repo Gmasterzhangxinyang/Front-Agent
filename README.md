@@ -144,7 +144,16 @@ row permanently stuck in `processing`.
 Successful processing clears the stored payload. Dead-letter rows retain their
 payload and bounded diagnostic for manual recovery. `webhook_events` remains
 the downstream idempotency ledger and records only successful or
-deterministically ignored events, never retryable failures.
+deterministically ignored events, never retryable failures. Claims begin only
+after the worker has the conversation lock and global execution capacity, so
+queue wait time does not consume the lease.
+
+Recovery provides at-least-once processing, not exactly-once external side
+effects. If Front, Linear, or another provider accepts a write and the process
+exits before the local `conversation_actions` or `webhook_events` commit, a
+retry can repeat that write. Graceful scheduler shutdown reduces this window
+during planned deploys; provider idempotency or reconciliation is still needed
+for an exactly-once guarantee.
 
 `conversation_actions` covers duplicate-prone writes:
 
