@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -810,22 +811,29 @@ def test_status_lookup_database_failure_is_normalized_to_503():
 
 
 def test_scheduler_registers_bounded_webhook_retry_job():
-    scheduler_module.scheduler.remove_all_jobs()
+    isolated_scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
     try:
-        with patch.object(scheduler_module.scheduler, "start") as start:
+        with (
+            patch.object(scheduler_module, "scheduler", isolated_scheduler),
+            patch.object(isolated_scheduler, "start") as start,
+        ):
             scheduler_module.start_scheduler()
 
-        start.assert_called_once_with()
-        job = scheduler_module.scheduler.get_job(
-            "retry_pending_front_webhooks_every_minute"
-        )
-        assert job is not None
-        assert job.func is scheduler_module.retry_pending_front_webhooks
-        assert job.trigger.interval == timedelta(seconds=60)
-        assert job.coalesce is True
-        assert job.max_instances == 1
+            start.assert_called_once_with()
+            job = isolated_scheduler.get_job(
+                "retry_pending_front_webhooks_every_minute"
+            )
+            assert job is not None
+            assert job.func is scheduler_module.retry_pending_front_webhooks
+            assert job.trigger.interval == timedelta(seconds=60)
+            assert job.coalesce is True
+            assert job.max_instances == 1
+            assert not isolated_scheduler.running
     finally:
-        scheduler_module.scheduler.remove_all_jobs()
+        if isolated_scheduler.running:
+            isolated_scheduler.shutdown(wait=False)
+        else:
+            isolated_scheduler.remove_all_jobs()
 
 
 def test_scheduler_wrapper_isolates_retry_failures():
