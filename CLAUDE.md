@@ -42,6 +42,13 @@ FastAPI app that receives Front webhook events, classifies emails with an OpenAI
 8. Save conversation state and deduplicated action results
 9. Let APScheduler retry due or abandoned inbox rows every minute
 
+Education and billing are the explicit multi-turn categories. Billing invoice
+correction replies may advance from information collection to Credit Note
+acceptance, but `manual_review` is a hard stop for automation. The agent has no
+billing-provider tool and must never claim a Credit Note was issued. Follow
+`docs/billing-invoice-corrections.md` for the human billing procedure and reply
+templates.
+
 **Key files:**
 - `agent/orchestrator.py` — classification + agent loop
 - `agent/tool_registry.py` — tool schemas and execution

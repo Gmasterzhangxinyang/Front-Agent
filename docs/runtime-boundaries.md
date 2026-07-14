@@ -90,8 +90,12 @@ When `handle_email` raises unexpectedly, the webhook handler:
 6. raises HTTP 503 instead of reporting a false success.
 
 On a later attempt, `failed_needs_review` re-enters the initial classification
-flow. Other existing conversation states keep their previous multi-turn
-behavior.
+flow. Education and billing states continue through their explicit multi-turn
+skills; replies for other existing categories are ignored by the automation.
+The billing Credit Note flow stops at `manual_review`: without a trusted
+billing-provider tool, the agent cannot claim that a Credit Note was issued.
+Further inbound replies in that state remain for the human operator and do not
+re-enter the agent loop.
 
 Front's Rule Webhook documentation states that failed deliveries are not
 automatically retried. The service therefore runs an internal APScheduler job

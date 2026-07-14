@@ -161,6 +161,42 @@ def test_account_login_requires_deployment_and_saas_handoff():
         assert expected in text, f"account.md missing {expected!r}"
 
 
+def test_billing_invoice_correction_requires_verified_manual_credit_note():
+    text = _skill_text("billing")
+    for expected in [
+        "A finalized or paid invoice cannot be modified or reissued",
+        "apply to future invoices only",
+        "awaiting_invoice_details",
+        "awaiting_credit_note_acceptance",
+        "front_add_comment",
+        "Customer accepted supplementary Credit Note: yes",
+        'step="manual_review"',
+        "There is no billing-provider tool in this agent",
+        'Never claim a Credit Note "has been issued"',
+        "Only a human operator may send the final issuance confirmation",
+    ]:
+        assert expected in text, f"billing.md missing {expected!r}"
+
+
+def test_billing_is_an_explicit_multi_turn_category():
+    source = Path("agent/orchestrator.py").read_text(encoding="utf-8")
+    assert 'category not in {"education", "billing"}' in source
+    assert "without a multi-turn flow" in source
+    assert 'category == "billing" and step == "manual_review"' in source
+    assert "pending human review" in source
+
+
+def test_invoice_correction_classifies_as_billing_invoice():
+    text = _skill_text("classify")
+    for expected in [
+        "Existing Invoice Correction After Billing Details Update",
+        '"category": "billing"',
+        '"sub_type": "invoice"',
+        "correction/reissue, or Credit Note request",
+    ]:
+        assert expected in text, f"classify.md missing {expected!r}"
+
+
 def test_sybil_forward_tool_supports_bobby_cc():
     tool_source = Path("agent/tool_registry.py").read_text(encoding="utf-8")
     handoff_source = Path("tools/handoff.py").read_text(encoding="utf-8")

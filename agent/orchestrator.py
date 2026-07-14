@@ -69,13 +69,19 @@ async def handle_email(
     )
 
     # Existing-state webhook events are replies on conversations we have already handled.
-    # Only education replies continue through the skill flow; other categories are ignored.
+    # Education and billing have explicit multi-turn skill flows; other categories are ignored.
     if existing_state and not retrying_failed_state:
         category = existing_state.category or ""
         step = existing_state.step or ""
-        if category != "education":
+        if category == "billing" and step == "manual_review":
             logger.info(
-                "Skipping non-education reply for conv %s — step=%s category=%s",
+                "Skipping billing reply pending human review for conv %s",
+                conversation_id,
+            )
+            return
+        if category not in {"education", "billing"}:
+            logger.info(
+                "Skipping reply without a multi-turn flow for conv %s — step=%s category=%s",
                 conversation_id, existing_state.step, existing_state.category,
             )
             return

@@ -183,7 +183,7 @@ Business rules live in `skills/`. Update a skill when changing classification ex
 | `classify.md` | classification JSON schema, examples, routing-oriented rules |
 | `technical.md` | technical drafts, docs/GitHub grounding, paid/non-paid handling |
 | `account.md` | login, deletion, transfer, email change, account anomaly, hacked account |
-| `billing.md` | refund, duplicate charge, invoice, downgrade/cancel drafts |
+| `billing.md` | refund, duplicate charge, invoice, downgrade/cancel drafts; finalized invoice and Credit Note review flow |
 | `education.md` | education review, Sybil digest handoff, proof requests |
 | `purchase.md` | pricing, Enterprise contact guidance, reseller routing |
 | `business.md` | documents deterministic Business inbox behavior |
@@ -216,6 +216,18 @@ Important steps:
 | `moved_inbox` | moved to another Front inbox |
 | `failed_needs_review` | tool or handler did not safely complete |
 | `closed_spam` | deterministic spam route archived |
+
+Education and billing are the explicit multi-turn skill categories. For a
+finalized/paid invoice correction, billing first gathers the workspace,
+invoice number, and legal billing details, then asks whether a supplementary
+Credit Note is acceptable. Customer acceptance moves the case to
+`manual_review`; because the agent has no billing-provider tool, only a human
+operator may confirm that the Credit Note was actually issued. Portal billing
+detail updates apply to future invoices and never rewrite an already finalized
+invoice.
+
+The operator checklist and customer templates are documented in
+[Billing Invoice Correction Runbook](docs/billing-invoice-corrections.md).
 
 ## Code Map
 
