@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from database import Base
 from models import WebhookInbox
 import services.webhook_inbox as webhook_inbox
+import tasks.scheduler as scheduler_module
 import webhooks.front_webhook as front_webhook_module
 from services.webhook_inbox import InboxSnapshot, derive_event_id
 
@@ -809,12 +810,40 @@ def test_status_lookup_database_failure_is_normalized_to_503():
 
 
 def test_scheduler_registers_bounded_webhook_retry_job():
-    source = Path("tasks/scheduler.py").read_text()
-    assert "retry_due_front_webhooks" in source
-    assert 'id="retry_pending_front_webhooks_every_minute"' in source
-    assert "minutes=1" in source
-    assert "coalesce=True" in source
-    assert "max_instances=1" in source
+    scheduler_module.scheduler.remove_all_jobs()
+    try:
+        with patch.object(scheduler_module.scheduler, "start") as start:
+            scheduler_module.start_scheduler()
+
+        start.assert_called_once_with()
+        job = scheduler_module.scheduler.get_job(
+            "retry_pending_front_webhooks_every_minute"
+        )
+        assert job is not None
+        assert job.func is scheduler_module.retry_pending_front_webhooks
+        assert job.trigger.interval == timedelta(seconds=60)
+        assert job.coalesce is True
+        assert job.max_instances == 1
+    finally:
+        scheduler_module.scheduler.remove_all_jobs()
+
+
+def test_scheduler_wrapper_isolates_retry_failures():
+    async def run_case():
+        retry = AsyncMock(side_effect=RuntimeError("database unavailable"))
+        with (
+            patch.object(front_webhook_module, "retry_due_front_webhooks", retry),
+            patch.object(scheduler_module.logger, "exception") as exception_log,
+        ):
+            result = await scheduler_module.retry_pending_front_webhooks()
+
+        assert result is None
+        retry.assert_awaited_once_with()
+        exception_log.assert_called_once_with(
+            "retry_pending_front_webhooks failed"
+        )
+
+    asyncio.run(run_case())
 
 
 def run_all():
