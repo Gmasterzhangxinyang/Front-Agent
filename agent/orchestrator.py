@@ -463,6 +463,7 @@ async def _run_agent_loop(
     context = ToolExecutionContext(
         conversation_id=conversation_id,
         sender_email=sender_email,
+        original_message=message_body,
     )
     for _ in range(max_iterations):
         response = await client.chat.completions.create(**chat_completion_kwargs(

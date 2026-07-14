@@ -1,9 +1,11 @@
+import asyncio
 import hashlib
 import json
 import logging
 import sys
 import os
 from dataclasses import dataclass
+from weakref import WeakValueDictionary
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from tools import front, linear, handoff, state as state_tool, github, docs_search
@@ -26,9 +28,9 @@ DEDUPE_TOOL_NAMES = {
 }
 
 
-def _hash_text(value: str) -> str:
+def _hash_text(value: str, length: int = 16) -> str:
     normalized = " ".join((value or "").split())
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:length]
 
 
 def _action_identity(tool_name: str, args: dict) -> tuple[str, str, str] | None:
@@ -39,7 +41,15 @@ def _action_identity(tool_name: str, args: dict) -> tuple[str, str, str] | None:
     if tool_name == "front_create_draft":
         key = f"body:{_hash_text(args.get('body', ''))}"
     elif tool_name == "linear_create_ticket":
-        key = f"title:{_hash_text(args.get('title', ''))}"
+        sender_email = (args.get("sender_email") or "").strip().lower()
+        original_message = args.get("original_message") or ""
+        if sender_email and original_message:
+            key = (
+                f"request:{_hash_text(sender_email, length=32)}:"
+                f"{_hash_text(original_message, length=32)}"
+            )
+        else:
+            key = f"title:{_hash_text(args.get('title', ''))}"
     elif tool_name in ("feishu_notify_sybil_group", "front_forward_to_sybil"):
         handoff_type = args.get("handoff_type") or "sybil_handoff"
         linear_url = args.get("linear_url") or ""
@@ -395,6 +405,7 @@ TOOL_SCHEMAS = [
 class ToolExecutionContext:
     conversation_id: str
     sender_email: str = ""
+    original_message: str = ""
 
 
 class ToolCallValidationError(ValueError):
@@ -461,21 +472,72 @@ def prepare_llm_tool_call(
         prepared["conversation_id"] = context.conversation_id
     if tool_name == "front_create_draft" and context.sender_email:
         prepared["to_email"] = context.sender_email
+    if tool_name == "linear_create_ticket":
+        prepared["sender_email"] = context.sender_email
+        prepared["original_message"] = context.original_message
     return prepared
+
+
+_action_locks: WeakValueDictionary[tuple[str, ...], asyncio.Lock] = (
+    WeakValueDictionary()
+)
+
+
+def _action_lock_key(
+    action_identity: tuple[str, str, str],
+) -> tuple[str, ...]:
+    conversation_id, action_type, action_key = action_identity
+    if action_type == "linear_create_ticket" and action_key.startswith(
+        "request:"
+    ):
+        return action_type, action_key
+    return conversation_id, action_type, action_key
+
+
+async def _existing_action(
+    db: AsyncSession,
+    action_identity: tuple[str, str, str],
+):
+    conversation_id, action_type, action_key = action_identity
+    if action_type == "linear_create_ticket" and action_key.startswith(
+        "request:"
+    ):
+        return await state_tool.get_recent_action_by_type_key(
+            db,
+            action_type,
+            action_key,
+            hours=24,
+        )
+    return await state_tool.get_action(db, *action_identity)
 
 
 async def execute_tool_call(tool_name: str, args: dict, db: AsyncSession) -> str:
     action_identity = _action_identity(tool_name, args)
-    if action_identity:
-        existing = await state_tool.get_action(db, *action_identity)
+    if not action_identity:
+        return await _execute_tool_call_uncached(tool_name, args, db)
+
+    lock_key = _action_lock_key(action_identity)
+    lock = _action_locks.setdefault(lock_key, asyncio.Lock())
+    async with lock:
+        existing = await _existing_action(db, action_identity)
         if existing:
-            logger.info("Skipping duplicate action %s for conv %s", tool_name, action_identity[0])
+            logger.info(
+                "Skipping duplicate action %s from conv %s; "
+                "existing action belongs to conv %s",
+                tool_name,
+                action_identity[0],
+                existing.conversation_id,
+            )
             return existing.result
 
-    result = await _execute_tool_call_uncached(tool_name, args, db)
-    if action_identity and _should_record_result(result):
-        await state_tool.record_action(db, *action_identity, result=result)
-    return result
+        result = await _execute_tool_call_uncached(tool_name, args, db)
+        if _should_record_result(result):
+            await state_tool.record_action(
+                db,
+                *action_identity,
+                result=result,
+            )
+        return result
 
 
 async def _execute_tool_call_uncached(tool_name: str, args: dict, db: AsyncSession) -> str:

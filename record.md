@@ -146,3 +146,4 @@
 - [docs] document durable webhook recovery, retry timing, dead letters, and verification (README.md, CLAUDE.md, docs/runtime-boundaries.md)
 - [fix] start webhook leases only after execution capacity, drain APScheduler jobs for up to 60 seconds, and document at-least-once external side-effect semantics (webhooks/front_webhook.py, main.py, tests/test_webhook_recovery.py, tests/test_runtime_boundaries.py, README.md, CLAUDE.md, docs/runtime-boundaries.md)
 - [docs] clarify the 60-second graceful scheduler drain guarantee and residual timeout boundary (README.md, CLAUDE.md, docs/runtime-boundaries.md)
+- [fix] deduplicate simultaneous Linear ticket creation across conversations for the same trusted sender and original email within 24 hours (agent/orchestrator.py, agent/tool_registry.py, tools/state.py, tests/test_linear_ticket_deduplication.py, README.md, CLAUDE.md, docs/runtime-boundaries.md)

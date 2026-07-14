@@ -82,6 +82,27 @@ async def get_action(
     return result.scalar_one_or_none()
 
 
+async def get_recent_action_by_type_key(
+    db: AsyncSession,
+    action_type: str,
+    action_key: str,
+    *,
+    hours: int,
+) -> ConversationAction | None:
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    result = await db.execute(
+        select(ConversationAction)
+        .where(
+            ConversationAction.action_type == action_type,
+            ConversationAction.action_key == action_key,
+            ConversationAction.created_at >= cutoff,
+        )
+        .order_by(ConversationAction.created_at.asc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def record_action(
     db: AsyncSession,
     conversation_id: str,

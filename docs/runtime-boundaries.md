@@ -121,6 +121,13 @@ a write but before that local commit leaves an uncertain result; the recovered
 event can repeat the write. Exactly-once behavior requires a stable provider
 idempotency key or reconciliation of uncertain actions before retry.
 
+Within one running service process, Linear creation has an additional 24-hour
+cross-conversation guard keyed by the trusted sender and normalized original
+message. Concurrent duplicate emails share a lock and reuse the first committed
+ticket result even if the model generates different titles. This does not turn
+the external Linear call into exactly-once behavior across process crashes or
+multiple service replicas.
+
 The FastAPI lifespan pauses APScheduler and waits up to 60 seconds for this
 process's active jobs during a normal shutdown. This reduces the uncertain
 window during planned deployments, but it does not protect against a timeout,
@@ -144,6 +151,7 @@ The repository tests are standalone Python scripts; `pytest` is not required.
 
 ```bash
 .venv/bin/python tests/test_webhook_recovery.py
+.venv/bin/python tests/test_linear_ticket_deduplication.py
 .venv/bin/python tests/test_runtime_boundaries.py
 .venv/bin/python tests/test_routing.py
 .venv/bin/python tests/test_skills.py

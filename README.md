@@ -132,7 +132,7 @@ There are two idempotency layers plus a durable recovery queue:
 |---|---|---|---|
 | Recovery | `webhook_inbox` | Front `event_id` or deterministic body hash | persist authenticated conversation events before processing |
 | Webhook | `webhook_events` | Front `event_id` | skip duplicate webhook deliveries |
-| Tool side effects | `conversation_actions` | `conversation_id + action_type + action_key` | skip duplicate successful writes |
+| Tool side effects | `conversation_actions` | tool-specific scope + content hash | skip duplicate successful writes |
 
 Normal handling still starts immediately in the HTTP request path. APScheduler
 checks the durable inbox every minute because Front Rule Webhooks do not retry
@@ -160,11 +160,17 @@ idempotency or reconciliation is still needed for an exactly-once guarantee.
 | Tool | Action key |
 |---|---|
 | `front_create_draft` | normalized draft body hash |
-| `linear_create_ticket` | normalized title hash |
+| `linear_create_ticket` | trusted sender + original-message hash across conversations for 24 hours |
 | `feishu_notify_sybil_group` / `front_forward_to_sybil` | handoff type + Linear URL, or message hash |
 | `front_forward_to_bobby` / `front_forward_to_limin` / other internal forwards | summary/message hash |
 
-This is not conversation-level blocking. New user information can still produce a materially different draft, ticket, or handoff.
+Linear ticket deduplication is the exception to conversation-only scope: two
+concurrent conversations from the same trusted sender with the same normalized
+original message share an in-process lock and reuse the first successful ticket
+for 24 hours. Model-supplied sender/message values cannot change this key. New
+content, another sender, or the same issue after the window can create a ticket.
+Other actions remain conversation-scoped, so new information can still produce
+a materially different draft or handoff.
 
 `conversation_states.sender_email` stores the original customer sender once known and is not overwritten by later internal forwards. `front_create_draft` receives this sender from Python so internal Bobby handoff messages cannot make drafts target `bobby@dify.ai`.
 
@@ -317,6 +323,7 @@ Run before commit/deploy:
 
 ```bash
 .venv/bin/python tests/test_webhook_recovery.py
+.venv/bin/python tests/test_linear_ticket_deduplication.py
 .venv/bin/python tests/test_runtime_boundaries.py
 .venv/bin/python tests/test_ops_sybil_dismissal.py
 .venv/bin/python tests/test_routing.py

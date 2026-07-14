@@ -58,7 +58,7 @@ FastAPI app that receives Front webhook events, classifies emails with an OpenAI
 **Idempotency rules:**
 - `webhook_inbox` durably stores each authenticated conversation event before processing, keyed by Front event ID or a deterministic body hash.
 - `webhook_events` deduplicates successful Front webhook deliveries by event ID.
-- `conversation_actions` deduplicates successful drafts, tickets, and handoffs by conversation plus action-specific content.
+- `conversation_actions` deduplicates successful drafts and handoffs by conversation plus action-specific content. Linear tickets use trusted sender plus normalized original-message content across conversations for 24 hours, with an in-process concurrency lock.
 - `webhook_events` is written only after successful processing or deterministic ignore; retryable failures are not recorded as processed.
 - Front Rule Webhooks do not retry failed deliveries. Internal APScheduler recovery runs every minute with 1/5/15/60/180-minute delays after the immediate attempt.
 - Claims start only after the conversation lock and global webhook capacity are acquired, then use a 15-minute lease. Failed attempt 6 becomes `dead_letter`; processed payloads are cleared while dead-letter payloads remain for manual recovery.
@@ -83,6 +83,7 @@ Run all standalone checks before commit or deploy:
 
 ```bash
 .venv/bin/python tests/test_webhook_recovery.py
+.venv/bin/python tests/test_linear_ticket_deduplication.py
 .venv/bin/python tests/test_runtime_boundaries.py
 .venv/bin/python tests/test_ops_sybil_dismissal.py
 .venv/bin/python tests/test_routing.py
