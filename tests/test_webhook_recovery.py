@@ -808,6 +808,15 @@ def test_status_lookup_database_failure_is_normalized_to_503():
     asyncio.run(run_case())
 
 
+def test_scheduler_registers_bounded_webhook_retry_job():
+    source = Path("tasks/scheduler.py").read_text()
+    assert "retry_due_front_webhooks" in source
+    assert 'id="retry_pending_front_webhooks_every_minute"' in source
+    assert "minutes=1" in source
+    assert "coalesce=True" in source
+    assert "max_instances=1" in source
+
+
 def run_all():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):

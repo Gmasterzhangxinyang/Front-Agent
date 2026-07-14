@@ -150,6 +150,17 @@ async def generate_ops_reports():
         logger.exception("generate_ops_reports failed")
 
 
+async def retry_pending_front_webhooks():
+    try:
+        from webhooks.front_webhook import retry_due_front_webhooks
+
+        result = await retry_due_front_webhooks()
+        if result["due"]:
+            logger.info("Retried pending Front webhooks: %s", result)
+    except Exception:
+        logger.exception("retry_pending_front_webhooks failed")
+
+
 def start_scheduler():
     scheduler.add_job(
         auto_close_stale_conversations,
@@ -174,6 +185,15 @@ def start_scheduler():
         id="generate_ops_reports_every_3h",
         replace_existing=True,
         next_run_time=datetime.now(),
+        coalesce=True,
+        max_instances=1,
+    )
+    scheduler.add_job(
+        retry_pending_front_webhooks,
+        "interval",
+        minutes=1,
+        id="retry_pending_front_webhooks_every_minute",
+        replace_existing=True,
         coalesce=True,
         max_instances=1,
     )
