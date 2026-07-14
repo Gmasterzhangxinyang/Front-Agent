@@ -1,12 +1,13 @@
 import logging
 import asyncio
+from functools import wraps
 from datetime import datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from database import AsyncSessionLocal
 from models import ConversationState
 from sqlalchemy import select
 from tools.front import resolve_conversation
-from tools.sybil_digest import send_pending_sybil_digest
+from tools.sybil_digest import send_pending_sybil_digest as _send_pending_sybil_digest
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,24 @@ scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
 SUPPORT_INBOX_ID = "inb_f9fvf"
 
 from config import settings
+
+_running_scheduler_jobs: set[asyncio.Task] = set()
+SCHEDULER_SHUTDOWN_TIMEOUT_SECONDS = 60
+
+
+def _track_scheduler_job(func):
+    @wraps(func)
+    async def tracked(*args, **kwargs):
+        task = asyncio.current_task()
+        if task is not None:
+            _running_scheduler_jobs.add(task)
+        try:
+            return await func(*args, **kwargs)
+        finally:
+            if task is not None:
+                _running_scheduler_jobs.discard(task)
+
+    return tracked
 
 
 async def _front_get(client: httpx.AsyncClient, url: str, **kwargs) -> httpx.Response:
@@ -122,6 +141,7 @@ async def sync_missing_conversations():
                 logger.info(f"sync_missing_conversations: processed {processed} conversations")
 
 
+@_track_scheduler_job
 async def auto_close_stale_conversations():
     cutoff = datetime.utcnow() - timedelta(days=10)
     async with AsyncSessionLocal() as db:
@@ -141,6 +161,12 @@ async def auto_close_stale_conversations():
         await db.commit()
 
 
+@_track_scheduler_job
+async def send_pending_sybil_digest():
+    return await _send_pending_sybil_digest()
+
+
+@_track_scheduler_job
 async def generate_ops_reports():
     try:
         from routes.ops import generate_all_ops_reports
@@ -150,6 +176,7 @@ async def generate_ops_reports():
         logger.exception("generate_ops_reports failed")
 
 
+@_track_scheduler_job
 async def retry_pending_front_webhooks():
     try:
         from webhooks.front_webhook import retry_due_front_webhooks
@@ -159,6 +186,36 @@ async def retry_pending_front_webhooks():
             logger.info("Retried pending Front webhooks: %s", result)
     except Exception:
         logger.exception("retry_pending_front_webhooks failed")
+
+
+async def stop_scheduler():
+    if not scheduler.running:
+        return
+
+    scheduler.pause()
+    # Let already-submitted coroutine jobs enter their tracked wrappers.
+    await asyncio.sleep(0)
+    current = asyncio.current_task()
+    pending = {
+        task
+        for task in _running_scheduler_jobs
+        if task is not current and not task.done()
+    }
+    if pending:
+        _, unfinished = await asyncio.wait(
+            pending,
+            timeout=SCHEDULER_SHUTDOWN_TIMEOUT_SECONDS,
+        )
+        if unfinished:
+            logger.warning(
+                "Cancelling %s scheduler job(s) after %ss shutdown timeout",
+                len(unfinished),
+                SCHEDULER_SHUTDOWN_TIMEOUT_SECONDS,
+            )
+
+    scheduler.shutdown(wait=False)
+    # AsyncIOScheduler schedules its shutdown callback onto this event loop.
+    await asyncio.sleep(0)
 
 
 def start_scheduler():

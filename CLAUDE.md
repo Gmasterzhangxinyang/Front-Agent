@@ -63,7 +63,7 @@ FastAPI app that receives Front webhook events, classifies emails with an OpenAI
 - Front Rule Webhooks do not retry failed deliveries. Internal APScheduler recovery runs every minute with 1/5/15/60/180-minute delays after the immediate attempt.
 - Claims start only after the conversation lock and global webhook capacity are acquired, then use a 15-minute lease. Failed attempt 6 becomes `dead_letter`; processed payloads are cleared while dead-letter payloads remain for manual recovery.
 - Recovery is at-least-once: a crash after an external provider accepts a write but before the local action/event commit can repeat that write. Do not claim exactly-once behavior without provider idempotency or reconciliation.
-- FastAPI shutdown waits for the APScheduler jobs started by this process, reducing the planned-deploy crash window.
+- FastAPI shutdown pauses APScheduler and waits up to 60 seconds for jobs started by this process, reducing the planned-deploy crash window.
 
 ## Runtime security boundaries
 

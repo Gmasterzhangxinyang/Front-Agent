@@ -121,10 +121,11 @@ a write but before that local commit leaves an uncertain result; the recovered
 event can repeat the write. Exactly-once behavior requires a stable provider
 idempotency key or reconciliation of uncertain actions before retry.
 
-The FastAPI lifespan waits for this process's APScheduler jobs during a normal
-shutdown. This reduces the uncertain window during planned deployments, but it
-does not protect against forced termination, host loss, or a provider response
-whose local commit never completes.
+The FastAPI lifespan pauses APScheduler and waits up to 60 seconds for this
+process's active jobs during a normal shutdown. This reduces the uncertain
+window during planned deployments, but it does not protect against a timeout,
+forced termination, host loss, or a provider response whose local commit never
+completes.
 
 ## Deploy Checklist
 
@@ -133,7 +134,7 @@ whose local commit never completes.
 3. Confirm every required attachment hostname is explicitly allowlisted.
 4. Review count, byte, and text limits for the deployment's expected traffic.
 5. Run the verification commands below before restarting the service.
-6. Stop the old process gracefully and allow its scheduler jobs to finish.
+6. Stop the old process gracefully and allow up to 60 seconds for active scheduler jobs to finish.
 7. Send one signed test webhook and confirm `/health` and service logs after deployment.
 8. Monitor `dead_letter`, `failed_needs_review`, and provider-side duplicate writes; Front Rule Webhooks do not automatically retry failed deliveries.
 

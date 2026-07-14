@@ -9,7 +9,7 @@ from webhooks.front_webhook import (
     validate_webhook_security_config,
 )
 from routes.ops import router as ops_router
-from tasks.scheduler import scheduler, start_scheduler
+from tasks.scheduler import start_scheduler, stop_scheduler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,8 +27,8 @@ async def lifespan(app: FastAPI):
             start_scheduler()
         yield
     finally:
-        if settings.enable_scheduler and scheduler.running:
-            scheduler.shutdown(wait=True)
+        if settings.enable_scheduler:
+            await stop_scheduler()
 
 
 app = FastAPI(title="Dify Email Automation", lifespan=lifespan)
