@@ -693,6 +693,82 @@ def test_claimed_failure_is_scheduled_before_503_returns():
 
     asyncio.run(run_case())
 
+
+def test_retry_loop_counts_terminalized_expired_lease_as_failed():
+    async def run_case():
+        now = datetime(2000, 1, 1)
+        async with _isolated_inbox() as session_factory:
+            await _store_event(
+                session_factory,
+                "evt_retry_dead_letter",
+                available_at=now - timedelta(hours=1),
+                status="processing",
+                attempts=webhook_inbox.MAX_ATTEMPTS,
+                lease_token="expired-sixth-lease",
+                lease_expires_at=now - timedelta(minutes=1),
+            )
+
+            with patch.object(front_webhook_module.logger, "error") as error_log:
+                result = await front_webhook_module.retry_due_front_webhooks()
+
+            stored = await webhook_inbox.get_webhook("evt_retry_dead_letter")
+
+        assert result == {"due": 1, "processed": 0, "failed": 1}
+        assert stored is not None
+        assert stored.status == "dead_letter"
+        error_log.assert_called_once()
+        assert "dead_letter" in error_log.call_args.args[0]
+
+    asyncio.run(run_case())
+
+
+def test_claim_database_failure_is_normalized_to_503():
+    async def run_case():
+        with (
+            patch.object(
+                front_webhook_module,
+                "claim_webhook",
+                AsyncMock(side_effect=RuntimeError("database unavailable")),
+            ),
+            patch.object(front_webhook_module.logger, "exception"),
+        ):
+            try:
+                await front_webhook_module.process_inbox_event("evt_claim_db")
+            except HTTPException as exc:
+                assert exc.status_code == 503
+                assert exc.detail == "Webhook claim failed"
+            else:
+                raise AssertionError("claim database failure must return 503")
+
+    asyncio.run(run_case())
+
+
+def test_status_lookup_database_failure_is_normalized_to_503():
+    async def run_case():
+        with (
+            patch.object(
+                front_webhook_module,
+                "claim_webhook",
+                AsyncMock(return_value=None),
+            ),
+            patch.object(
+                front_webhook_module,
+                "get_webhook",
+                AsyncMock(side_effect=RuntimeError("database unavailable")),
+            ),
+            patch.object(front_webhook_module.logger, "exception"),
+        ):
+            try:
+                await front_webhook_module.process_inbox_event("evt_lookup_db")
+            except HTTPException as exc:
+                assert exc.status_code == 503
+                assert exc.detail == "Webhook status lookup failed"
+            else:
+                raise AssertionError("status database failure must return 503")
+
+    asyncio.run(run_case())
+
+
 def run_all():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):

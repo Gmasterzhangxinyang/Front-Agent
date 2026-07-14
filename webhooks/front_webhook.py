@@ -126,9 +126,24 @@ async def _save_processing_failure(claim, error: Exception):
 
 
 async def process_inbox_event(event_id: str):
-    claim = await claim_webhook(event_id)
+    try:
+        claim = await claim_webhook(event_id)
+    except Exception as exc:
+        logger.exception("Could not claim Front webhook %s", event_id)
+        raise HTTPException(
+            status_code=503,
+            detail="Webhook claim failed",
+        ) from exc
+
     if claim is None:
-        current = await get_webhook(event_id)
+        try:
+            current = await get_webhook(event_id)
+        except Exception as exc:
+            logger.exception("Could not read Front webhook status %s", event_id)
+            raise HTTPException(
+                status_code=503,
+                detail="Webhook status lookup failed",
+            ) from exc
         if current is not None and current.status == "processed":
             return {"status": "already_processed"}
         return {
@@ -180,7 +195,14 @@ async def retry_due_front_webhooks() -> dict[str, int]:
     result = {"due": len(event_ids), "processed": 0, "failed": 0}
     for event_id in event_ids:
         try:
-            await process_inbox_event(event_id)
+            outcome = await process_inbox_event(event_id)
+            if outcome.get("queue_status") == "dead_letter":
+                logger.error(
+                    "Front webhook recovery found dead_letter event_id=%s",
+                    event_id,
+                )
+                result["failed"] += 1
+                continue
             result["processed"] += 1
         except HTTPException:
             result["failed"] += 1
