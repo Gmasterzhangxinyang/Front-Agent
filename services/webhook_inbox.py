@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import uuid4
 
-from sqlalchemy import and_, or_, select, update
+from sqlalchemy import and_, case, or_, select, update
 from sqlalchemy.dialects.sqlite import insert
 
 from database import AsyncSessionLocal
@@ -15,6 +15,7 @@ MAX_ATTEMPTS = 6
 RETRY_DELAYS_MINUTES = (1, 5, 15, 60, 180)
 LEASE_DURATION = timedelta(minutes=15)
 ERROR_SUMMARY_LIMIT = 500
+_ABANDONED_LEASE_ERROR = "processing lease expired after maximum attempts"
 
 
 @dataclass(frozen=True)
@@ -88,18 +89,36 @@ async def enqueue_webhook(
     return _snapshot(row)
 
 
+def _expired_lease(now: datetime):
+    return and_(
+        WebhookInbox.status == "processing",
+        WebhookInbox.lease_expires_at.is_not(None),
+        WebhookInbox.lease_expires_at <= now,
+    )
+
+
 def _claimable(now: datetime):
-    return or_(
-        and_(
-            WebhookInbox.status.in_(("pending", "retry")),
-            WebhookInbox.available_at <= now,
-        ),
-        and_(
-            WebhookInbox.status == "processing",
-            WebhookInbox.lease_expires_at.is_not(None),
-            WebhookInbox.lease_expires_at <= now,
+    return and_(
+        WebhookInbox.attempts < MAX_ATTEMPTS,
+        or_(
+            and_(
+                WebhookInbox.status.in_(("pending", "retry")),
+                WebhookInbox.available_at <= now,
+            ),
+            _expired_lease(now),
         ),
     )
+
+
+def _exhausted_expired_lease(now: datetime):
+    return and_(
+        WebhookInbox.attempts >= MAX_ATTEMPTS,
+        _expired_lease(now),
+    )
+
+
+def _due(now: datetime):
+    return or_(_claimable(now), _exhausted_expired_lease(now))
 
 
 async def get_webhook(event_id: str) -> InboxSnapshot | None:
@@ -115,17 +134,28 @@ async def claim_webhook(
 ) -> InboxSnapshot | None:
     timestamp = now or datetime.utcnow()
     lease_token = uuid4().hex
+    terminal = _exhausted_expired_lease(timestamp)
     statement = (
         update(WebhookInbox)
         .where(
             WebhookInbox.event_id == event_id,
-            _claimable(timestamp),
+            _due(timestamp),
         )
         .values(
-            status="processing",
-            attempts=WebhookInbox.attempts + 1,
-            lease_token=lease_token,
-            lease_expires_at=timestamp + LEASE_DURATION,
+            status=case((terminal, "dead_letter"), else_="processing"),
+            attempts=case(
+                (terminal, WebhookInbox.attempts),
+                else_=WebhookInbox.attempts + 1,
+            ),
+            lease_token=case((terminal, None), else_=lease_token),
+            lease_expires_at=case(
+                (terminal, None),
+                else_=timestamp + LEASE_DURATION,
+            ),
+            last_error=case(
+                (terminal, _ABANDONED_LEASE_ERROR[:ERROR_SUMMARY_LIMIT]),
+                else_=WebhookInbox.last_error,
+            ),
             updated_at=timestamp,
         )
         .execution_options(synchronize_session=False)
@@ -141,7 +171,9 @@ async def claim_webhook(
             event_id,
             populate_existing=True,
         )
-        return _snapshot(row) if row is not None else None
+        if row is None or row.status == "dead_letter":
+            return None
+        return _snapshot(row)
 
 
 async def list_due_event_ids(
@@ -155,8 +187,12 @@ async def list_due_event_ids(
     timestamp = now or datetime.utcnow()
     statement = (
         select(WebhookInbox.event_id)
-        .where(_claimable(timestamp))
-        .order_by(WebhookInbox.available_at, WebhookInbox.created_at)
+        .where(_due(timestamp))
+        .order_by(
+            WebhookInbox.available_at,
+            WebhookInbox.created_at,
+            WebhookInbox.event_id,
+        )
         .limit(limit)
     )
     async with AsyncSessionLocal() as session:

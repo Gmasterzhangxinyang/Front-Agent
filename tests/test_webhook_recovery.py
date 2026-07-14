@@ -155,6 +155,13 @@ def test_only_due_pending_and_retry_records_can_be_claimed():
             )
             await _store_event(
                 session_factory,
+                "evt_retry_exhausted",
+                available_at=now - timedelta(minutes=1),
+                status="retry",
+                attempts=webhook_inbox.MAX_ATTEMPTS,
+            )
+            await _store_event(
+                session_factory,
                 "evt_processed",
                 available_at=now - timedelta(hours=1),
                 status="processed",
@@ -181,6 +188,10 @@ def test_only_due_pending_and_retry_records_can_be_claimed():
             )
             assert (
                 await webhook_inbox.claim_webhook("evt_retry_future", now=now)
+                is None
+            )
+            assert (
+                await webhook_inbox.claim_webhook("evt_retry_exhausted", now=now)
                 is None
             )
             assert (
@@ -450,6 +461,80 @@ def test_due_list_respects_limit_and_orders_by_availability_then_creation():
                 now=now,
                 limit=3,
             ) == ["evt_first", "evt_second", "evt_third"]
+
+    asyncio.run(run_case())
+
+
+def test_abandoned_sixth_claim_terminalizes_instead_of_attempting_seven():
+    async def run_case():
+        now = datetime(2026, 7, 14, 16, 0, 0)
+        payload = {"id": "evt_abandoned", "body": "retain me"}
+        async with _isolated_inbox() as session_factory:
+            await _store_event(
+                session_factory,
+                "evt_abandoned",
+                available_at=now,
+                payload=payload,
+            )
+            claim_time = now
+
+            for expected_attempts in range(1, 7):
+                claimed = await webhook_inbox.claim_webhook(
+                    "evt_abandoned",
+                    now=claim_time,
+                )
+                assert claimed is not None
+                assert claimed.attempts == expected_attempts
+                claim_time = claimed.lease_expires_at
+
+            assert await webhook_inbox.list_due_event_ids(now=claim_time) == [
+                "evt_abandoned"
+            ]
+            assert (
+                await webhook_inbox.claim_webhook(
+                    "evt_abandoned",
+                    now=claim_time,
+                )
+                is None
+            )
+
+            stored = await webhook_inbox.get_webhook("evt_abandoned")
+            assert stored is not None
+            assert stored.status == "dead_letter"
+            assert stored.attempts == 6
+            assert stored.payload == payload
+            assert stored.lease_token is None
+            assert stored.lease_expires_at is None
+            assert stored.last_error
+            assert len(stored.last_error) <= webhook_inbox.ERROR_SUMMARY_LIMIT
+            assert await webhook_inbox.list_due_event_ids(
+                now=claim_time + timedelta(days=1)
+            ) == []
+
+    asyncio.run(run_case())
+
+
+def test_due_list_uses_event_id_to_break_exact_timestamp_ties():
+    async def run_case():
+        now = datetime(2026, 7, 14, 17, 0, 0)
+        async with _isolated_inbox() as session_factory:
+            await _store_event(
+                session_factory,
+                "evt_zeta",
+                available_at=now,
+                created_at=now,
+            )
+            await _store_event(
+                session_factory,
+                "evt_alpha",
+                available_at=now,
+                created_at=now,
+            )
+
+            assert await webhook_inbox.list_due_event_ids(now=now) == [
+                "evt_alpha",
+                "evt_zeta",
+            ]
 
     asyncio.run(run_case())
 
