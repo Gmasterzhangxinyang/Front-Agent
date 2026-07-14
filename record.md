@@ -138,3 +138,5 @@
 ## 2026-07-14
 - [docs] document the approved durable Front webhook recovery design (docs/superpowers/specs/2026-07-14-durable-webhook-recovery-design.md)
 - [docs] add the test-driven durable Front webhook recovery implementation plan (docs/superpowers/plans/2026-07-14-durable-webhook-recovery.md)
+- [feat] persist authenticated Front webhooks before processing and retry temporary failures with leased SQLite inbox records and APScheduler (models.py, services/webhook_inbox.py, webhooks/front_webhook.py, tasks/scheduler.py, tests/test_webhook_recovery.py)
+- [docs] document durable webhook recovery, retry timing, dead letters, and verification (README.md, CLAUDE.md, docs/runtime-boundaries.md)

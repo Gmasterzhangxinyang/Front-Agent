@@ -32,13 +32,15 @@ FastAPI app that receives Front webhook events, classifies emails with an OpenAI
 - `routes/ops.py` - exposes the read-only operations dashboard and reporting API
 
 **Core flow:**
-1. Front webhook → `agent/orchestrator.py:handle_email()`
-2. Classify email using `skills/classify.md` via the configured LLM provider
-3. Apply deterministic routing or load the matching skill from `skills/<category>.md`
-4. Run the agent loop with allowlisted function calling
-5. Validate model tool arguments and bind trusted conversation/sender context
-6. Agent calls tools (Front drafts, Linear tickets, Feishu notifications)
-7. Save conversation state and deduplicated action results
+1. Verify the Front signature and commit valid conversation events to `webhook_inbox`
+2. Claim and process the inbox row immediately in the request path
+3. Classify email using `skills/classify.md` via the configured LLM provider
+4. Apply deterministic routing or load the matching skill from `skills/<category>.md`
+5. Run the agent loop with allowlisted function calling
+6. Validate model tool arguments and bind trusted conversation/sender context
+7. Agent calls tools (Front drafts, Linear tickets, Feishu notifications)
+8. Save conversation state and deduplicated action results
+9. Let APScheduler retry due or abandoned inbox rows every minute
 
 **Key files:**
 - `agent/orchestrator.py` — classification + agent loop
@@ -48,14 +50,18 @@ FastAPI app that receives Front webhook events, classifies emails with an OpenAI
 - `tools/sybil_digest.py` — queued Sybil handoff digest sender
 - `tools/linear.py` — Linear ticket creation
 - `skills/*.md` — per-category handling instructions for the agent
-- `models.py` — conversation state, action log, webhook event, and queue models
+- `models.py` — conversation state, action log, webhook inbox/event, and queue models
+- `services/webhook_inbox.py` — durable webhook claims, leases, retries, and terminal cleanup
 - `database.py` — async SQLite session
 - `config.py` — settings from env vars
 
 **Idempotency rules:**
+- `webhook_inbox` durably stores each authenticated conversation event before processing, keyed by Front event ID or a deterministic body hash.
 - `webhook_events` deduplicates successful Front webhook deliveries by event ID.
 - `conversation_actions` deduplicates successful drafts, tickets, and handoffs by conversation plus action-specific content.
-- Failed webhook handling is not recorded as processed and returns HTTP 503 instead of a false success.
+- `webhook_events` is written only after successful processing or deterministic ignore; retryable failures are not recorded as processed.
+- Front Rule Webhooks do not retry failed deliveries. Internal APScheduler recovery runs every minute with 1/5/15/60/180-minute delays after the immediate attempt.
+- Claims use a 15-minute lease. Failed attempt 6 becomes `dead_letter`; processed payloads are cleared while dead-letter payloads remain for manual recovery.
 
 ## Runtime security boundaries
 
@@ -64,7 +70,7 @@ FastAPI app that receives Front webhook events, classifies emails with an OpenAI
 - LLM-originated tool calls are schema validated; trusted conversation and sender context override model values.
 - Front attachment credentials are sent only to exact HTTPS hosts in `FRONT_ATTACHMENT_ALLOWED_HOSTS`.
 - Attachment count, bytes per file, and extracted text are bounded by settings.
-- Unexpected handler failures return HTTP 503, are not recorded as processed, and `failed_needs_review` can re-enter classification on a later delivery.
+- Unexpected handler failures return HTTP 503, are not recorded in `webhook_events`, and remain queued for internal recovery; `failed_needs_review` can re-enter classification on retry.
 - Operational details and deploy checks are in `docs/runtime-boundaries.md`.
 
 ## Verification
@@ -72,11 +78,12 @@ FastAPI app that receives Front webhook events, classifies emails with an OpenAI
 Run all standalone checks before commit or deploy:
 
 ```bash
+.venv/bin/python tests/test_webhook_recovery.py
 .venv/bin/python tests/test_runtime_boundaries.py
 .venv/bin/python tests/test_routing.py
 .venv/bin/python tests/test_skills.py
 .venv/bin/python tests/test_draft_adoption.py
-.venv/bin/python -m compileall -q agent tools webhooks tests config.py main.py
+.venv/bin/python -m compileall -q agent services tasks tools webhooks routes tests config.py main.py models.py
 .venv/bin/python -m pip check
 git diff --check
 ```
