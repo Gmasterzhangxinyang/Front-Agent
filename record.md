@@ -141,3 +141,4 @@
 - [feat] persist authenticated Front webhooks before processing and retry temporary failures with leased SQLite inbox records and APScheduler (models.py, services/webhook_inbox.py, webhooks/front_webhook.py, tasks/scheduler.py, tests/test_webhook_recovery.py)
 - [docs] document durable webhook recovery, retry timing, dead letters, and verification (README.md, CLAUDE.md, docs/runtime-boundaries.md)
 - [fix] start webhook leases only after execution capacity, drain APScheduler jobs for up to 60 seconds, and document at-least-once external side-effect semantics (webhooks/front_webhook.py, main.py, tests/test_webhook_recovery.py, tests/test_runtime_boundaries.py, README.md, CLAUDE.md, docs/runtime-boundaries.md)
+- [docs] clarify the 60-second graceful scheduler drain guarantee and residual timeout boundary (README.md, CLAUDE.md, docs/runtime-boundaries.md)

@@ -152,9 +152,8 @@ Recovery provides at-least-once processing, not exactly-once external side
 effects. If Front, Linear, or another provider accepts a write and the process
 exits before the local `conversation_actions` or `webhook_events` commit, a
 retry can repeat that write. Graceful scheduler shutdown waits up to 60
-seconds for active jobs, reducing this window during planned deploys; provider
-idempotency or reconciliation is still needed
-for an exactly-once guarantee.
+seconds for active jobs, reducing this window during planned deploys. Provider
+idempotency or reconciliation is still needed for an exactly-once guarantee.
 
 `conversation_actions` covers duplicate-prone writes:
 
