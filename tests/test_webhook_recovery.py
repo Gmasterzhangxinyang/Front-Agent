@@ -18,7 +18,10 @@ from services.webhook_inbox import derive_event_id
 def test_derive_event_id_prefers_front_id_and_hashes_missing_id():
     raw_body = b'{"type":"message","target":{"data":{"id":null}}}'
 
-    assert derive_event_id({"id": "evt_front"}, raw_body) == "evt_front"
+    assert derive_event_id(
+        {"id": "evt_front", "event_id": "evt_other"},
+        raw_body,
+    ) == "evt_front"
     assert derive_event_id({"event_id": "evt_legacy"}, raw_body) == "evt_legacy"
     assert derive_event_id({}, raw_body) == (
         f"sha256:{hashlib.sha256(raw_body).hexdigest()}"
