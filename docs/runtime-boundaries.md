@@ -134,6 +134,20 @@ window during planned deployments, but it does not protect against a timeout,
 forced termination, host loss, or a provider response whose local commit never
 completes.
 
+## Ops Data Quality
+
+The Ops overview distinguishes actionable automation health from historical
+metadata gaps. It surfaces due webhook retries and dead letters, pending Sybil
+handoffs, failed or waiting conversations, draft adoption, and recent
+sender/summary coverage.
+
+Every 15 minutes, a bounded job fetches at most 20 Front conversations
+that are missing sender or displayed summary metadata, prioritizing rows that
+require operator attention. It fills only blank values from Front's recipient
+and subject fields, preserves the business activity timestamp, and never
+overwrites stored metadata. Each run is limited to 60 seconds; failures are
+logged and isolated per conversation.
+
 ## Deploy Checklist
 
 1. Set `FRONT_WEBHOOK_SECRET` in the deployment environment.
@@ -153,6 +167,8 @@ The repository tests are standalone Python scripts; `pytest` is not required.
 .venv/bin/python tests/test_webhook_recovery.py
 .venv/bin/python tests/test_linear_ticket_deduplication.py
 .venv/bin/python tests/test_runtime_boundaries.py
+.venv/bin/python tests/test_ops_sybil_dismissal.py
+.venv/bin/python tests/test_ops_data_quality.py
 .venv/bin/python tests/test_routing.py
 .venv/bin/python tests/test_skills.py
 .venv/bin/python tests/test_draft_adoption.py

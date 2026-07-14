@@ -166,11 +166,43 @@ async def send_pending_sybil_digest():
     return await _send_pending_sybil_digest()
 
 
+async def refresh_draft_adoption_metrics():
+    try:
+        from services.draft_adoption import refresh_draft_adoptions
+
+        async with AsyncSessionLocal() as db:
+            result = await refresh_draft_adoptions(
+                db,
+                since=datetime.utcnow() - timedelta(days=30),
+                limit=300,
+            )
+        logger.info("Refreshed draft adoption metrics before ops report: %s", result)
+    except Exception:
+        logger.exception("refresh_draft_adoption_metrics failed")
+
+
+@_track_scheduler_job
+async def refresh_ops_conversation_metadata():
+    try:
+        from services.ops_metadata import enrich_missing_conversation_metadata
+
+        async with AsyncSessionLocal() as db:
+            result = await asyncio.wait_for(
+                enrich_missing_conversation_metadata(db, limit=20),
+                timeout=60,
+            )
+        if result["selected"]:
+            logger.info("Refreshed Ops conversation metadata: %s", result)
+    except Exception:
+        logger.exception("refresh_ops_conversation_metadata failed")
+
+
 @_track_scheduler_job
 async def generate_ops_reports():
     try:
         from routes.ops import generate_all_ops_reports
 
+        await refresh_draft_adoption_metrics()
         await generate_all_ops_reports()
     except Exception:
         logger.exception("generate_ops_reports failed")
@@ -234,6 +266,16 @@ def start_scheduler():
         timezone="Asia/Shanghai",
         id="send_pending_sybil_digest_cn_10am",
         replace_existing=True,
+    )
+    scheduler.add_job(
+        refresh_ops_conversation_metadata,
+        "interval",
+        minutes=15,
+        id="refresh_ops_conversation_metadata_every_15m",
+        replace_existing=True,
+        next_run_time=datetime.now(),
+        coalesce=True,
+        max_instances=1,
     )
     scheduler.add_job(
         generate_ops_reports,

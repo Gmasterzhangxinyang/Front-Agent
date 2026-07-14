@@ -52,6 +52,7 @@ FastAPI app that receives Front webhook events, classifies emails with an OpenAI
 - `skills/*.md` — per-category handling instructions for the agent
 - `models.py` — conversation state, action log, webhook inbox/event, and queue models
 - `services/webhook_inbox.py` — durable webhook claims, leases, retries, and terminal cleanup
+- `services/ops_metadata.py` — bounded Front metadata enrichment for missing Ops sender/summary fields
 - `database.py` — async SQLite session
 - `config.py` — settings from env vars
 
@@ -86,6 +87,7 @@ Run all standalone checks before commit or deploy:
 .venv/bin/python tests/test_linear_ticket_deduplication.py
 .venv/bin/python tests/test_runtime_boundaries.py
 .venv/bin/python tests/test_ops_sybil_dismissal.py
+.venv/bin/python tests/test_ops_data_quality.py
 .venv/bin/python tests/test_routing.py
 .venv/bin/python tests/test_skills.py
 .venv/bin/python tests/test_draft_adoption.py

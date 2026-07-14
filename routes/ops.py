@@ -7,11 +7,18 @@ from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Query
 from fastapi.responses import FileResponse
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import case, func, or_, select, update
 
 from config import settings
 from database import AsyncSessionLocal
-from models import ConversationAction, ConversationState, OpsReport, SybilNotification, WebhookEvent
+from models import (
+    ConversationAction,
+    ConversationState,
+    OpsReport,
+    SybilNotification,
+    WebhookEvent,
+    WebhookInbox,
+)
 from services.draft_adoption import draft_adoption_metrics, refresh_draft_adoptions
 
 logger = logging.getLogger(__name__)
@@ -116,6 +123,21 @@ def _sybil_to_dict(item: SybilNotification) -> dict[str, Any]:
     }
 
 
+def _webhook_inbox_to_dict(item: WebhookInbox) -> dict[str, Any]:
+    return {
+        "event_id": item.event_id,
+        "conversation_id": item.conversation_id,
+        "front_url": _front_url(item.conversation_id),
+        "status": item.status,
+        "attempts": item.attempts,
+        "available_at": _iso(item.available_at),
+        "lease_expires_at": _iso(item.lease_expires_at),
+        "last_error": _clip(item.last_error, 220),
+        "created_at": _iso(item.created_at),
+        "updated_at": _iso(item.updated_at),
+    }
+
+
 async def _scalar_count(db, statement) -> int:
     result = await db.execute(statement)
     return int(result.scalar() or 0)
@@ -127,6 +149,31 @@ def _attention_filter():
         ConversationState.step.like("awaiting%"),
         ConversationState.waiting_since.is_not(None),
     )
+
+
+def _missing_sender_filter():
+    return or_(
+        ConversationState.sender_email.is_(None),
+        ConversationState.sender_email == "",
+    )
+
+
+def _missing_summary_filter():
+    return func.coalesce(
+        func.nullif(
+            func.json_extract(ConversationState.payload, "$.summary"),
+            "",
+        ),
+        func.nullif(
+            func.json_extract(ConversationState.payload, "$.reason"),
+            "",
+        ),
+        func.nullif(
+            func.json_extract(ConversationState.payload, "$.route"),
+            "",
+        ),
+        "",
+    ) == ""
 
 
 def _rows_to_dict(rows) -> dict[str, int]:
@@ -409,45 +456,116 @@ async def ops_page():
 
 @router.get("/ops/api/summary")
 async def ops_summary():
-    cutoff = datetime.utcnow() - timedelta(hours=24)
-    stale_cutoff = datetime.utcnow() - timedelta(days=7)
+    now = datetime.utcnow()
+    cutoff = now - timedelta(hours=24)
+    recent_cutoff = now - timedelta(days=30)
+    stale_cutoff = now - timedelta(days=7)
+    attention_filter = _attention_filter()
+    missing_sender_filter = _missing_sender_filter()
+    missing_summary_filter = _missing_summary_filter()
 
     async with AsyncSessionLocal() as db:
-        total_conversations = await _scalar_count(db, select(func.count()).select_from(ConversationState))
+        total_conversations = await _scalar_count(
+            db,
+            select(func.count()).select_from(ConversationState),
+        )
         conversations_24h = await _scalar_count(
             db,
-            select(func.count()).select_from(ConversationState).where(ConversationState.updated_at >= cutoff),
+            select(func.count())
+            .select_from(ConversationState)
+            .where(ConversationState.updated_at >= cutoff),
         )
         webhooks_24h = await _scalar_count(
             db,
-            select(func.count()).select_from(WebhookEvent).where(WebhookEvent.processed_at >= cutoff),
+            select(func.count())
+            .select_from(WebhookEvent)
+            .where(WebhookEvent.processed_at >= cutoff),
         )
         actions_24h = await _scalar_count(
             db,
-            select(func.count()).select_from(ConversationAction).where(ConversationAction.created_at >= cutoff),
+            select(func.count())
+            .select_from(ConversationAction)
+            .where(ConversationAction.created_at >= cutoff),
         )
-        attention_filter = _attention_filter()
         attention_count = await _scalar_count(
             db,
-            select(func.count()).select_from(ConversationState).where(attention_filter),
+            select(func.count())
+            .select_from(ConversationState)
+            .where(attention_filter),
         )
         failed_count = await _scalar_count(
             db,
-            select(func.count()).select_from(ConversationState).where(ConversationState.step == "failed_needs_review"),
+            select(func.count())
+            .select_from(ConversationState)
+            .where(ConversationState.step == "failed_needs_review"),
         )
         stale_waiting_count = await _scalar_count(
             db,
-            select(func.count()).select_from(ConversationState).where(
+            select(func.count())
+            .select_from(ConversationState)
+            .where(
                 ConversationState.waiting_since.is_not(None),
                 ConversationState.waiting_since < stale_cutoff,
             ),
         )
 
+        missing_sender_count = await _scalar_count(
+            db,
+            select(func.count())
+            .select_from(ConversationState)
+            .where(missing_sender_filter),
+        )
+        missing_summary_count = await _scalar_count(
+            db,
+            select(func.count())
+            .select_from(ConversationState)
+            .where(missing_summary_filter),
+        )
+        missing_subtype_count = await _scalar_count(
+            db,
+            select(func.count())
+            .select_from(ConversationState)
+            .where(
+                or_(
+                    ConversationState.sub_type.is_(None),
+                    ConversationState.sub_type == "",
+                )
+            ),
+        )
+        recent_metadata_total = await _scalar_count(
+            db,
+            select(func.count())
+            .select_from(ConversationState)
+            .where(ConversationState.updated_at >= recent_cutoff),
+        )
+        recent_metadata_missing = await _scalar_count(
+            db,
+            select(func.count())
+            .select_from(ConversationState)
+            .where(
+                ConversationState.updated_at >= recent_cutoff,
+                or_(missing_sender_filter, missing_summary_filter),
+            ),
+        )
+        attention_metadata_missing = await _scalar_count(
+            db,
+            select(func.count())
+            .select_from(ConversationState)
+            .where(
+                attention_filter,
+                or_(missing_sender_filter, missing_summary_filter),
+            ),
+        )
+
         step_rows = await db.execute(
-            select(ConversationState.step, func.count()).group_by(ConversationState.step).order_by(func.count().desc())
+            select(ConversationState.step, func.count())
+            .group_by(ConversationState.step)
+            .order_by(func.count().desc())
         )
         category_rows = await db.execute(
-            select(ConversationState.category, func.count()).group_by(ConversationState.category).order_by(func.count().desc())
+            select(ConversationState.category, func.count())
+            .group_by(ConversationState.category)
+            .order_by(func.count().desc())
         )
         action_rows = await db.execute(
             select(ConversationAction.action_type, func.count())
@@ -456,19 +574,139 @@ async def ops_summary():
             .order_by(func.count().desc())
         )
         sybil_rows = await db.execute(
-            select(SybilNotification.status, func.count()).group_by(SybilNotification.status).order_by(func.count().desc())
+            select(SybilNotification.status, func.count())
+            .group_by(SybilNotification.status)
+            .order_by(func.count().desc())
         )
-        latest_webhook = await db.execute(select(func.max(WebhookEvent.processed_at)))
-        latest_action = await db.execute(select(func.max(ConversationAction.created_at)))
-        missing_sender_count = await _scalar_count(
+        webhook_inbox_rows = await db.execute(
+            select(WebhookInbox.status, func.count())
+            .group_by(WebhookInbox.status)
+            .order_by(func.count().desc())
+        )
+
+        by_step = _rows_to_dict(step_rows.all())
+        by_category = _rows_to_dict(category_rows.all())
+        actions_by_type = _rows_to_dict(action_rows.all())
+        sybil_by_status = _rows_to_dict(sybil_rows.all())
+        webhook_inbox_by_status = _rows_to_dict(webhook_inbox_rows.all())
+
+        webhook_queue_count = sum(
+            count
+            for status, count in webhook_inbox_by_status.items()
+            if status != "processed"
+        )
+        webhook_due_count = await _scalar_count(
             db,
-            select(func.count()).select_from(ConversationState).where(
-                or_(ConversationState.sender_email.is_(None), ConversationState.sender_email == "")
+            select(func.count())
+            .select_from(WebhookInbox)
+            .where(
+                or_(
+                    (
+                        WebhookInbox.status.in_(("pending", "retry"))
+                        & (WebhookInbox.available_at <= now)
+                    ),
+                    (
+                        (WebhookInbox.status == "processing")
+                        & WebhookInbox.lease_expires_at.is_not(None)
+                        & (WebhookInbox.lease_expires_at <= now)
+                    ),
+                )
             ),
         )
-        draft_adoption_7d = await draft_adoption_metrics(db, since=datetime.utcnow() - timedelta(days=7))
+        oldest_queued = await db.execute(
+            select(func.min(WebhookInbox.created_at)).where(
+                WebhookInbox.status != "processed"
+            )
+        )
+        webhook_problem_rows = await db.execute(
+            select(WebhookInbox)
+            .where(WebhookInbox.status != "processed")
+            .order_by(
+                case(
+                    (WebhookInbox.status == "dead_letter", 0),
+                    (WebhookInbox.status == "retry", 1),
+                    (WebhookInbox.status == "processing", 2),
+                    else_=3,
+                ),
+                WebhookInbox.updated_at.desc(),
+            )
+            .limit(10)
+        )
+
+        priority_rows = await db.execute(
+            select(ConversationState)
+            .where(attention_filter)
+            .order_by(
+                case(
+                    (ConversationState.step == "failed_needs_review", 0),
+                    (ConversationState.step == "manual_review", 1),
+                    else_=2,
+                ),
+                ConversationState.updated_at.desc(),
+            )
+            .limit(12)
+        )
+        failed_rows = await db.execute(
+            select(ConversationState)
+            .where(ConversationState.step == "failed_needs_review")
+            .order_by(ConversationState.updated_at.desc())
+            .limit(12)
+        )
+        opportunity_rows = await db.execute(
+            select(ConversationState)
+            .where(
+                ConversationState.category.in_(
+                    ("business", "purchase", "partnership", "investment")
+                ),
+                ConversationState.step.notin_(("done", "closed_spam")),
+            )
+            .order_by(ConversationState.updated_at.desc())
+            .limit(6)
+        )
+        friction_rows = await db.execute(
+            select(
+                ConversationState.category,
+                ConversationState.sub_type,
+                func.count(),
+            )
+            .where(
+                ConversationState.updated_at >= cutoff,
+                ConversationState.category.in_(
+                    ("account", "billing", "education", "technical")
+                ),
+            )
+            .group_by(
+                ConversationState.category,
+                ConversationState.sub_type,
+            )
+            .order_by(func.count().desc())
+            .limit(8)
+        )
+        recent_states = await db.execute(
+            select(ConversationState)
+            .order_by(ConversationState.updated_at.desc())
+            .limit(8)
+        )
+        recent_actions = await db.execute(
+            select(ConversationAction)
+            .order_by(ConversationAction.created_at.desc())
+            .limit(10)
+        )
+
+        latest_webhook = (
+            await db.execute(select(func.max(WebhookEvent.processed_at)))
+        ).scalar()
+        latest_action = (
+            await db.execute(select(func.max(ConversationAction.created_at)))
+        ).scalar()
+        draft_adoption_7d = await draft_adoption_metrics(
+            db,
+            since=now - timedelta(days=7),
+        )
         report_rows = await db.execute(
-            select(OpsReport).order_by(OpsReport.generated_at.desc()).limit(20)
+            select(OpsReport)
+            .order_by(OpsReport.generated_at.desc())
+            .limit(20)
         )
         reports_by_period = {}
         latest_report_at = None
@@ -481,28 +719,6 @@ async def ops_summary():
                     "window_start": _iso(report.window_start),
                     "window_end": _iso(report.window_end),
                 }
-        opportunity_rows = await db.execute(
-            select(ConversationState)
-            .where(ConversationState.category.in_(("business", "purchase", "partnership", "investment")))
-            .order_by(ConversationState.updated_at.desc())
-            .limit(6)
-        )
-        friction_rows = await db.execute(
-            select(ConversationState.category, ConversationState.sub_type, func.count())
-            .where(
-                ConversationState.updated_at >= cutoff,
-                ConversationState.category.in_(("account", "billing", "education", "technical")),
-            )
-            .group_by(ConversationState.category, ConversationState.sub_type)
-            .order_by(func.count().desc())
-            .limit(8)
-        )
-        recent_states = await db.execute(
-            select(ConversationState).order_by(ConversationState.updated_at.desc()).limit(8)
-        )
-        recent_actions = await db.execute(
-            select(ConversationAction).order_by(ConversationAction.created_at.desc()).limit(10)
-        )
 
         scheduler_running = False
         try:
@@ -512,10 +728,39 @@ async def ops_summary():
         except Exception as exc:
             logger.debug("Unable to inspect scheduler state: %s", exc)
 
+        recent_complete = max(
+            recent_metadata_total - recent_metadata_missing,
+            0,
+        )
+        dead_letter_count = webhook_inbox_by_status.get("dead_letter", 0)
+        service_degraded = bool(
+            webhook_due_count
+            or dead_letter_count
+            or (settings.enable_scheduler and not scheduler_running)
+        )
+        metadata_coverage = {
+            "total_rows": total_conversations,
+            "missing_sender_count": missing_sender_count,
+            "missing_summary_count": missing_summary_count,
+            "missing_subtype_count": missing_subtype_count,
+            "sender_coverage_rate": _rate(
+                total_conversations - missing_sender_count,
+                total_conversations,
+            ),
+            "recent_30d_rows": recent_metadata_total,
+            "recent_30d_complete": recent_complete,
+            "recent_30d_coverage_rate": _rate(
+                recent_complete,
+                recent_metadata_total,
+            ),
+            "attention_rows": attention_count,
+            "attention_missing_count": attention_metadata_missing,
+        }
+
         return {
-            "generated_at": _iso(datetime.utcnow()),
+            "generated_at": _iso(now),
             "service": {
-                "status": "ok",
+                "status": "degraded" if service_degraded else "ok",
                 "scheduler_running": scheduler_running,
                 "front_base_url": settings.front_app_base_url,
             },
@@ -527,31 +772,71 @@ async def ops_summary():
                 "attention_count": attention_count,
                 "failed_count": failed_count,
                 "stale_waiting_count": stale_waiting_count,
+                "pending_sybil_count": sybil_by_status.get("pending", 0),
+                "webhook_queue_count": webhook_queue_count,
+                "webhook_dead_letter_count": dead_letter_count,
             },
-            "by_step": {step or "unknown": count for step, count in step_rows.all()},
-            "by_category": {category or "uncategorized": count for category, count in category_rows.all()},
-            "actions_24h_by_type": {action or "unknown": count for action, count in action_rows.all()},
-            "sybil_by_status": {status or "unknown": count for status, count in sybil_rows.all()},
+            "by_step": by_step,
+            "by_category": by_category,
+            "actions_24h_by_type": actions_by_type,
+            "sybil_by_status": sybil_by_status,
             "draft_adoption_7d": draft_adoption_7d,
-            "data_health": {
-                "missing_sender_count": missing_sender_count,
-                "latest_webhook_at": _iso(latest_webhook.scalar()),
-                "latest_action_at": _iso(latest_action.scalar()),
-                "latest_reports": reports_by_period,
-                "next_report_due_at": _iso(latest_report_at + timedelta(hours=REPORT_INTERVAL_HOURS)) if latest_report_at else None,
+            "automation_health": {
+                "webhook_inbox_by_status": webhook_inbox_by_status,
+                "webhook_due_count": webhook_due_count,
+                "webhook_queue_count": webhook_queue_count,
+                "oldest_queued_at": _iso(oldest_queued.scalar()),
+                "webhook_problem_items": [
+                    _webhook_inbox_to_dict(item)
+                    for item in webhook_problem_rows.scalars().all()
+                ],
             },
-            "opportunity_items": [_state_to_dict(item) for item in opportunity_rows.scalars().all()],
+            "data_health": {
+                **metadata_coverage,
+                "latest_webhook_at": _iso(latest_webhook),
+                "latest_action_at": _iso(latest_action),
+                "latest_reports": reports_by_period,
+                "next_report_due_at": (
+                    _iso(
+                        latest_report_at
+                        + timedelta(hours=REPORT_INTERVAL_HOURS)
+                    )
+                    if latest_report_at
+                    else None
+                ),
+            },
+            "priority_items": [
+                _state_to_dict(item)
+                for item in priority_rows.scalars().all()
+            ],
+            "opportunity_items": [
+                _state_to_dict(item)
+                for item in opportunity_rows.scalars().all()
+            ],
+            "failed_items": [
+                _state_to_dict(item)
+                for item in failed_rows.scalars().all()
+            ],
             "top_user_frictions": [
                 {
-                    "key": f"{category or 'uncategorized'}:{sub_type or 'general'}",
+                    "key": (
+                        f"{category or 'uncategorized'}:"
+                        f"{sub_type or 'general'}"
+                    ),
                     "category": category or "uncategorized",
                     "sub_type": sub_type or "general",
                     "count": int(count or 0),
                 }
                 for category, sub_type, count in friction_rows.all()
             ],
-            "recent_conversations": [_state_to_dict(item) for item in recent_states.scalars().all()],
-            "recent_actions": [_action_to_dict(item) for item in recent_actions.scalars().all()],
+            "recent_conversations": [
+                _state_to_dict(item)
+                for item in recent_states.scalars().all()
+            ],
+            "recent_actions": [
+                _action_to_dict(item)
+                for item in recent_actions.scalars().all()
+            ],
         }
 
 

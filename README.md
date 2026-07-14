@@ -18,7 +18,7 @@ Current production screen runs this branch from release directories under `/tmp/
 - Spam: deterministic route may archive only clear spam/ads
 - Non-spam: keep conversations open for review
 - Sybil handoffs: queued for the daily Feishu digest, not emailed directly to Sybil
-- Ops dashboard: `GET /ops` shows processing status, action logs, and queues; authenticated operators can soft-dismiss pending Sybil items
+- Ops dashboard: `GET /ops` prioritizes actionable conversations, webhook recovery health, Sybil backlog, draft adoption, and metadata coverage; authenticated operators can soft-dismiss pending Sybil items
 - Case memory: similar historical conversations are distilled into hindsight signals with retrieval evidence; they do not change deterministic routes or replace docs/GitHub grounding
 
 ## Processing Flow
@@ -228,6 +228,7 @@ start.sh                   local start script
 railway.toml               optional Railway config
 agent/orchestrator.py      main processing loop and skill execution
 services/case_memory.py    conservative historical case-memory prompt context
+services/ops_metadata.py   conservative Front metadata backfill for Ops rows
 agent/classification.py    classification parsing/normalization
 agent/routing.py           deterministic routes
 agent/tool_registry.py     allowlisted tool schemas and dispatch
@@ -326,6 +327,7 @@ Run before commit/deploy:
 .venv/bin/python tests/test_linear_ticket_deduplication.py
 .venv/bin/python tests/test_runtime_boundaries.py
 .venv/bin/python tests/test_ops_sybil_dismissal.py
+.venv/bin/python tests/test_ops_data_quality.py
 .venv/bin/python tests/test_routing.py
 .venv/bin/python tests/test_skills.py
 .venv/bin/python tests/test_draft_adoption.py
@@ -342,5 +344,6 @@ smoke test; the repository suite does not call Front or the configured LLM.
 - Do not commit `.env`, SQLite DB files, screen logs, virtualenvs, or generated caches.
 - `screenlog.*` is runtime log output, not source.
 - Production state should use a persistent SQLite path or external DB.
-- Ops dashboard is available at `/ops` and reads existing processing state; its only write operation is authenticated soft dismissal of pending Sybil queue records. It does not edit skills or send customer messages. Use ENABLE_SCHEDULER=false for local UI-only previews next to a running production instance.
+- Ops dashboard is available at `/ops` and reads existing processing state. Its overview separates actionable failures and queues from historical data gaps, and reports 30-day sender/summary coverage instead of presenting missing values as live facts. Its only operator write is authenticated soft dismissal of pending Sybil queue records. It does not edit skills or send customer messages. Use ENABLE_SCHEDULER=false for local UI-only previews next to a running production instance.
+- Every 15 minutes, at most 20 missing conversation rows are enriched from Front, with actionable rows first and a 60-second run limit. The job only fills blank original sender and subject-derived summary fields, preserves the business activity timestamp, and never overwrites existing values.
 - Ops report snapshots are generated once when the scheduler starts, then every 3 hours. Each run stores both `daily` and `monthly` reports in `ops_reports`; the dashboard reads the latest snapshot for the selected period.
