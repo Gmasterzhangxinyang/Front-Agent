@@ -17,6 +17,7 @@ SUPPORT_INBOX_ID = "inb_f9fvf"
 from config import settings
 
 _running_scheduler_jobs: set[asyncio.Task] = set()
+_ops_maintenance_lock = asyncio.Lock()
 SCHEDULER_SHUTDOWN_TIMEOUT_SECONDS = 60
 
 
@@ -186,11 +187,12 @@ async def refresh_ops_conversation_metadata():
     try:
         from services.ops_metadata import enrich_missing_conversation_metadata
 
-        async with AsyncSessionLocal() as db:
-            result = await asyncio.wait_for(
-                enrich_missing_conversation_metadata(db, limit=20),
-                timeout=60,
-            )
+        async with _ops_maintenance_lock:
+            async with AsyncSessionLocal() as db:
+                result = await asyncio.wait_for(
+                    enrich_missing_conversation_metadata(db, limit=20),
+                    timeout=60,
+                )
         if result["selected"]:
             logger.info("Refreshed Ops conversation metadata: %s", result)
     except Exception:
@@ -202,8 +204,9 @@ async def generate_ops_reports():
     try:
         from routes.ops import generate_all_ops_reports
 
-        await refresh_draft_adoption_metrics()
-        await generate_all_ops_reports()
+        async with _ops_maintenance_lock:
+            await refresh_draft_adoption_metrics()
+            await generate_all_ops_reports()
     except Exception:
         logger.exception("generate_ops_reports failed")
 
@@ -273,7 +276,7 @@ def start_scheduler():
         minutes=15,
         id="refresh_ops_conversation_metadata_every_15m",
         replace_existing=True,
-        next_run_time=datetime.now(),
+        next_run_time=datetime.now() + timedelta(seconds=5),
         coalesce=True,
         max_instances=1,
     )

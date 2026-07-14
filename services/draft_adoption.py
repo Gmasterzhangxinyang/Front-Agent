@@ -145,13 +145,22 @@ async def refresh_draft_adoptions(
         .limit(limit)
     )
     actions = list(result.scalars().all())
+    # Do not hold a SQLite read transaction while calling Front.
+    await db.commit()
     refreshed = 0
     skipped = 0
     failed = 0
 
     for action in actions:
         existing = await db.get(DraftAdoption, action.id)
-        if existing and not force and existing.status in TERMINAL_STATUSES:
+        is_terminal = bool(
+            existing
+            and not force
+            and existing.status in TERMINAL_STATUSES
+        )
+        # A lookup starts a transaction; release it before network I/O.
+        await db.commit()
+        if is_terminal:
             skipped += 1
             continue
 
@@ -174,9 +183,9 @@ async def refresh_draft_adoptions(
         row.error = adoption.error
         row.draft_created_at = action.created_at
         db.add(row)
+        await db.commit()
         refreshed += 1
 
-    await db.commit()
     return {"checked": len(actions), "refreshed": refreshed, "skipped": skipped, "failed": failed}
 
 

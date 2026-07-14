@@ -317,6 +317,8 @@ def test_ops_reports_are_scheduled_every_three_hours():
     assert "refresh_draft_adoptions" in scheduler_source
     assert "enrich_missing_conversation_metadata" in scheduler_source
     assert "refresh_ops_conversation_metadata_every_15m" in scheduler_source
+    assert "_ops_maintenance_lock" in scheduler_source
+    assert "timedelta(seconds=5)" in scheduler_source
     assert "minutes=15" in scheduler_source
     assert "hours=3" in scheduler_source
     assert "next_run_time=datetime.now()" in scheduler_source

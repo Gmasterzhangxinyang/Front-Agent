@@ -146,7 +146,9 @@ that are missing sender or displayed summary metadata, prioritizing rows that
 require operator attention. It fills only blank values from Front's recipient
 and subject fields, preserves the business activity timestamp, and never
 overwrites stored metadata. Each run is limited to 60 seconds; failures are
-logged and isolated per conversation.
+logged and isolated per conversation. Ops maintenance jobs are serialized,
+and both metadata and draft-adoption refreshes close SQLite read transactions
+before calling Front so provider latency does not hold a database lock.
 
 ## Deploy Checklist
 
