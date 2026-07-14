@@ -134,3 +134,6 @@
 - [docs] add the runtime boundary operations guide and synchronize README, repository guidance, verification, and deployment requirements (docs/runtime-boundaries.md, README.md, CLAUDE.md)
 - [docs] document the Front Rule Webhook API secret source and correct automatic-retry claims to match Front's delivery behavior (.env.example, README.md, docs/runtime-boundaries.md, runtime hardening design and plan)
 - [fix] handle verified Education Plan users blocked by unsupported credit cards with a final no-bypass draft and no Linear or Sybil escalation (skills/education.md, tests/test_skills.py)
+
+## 2026-07-14
+- [docs] document the approved durable Front webhook recovery design (docs/superpowers/specs/2026-07-14-durable-webhook-recovery-design.md)
