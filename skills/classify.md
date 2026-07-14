@@ -169,26 +169,6 @@ Every example below includes all required fields. Follow this shape exactly. Use
 }
 ```
 
-### Example 7: Existing Invoice Correction After Billing Details Update
-**Email:** "I updated our organization name, Tax ID, and billing address in the billing portal. Could you correct or reissue the existing paid invoice with these details?"
-
-**Classification:**
-```json
-{
-  "category": "billing",
-  "sub_type": "invoice",
-  "is_paid_user": true,
-  "is_premium": false,
-  "urgency": "normal",
-  "sender_email": "billing@example.edu",
-  "summary": "Paid user requests correction or reissuance of an existing invoice after updating billing details",
-  "confidence": 0.98,
-  "flags": [],
-  "secondary_intents": [],
-  "evidence": ["updated our organization name, Tax ID, and billing address", "existing paid invoice", "correct or reissue"]
-}
-```
-
 ## Routing-Oriented Classification Rules
 
 - Pick the category that determines the immediate operational route.
@@ -231,7 +211,7 @@ Every example below includes all required fields. Follow this shape exactly. Use
 | billing | refund | Wants a refund |
 | billing | duplicate_charge | Charged twice |
 | billing | downgrade | Wants to downgrade or cancel subscription |
-| billing | invoice | Invoice download, address/details update, correction/reissue, or Credit Note request |
+| billing | invoice | Invoice address or details |
 | billing | other | Other billing questions |
 | partnership | plugin | Plugin cooperation or bug |
 | partnership | marketplace | Marketplace cooperation |

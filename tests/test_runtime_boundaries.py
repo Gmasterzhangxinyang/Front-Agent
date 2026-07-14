@@ -79,68 +79,6 @@ class _InboxResponse:
         return {"_results": [{"id": "inb_f9fvf"}]}
 
 
-def test_billing_waiting_reply_continues_through_agent_loop():
-    async def run_case():
-        state = SimpleNamespace(
-            category="billing",
-            sub_type="invoice",
-            step="awaiting_credit_note_acceptance",
-            payload={"invoice_number": "INV-1"},
-        )
-        run_loop = AsyncMock()
-        with (
-            patch.object(orchestrator_module.state_tool, "get_state", AsyncMock(return_value=state)),
-            patch.object(orchestrator_module, "get_conversation_messages", AsyncMock(return_value=[])),
-            patch.object(orchestrator_module, "fetch_attachments_as_base64", AsyncMock(return_value=[])),
-            patch.object(orchestrator_module, "fetch_attachments_as_text", AsyncMock(return_value=[])),
-            patch.object(orchestrator_module, "build_case_memory_context", AsyncMock(return_value="")),
-            patch.object(orchestrator_module, "_run_agent_loop", run_loop),
-        ):
-            await orchestrator_module.handle_email(
-                "cnv_billing",
-                "A supplementary Credit Note is acceptable.",
-                "customer@example.com",
-                [],
-                object(),
-            )
-
-        run_loop.assert_awaited_once()
-        prompt = run_loop.await_args.args[0][0]["content"]
-        assert "Category: billing" in prompt
-        assert "Step: awaiting_credit_note_acceptance" in prompt
-
-    asyncio.run(run_case())
-
-
-def test_billing_manual_review_reply_stops_before_external_or_llm_work():
-    async def run_case():
-        state = SimpleNamespace(
-            category="billing",
-            sub_type="invoice",
-            step="manual_review",
-            payload={"invoice_number": "INV-1"},
-        )
-        fetch_messages = AsyncMock()
-        run_loop = AsyncMock()
-        with (
-            patch.object(orchestrator_module.state_tool, "get_state", AsyncMock(return_value=state)),
-            patch.object(orchestrator_module, "get_conversation_messages", fetch_messages),
-            patch.object(orchestrator_module, "_run_agent_loop", run_loop),
-        ):
-            await orchestrator_module.handle_email(
-                "cnv_billing",
-                "Any update?",
-                "customer@example.com",
-                [],
-                object(),
-            )
-
-        fetch_messages.assert_not_awaited()
-        run_loop.assert_not_awaited()
-
-    asyncio.run(run_case())
-
-
 def _context() -> ToolExecutionContext:
     return ToolExecutionContext(
         conversation_id="cnv_trusted",
