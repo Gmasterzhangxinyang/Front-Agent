@@ -4,7 +4,7 @@
 
 **Goal:** Let an authenticated Ops user soft-dismiss one pending Sybil notification while retaining the row and audit history.
 
-**Architecture:** Add a constant-time shared-secret boundary to one new DELETE endpoint. The endpoint conditionally changes `pending` to `dismissed` and writes a `ConversationAction` in the same transaction; the existing digest query keeps selecting only `pending`. The Ops page keeps the secret only in JavaScript memory and refreshes the retained row after dismissal.
+**Architecture:** Add a constant-time shared-secret boundary to one new DELETE endpoint. The endpoint conditionally changes `pending` to `dismissed` and writes a `ConversationAction` in the same transaction. The digest sender atomically claims `pending` rows as `sending` with a 30-minute tokenized lease before network I/O, restores ordinary failures, and recovers expired claims; the Ops page keeps the secret only in JavaScript memory and refreshes the retained row after dismissal.
 
 **Tech Stack:** FastAPI, SQLAlchemy async, SQLite/aiosqlite, static HTML/CSS/JavaScript, standalone Python tests.
 
@@ -16,6 +16,7 @@
 - Modify `config.py`: add the optional write secret setting.
 - Modify `routes/ops.py`: authenticate and soft-dismiss one pending row.
 - Modify `routes/static/ops.html`: pending-only remove command, confirmation, password prompt, and refresh.
+- Modify `tools/sybil_digest.py`: atomically claim digest rows, guard final writes by lease token, and recover expired claims.
 - Modify `.env.example`: empty `OPS_WRITE_SECRET` example value only.
 - Modify `README.md`, `CLAUDE.md`, and `record.md`: document behavior, security, and verification.
 - Modify local untracked `.env`: set the operator-provided secret without staging or printing it.
@@ -432,6 +433,7 @@ Document:
 
 ```text
 - OPS_WRITE_SECRET enables authenticated Ops mutations.
+- sending is a transient tokenized digest lease; expired leases are recovered.
 - DELETE /ops/api/sybil/{id} changes pending to dismissed; it does not delete the row.
 - sent rows are immutable and dismissed rows remain visible/auditable.
 - the browser keeps the write secret only in page memory.

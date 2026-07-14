@@ -17,7 +17,7 @@ Current production screen runs this branch from release directories under `/tmp/
 - Spam: deterministic route may archive only clear spam/ads
 - Non-spam: keep conversations open for review
 - Sybil handoffs: queued for the daily Feishu digest, not emailed directly to Sybil
-- Ops dashboard: `GET /ops` shows processing status, action logs, and queues
+- Ops dashboard: `GET /ops` shows processing status, action logs, and queues; authenticated operators can soft-dismiss pending Sybil items
 - Case memory: similar historical conversations are distilled into hindsight signals with retrieval evidence; they do not change deterministic routes or replace docs/GitHub grounding
 
 ## Processing Flow
@@ -171,7 +171,7 @@ SQLite models are in `models.py` and initialized by `database.py`.
 | `conversation_states` | category, sub_type, step, waiting, payload, original sender |
 | `conversation_actions` | tool-level action log and dedupe |
 | `webhook_events` | Front event idempotency |
-| `sybil_notifications` | pending/sent Sybil digest queue |
+| `sybil_notifications` | pending/sending/sent/dismissed Sybil digest queue; dismissed rows remain retained |
 
 Important steps:
 
@@ -247,6 +247,7 @@ CLAUDIA_EMAIL=
 
 DATABASE_URL=sqlite+aiosqlite:///./email_automation.db
 ENABLE_SCHEDULER=true
+OPS_WRITE_SECRET=
 PORT=8000
 ```
 
@@ -256,6 +257,13 @@ set `ALLOW_UNSIGNED_FRONT_WEBHOOKS=true`; never enable it in production.
 `FRONT_ATTACHMENT_ALLOWED_HOSTS` must contain only exact Front-managed HTTPS
 hosts used by the deployment. Attachment count, byte, and text limits bound
 memory use and model prompt growth.
+
+`OPS_WRITE_SECRET` enables authenticated Ops mutations. The
+`DELETE /ops/api/sybil/{id}` endpoint changes only a `pending` notification to
+`dismissed`; it does not delete the database row, `sent` rows are immutable, and dismissed
+rows remain visible for audit. The digest atomically claims pending rows as
+`sending`, so an in-flight send cannot be reported as dismissed. The Ops page
+keeps the entered secret only in page memory. Use HTTPS for remote access.
 
 See [Runtime Security and Retry Boundaries](docs/runtime-boundaries.md) for
 deployment checks, failure semantics, and the exact verification commands.
@@ -283,6 +291,7 @@ Run before commit/deploy:
 
 ```bash
 .venv/bin/python tests/test_runtime_boundaries.py
+.venv/bin/python tests/test_ops_sybil_dismissal.py
 .venv/bin/python tests/test_routing.py
 .venv/bin/python tests/test_skills.py
 .venv/bin/python tests/test_draft_adoption.py
@@ -299,5 +308,5 @@ smoke test; the repository suite does not call Front or the configured LLM.
 - Do not commit `.env`, SQLite DB files, screen logs, virtualenvs, or generated caches.
 - `screenlog.*` is runtime log output, not source.
 - Production state should use a persistent SQLite path or external DB.
-- Ops dashboard is available at `/ops` and reads existing processing state; it does not edit skills or send customer messages. Use ENABLE_SCHEDULER=false for local UI-only previews next to a running production instance.
+- Ops dashboard is available at `/ops` and reads existing processing state; its only write operation is authenticated soft dismissal of pending Sybil queue records. It does not edit skills or send customer messages. Use ENABLE_SCHEDULER=false for local UI-only previews next to a running production instance.
 - Ops report snapshots are generated once when the scheduler starts, then every 3 hours. Each run stores both `daily` and `monthly` reports in `ops_reports`; the dashboard reads the latest snapshot for the selected period.

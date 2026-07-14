@@ -1,12 +1,13 @@
+import hmac
 import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query
 from fastapi.responses import FileResponse
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 
 from config import settings
 from database import AsyncSessionLocal
@@ -20,6 +21,17 @@ ATTENTION_STEPS = ("manual_review", "failed_needs_review")
 FAILED_MARKERS = ("failed", "move_failed", "unknown_tool", "error")
 REPORT_PERIODS = {"daily": 1, "weekly": 7, "monthly": 30}
 REPORT_INTERVAL_HOURS = 3
+
+
+def _require_ops_write_secret(provided: str | None) -> None:
+    configured = settings.ops_write_secret
+    if not configured:
+        raise HTTPException(status_code=503, detail="Ops write operations are disabled")
+    if not provided or not hmac.compare_digest(
+        provided.encode("utf-8"),
+        configured.encode("utf-8"),
+    ):
+        raise HTTPException(status_code=403, detail="Invalid Ops write secret")
 
 
 def _iso(value: datetime | None) -> str | None:
@@ -85,6 +97,10 @@ def _action_to_dict(action: ConversationAction) -> dict[str, Any]:
 
 
 def _sybil_to_dict(item: SybilNotification) -> dict[str, Any]:
+    status = item.status or "pending"
+    error = item.error or ""
+    if status == "sending" and error.startswith("digest-lease:"):
+        error = ""
     return {
         "id": item.id,
         "conversation_id": item.conversation_id,
@@ -93,8 +109,8 @@ def _sybil_to_dict(item: SybilNotification) -> dict[str, Any]:
         "cc_email": item.cc_email or "",
         "handoff_type": item.handoff_type or "",
         "linear_url": item.linear_url or "",
-        "status": item.status or "pending",
-        "error": item.error or "",
+        "status": status,
+        "error": error,
         "created_at": _iso(item.created_at),
         "sent_at": _iso(item.sent_at),
     }
@@ -813,3 +829,60 @@ async def list_sybil(status: str = "", limit: int = Query(default=100, ge=1, le=
         result = await db.execute(query)
         items = [_sybil_to_dict(item) for item in result.scalars().all()]
         return {"items": items, "count": len(items)}
+
+
+@router.delete("/ops/api/sybil/{notification_id}")
+async def dismiss_sybil_notification(
+    notification_id: int,
+    x_ops_write_secret: str | None = Header(
+        default=None,
+        alias="X-Ops-Write-Secret",
+    ),
+):
+    _require_ops_write_secret(x_ops_write_secret)
+
+    async with AsyncSessionLocal() as db:
+        item = await db.get(SybilNotification, notification_id)
+        if item is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Sybil notification not found",
+            )
+        if item.status == "dismissed":
+            return {"item": _sybil_to_dict(item)}
+        if item.status != "pending":
+            raise HTTPException(
+                status_code=409,
+                detail="Only pending notifications can be dismissed",
+            )
+
+        statement = (
+            update(SybilNotification)
+            .where(
+                SybilNotification.id == notification_id,
+                SybilNotification.status == "pending",
+            )
+            .values(status="dismissed")
+        )
+        result = await db.execute(statement)
+        if result.rowcount != 1:
+            await db.rollback()
+            current = await db.get(SybilNotification, notification_id)
+            if current is not None and current.status == "dismissed":
+                return {"item": _sybil_to_dict(current)}
+            raise HTTPException(
+                status_code=409,
+                detail="Notification status changed",
+            )
+
+        db.add(
+            ConversationAction(
+                conversation_id=item.conversation_id,
+                action_type="sybil_dismiss",
+                action_key=f"notification:{notification_id}",
+                result="dismissed",
+            )
+        )
+        await db.commit()
+        await db.refresh(item)
+        return {"item": _sybil_to_dict(item)}

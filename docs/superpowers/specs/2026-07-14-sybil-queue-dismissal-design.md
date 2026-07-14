@@ -37,12 +37,20 @@ action log already provides an action timestamp without requiring a migration.
 The supported queue states become:
 
 - `pending`: eligible for the next Sybil digest;
+- `sending`: temporarily claimed by one digest worker under a 30-minute lease;
 - `sent`: already included in a successful digest;
 - `dismissed`: manually removed before delivery and retained for history.
 
-The digest sender continues to query only `pending`, so no sender change is
-required. A dismissed row remains available from `/ops/api/sybil` and remains
-visible in the Ops table.
+The digest sender still selects only `pending` rows, but atomically changes each
+claimed row to `sending` before network I/O. The lease marker is stored in the
+existing `error` field as an expiry plus a unique token, is hidden from Ops API
+responses, and must match when the worker records success or failure. Expired or
+invalid leases are atomically recovered on the next digest run, so a crashed
+worker cannot leave a permanent `sending` row and a stale worker cannot
+overwrite a newer claim. A crash after Feishu accepts the digest but before the
+local `sent` commit can cause an at-least-once retry after lease expiry; this is
+preferable to silently losing the queue when the remote API has no idempotency
+key. Dismissed rows remain visible in the Ops table.
 
 ## Write Authentication
 
@@ -138,7 +146,9 @@ Add offline tests for:
 - one `sybil_dismiss` action is recorded with the notification ID;
 - repeated dismissal is successful and does not add a second audit action;
 - a sent row returns HTTP 409 and remains sent;
-- the digest sender still selects pending rows only;
+- an in-flight `sending` row returns HTTP 409 rather than reporting a false dismissal;
+- the digest sender still selects pending rows only, conditionally claims them,
+  restores ordinary failures, and recovers expired leases;
 - the Ops table renders dismissed rows and exposes the remove command only for
   pending rows;
 - the browser sends the write secret only as a request header and does not use
@@ -155,7 +165,7 @@ scripts after the focused test.
 Update README, `.env.example`, `CLAUDE.md`, and `record.md` with:
 
 - the new environment variable name, never its real value;
-- pending, sent, and dismissed status meanings;
+- pending, sending, sent, and dismissed status meanings;
 - the authenticated manual dismissal behavior;
 - the focused verification command;
 - the requirement to use HTTPS for remote Ops write operations.

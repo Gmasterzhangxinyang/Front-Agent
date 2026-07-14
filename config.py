@@ -83,6 +83,9 @@ class Settings(BaseSettings):
     # Scheduler runs production background jobs. Disable only for local UI previews.
     enable_scheduler: bool = True
 
+    # Shared secret for authenticated Ops mutations. Read-only routes stay open.
+    ops_write_secret: str = ""
+
     class Config:
         env_file = ".env"
         extra = "ignore"

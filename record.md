@@ -140,3 +140,5 @@
 - [docs] add the test-driven durable Front webhook recovery implementation plan (docs/superpowers/plans/2026-07-14-durable-webhook-recovery.md)
 - [docs] document authenticated soft dismissal for individual pending Sybil queue items (docs/superpowers/specs/2026-07-14-sybil-queue-dismissal-design.md)
 - [docs] add the test-driven Sybil queue soft-dismissal implementation plan (docs/superpowers/plans/2026-07-14-sybil-queue-dismissal.md)
+- [feat] add authenticated soft dismissal for individual pending Sybil queue records while retaining dismissed history and audit actions (config.py, routes/ops.py, routes/static/ops.html, tools/sybil_digest.py, tests/test_ops_sybil_dismissal.py)
+- [docs] document the Ops write secret, leased digest claims, and Sybil dismissed-state semantics without committing the real secret (.env.example, README.md, CLAUDE.md, Sybil design and plan)
