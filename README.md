@@ -26,8 +26,8 @@ Current production screen runs this branch from release directories under `/tmp/
 ```mermaid
 flowchart TD
     A[Front webhook] --> B[Verify signature and event_id]
-    B --> Q[Commit to webhook_inbox]
-    Q --> C[Immediate request-path processing]
+    B --> WI[Commit to webhook_inbox]
+    WI --> C[Immediate request-path processing]
     C --> D0[Allowed Support inbox filter]
     D0 --> D[Load full conversation, attachments, state]
     D --> CM[Retrieve strong historical case matches]
