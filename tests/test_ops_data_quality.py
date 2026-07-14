@@ -259,8 +259,22 @@ def test_ops_page_marks_historical_gaps_and_exposes_health_panels():
     ):
         assert f'id="{required_id}"' in source
     assert "missingValue()" in source
+    assert 'class="kpi-strip"' in source
+    assert 'class="priority-table"' in source
     assert "item.sender_email||'-'" not in source
     assert "renderAttention" not in source
+    for removed_id in (
+        "opportunity-list",
+        "friction-bars",
+        "recent-actions-table",
+        "category-bars",
+        "step-bars",
+        "sybil-summary",
+        "opportunity-insights",
+        "experience-insights",
+        "risk-insights",
+    ):
+        assert f'id="{removed_id}"' not in source
 
 
 def run_all():

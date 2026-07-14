@@ -5,189 +5,276 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Front-Agent Ops</title>
 <style>
-  :root { --bg:#f7f8fb; --panel:#fff; --line:#e5e8ef; --line-strong:#d7dce7; --text:#111827; --muted:#667085; --soft:#f2f5f9; --blue:#155eef; --blue-soft:#eaf1ff; --green:#12805c; --green-soft:#e8f6f0; --amber:#a15c07; --amber-soft:#fff4df; --red:#b42318; --red-soft:#fff0ee; --purple:#6d3ac7; --purple-soft:#f2edff; --shadow:0 1px 2px rgba(16,24,40,.05); }
+  :root {
+    --bg:#f4f5f7; --panel:#ffffff; --sidebar:#ffffff; --line:#e3e6eb;
+    --line-strong:#cfd4dc; --text:#171a21; --muted:#69707d; --soft:#f7f8fa;
+    --blue:#2563eb; --blue-soft:#eef4ff; --green:#15805d; --green-soft:#eaf7f1;
+    --amber:#9a5b0a; --amber-soft:#fff6e5; --red:#b42318; --red-soft:#fff0ee;
+  }
   * { box-sizing:border-box; }
-  body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; font-size:14px; line-height:1.45; letter-spacing:0; }
-  .shell { display:grid; grid-template-columns:232px minmax(0,1fr); min-height:100vh; }
-  .sidebar { background:#fbfcfe; border-right:1px solid var(--line); padding:18px 14px; position:sticky; top:0; height:100vh; }
-  .brand { display:flex; align-items:center; gap:10px; padding:4px 6px 18px; }
-  .mark { width:28px; height:28px; border-radius:7px; background:var(--blue); color:#fff; display:grid; place-items:center; font-weight:700; font-size:13px; }
-  .brand-title { font-weight:650; } .brand-sub { color:var(--muted); font-size:12px; margin-top:1px; }
-  .nav { display:grid; gap:4px; }
-  .nav button { width:100%; border:0; background:transparent; border-radius:7px; color:#344054; cursor:pointer; display:flex; align-items:center; gap:9px; min-height:34px; padding:8px 10px; text-align:left; font:inherit; }
-  .nav button:hover { background:var(--soft); } .nav button.active { background:var(--blue-soft); color:var(--blue); font-weight:620; }
-  .nav-dot { width:7px; height:7px; border-radius:99px; background:currentColor; opacity:.72; }
-  .main { min-width:0; padding:22px 28px 34px; }
-  .topbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; }
-  h1 { margin:0; font-size:22px; line-height:1.2; font-weight:680; }
-  .meta { color:var(--muted); font-size:12px; margin-top:5px; }
-  .actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  .pill,.button,.toggle button { border:1px solid var(--line-strong); background:var(--panel); color:#344054; border-radius:7px; font:inherit; }
-  .pill { display:inline-flex; align-items:center; gap:7px; min-height:30px; padding:6px 10px; font-size:12px; white-space:nowrap; }
-  .status-dot { width:8px; height:8px; border-radius:99px; background:var(--green); }
+  body {
+    margin:0; min-height:100vh; background:var(--bg); color:var(--text);
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    font-size:14px; line-height:1.45; letter-spacing:0;
+  }
+  button,select,input { letter-spacing:0; }
+  .shell { display:grid; grid-template-columns:208px minmax(0,1fr); min-height:100vh; }
+  .sidebar {
+    position:sticky; top:0; height:100vh; padding:20px 12px; background:var(--sidebar);
+    border-right:1px solid var(--line);
+  }
+  .brand { display:flex; align-items:center; gap:10px; padding:0 8px 22px; }
+  .mark {
+    width:30px; height:30px; border-radius:5px; display:grid; place-items:center;
+    background:#171a21; color:#fff; font-size:12px; font-weight:750;
+  }
+  .brand-title { font-size:14px; font-weight:700; }
+  .brand-sub { color:var(--muted); font-size:11px; margin-top:1px; }
+  .nav { display:grid; gap:2px; }
+  .nav button {
+    width:100%; min-height:38px; padding:9px 10px; border:0; border-left:2px solid transparent;
+    border-radius:4px; background:transparent; color:#4c5360; cursor:pointer; text-align:left; font:inherit;
+  }
+  .nav button:hover { background:var(--soft); color:var(--text); }
+  .nav button.active { border-left-color:var(--blue); background:var(--blue-soft); color:#1749aa; font-weight:650; }
+  .main { min-width:0; width:100%; max-width:1540px; padding:24px 30px 40px; }
+  .topbar {
+    min-height:54px; margin-bottom:18px; display:flex; align-items:flex-start;
+    justify-content:space-between; gap:18px;
+  }
+  h1 { margin:0; font-size:21px; line-height:1.25; font-weight:700; }
+  .meta { margin-top:5px; color:var(--muted); font-size:12px; }
+  .actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+  .service-state { display:inline-flex; align-items:center; gap:7px; min-height:32px; color:#444b57; font-size:12px; }
+  .status-dot { width:8px; height:8px; border-radius:50%; background:var(--green); }
   .status-dot.bad { background:var(--red); }
-  .button { min-height:32px; padding:7px 12px; cursor:pointer; font-weight:560; }
+  .scheduler-state { color:var(--muted); font-size:12px; padding:0 4px; }
+  .button,.toggle button {
+    min-height:32px; padding:6px 11px; border:1px solid var(--line-strong); border-radius:5px;
+    background:var(--panel); color:#343a46; cursor:pointer; font:inherit; font-weight:560;
+  }
+  .button:hover,.toggle button:hover { border-color:#aeb5c0; background:var(--soft); }
   .button.compact { min-height:28px; padding:4px 8px; font-size:12px; }
-  .button.danger { color:var(--red); border-color:#f0b7b2; background:var(--red-soft); }
-  .button.danger:hover { border-color:#e28b83; background:#ffe6e2; }
-  .button:hover,.toggle button:hover { border-color:#b9c2d3; background:#fdfdff; }
-  .toggle { display:inline-flex; gap:4px; padding:3px; border:1px solid var(--line); border-radius:8px; background:#f8fafc; }
-  .toggle button { min-height:28px; padding:5px 11px; cursor:pointer; border-color:transparent; background:transparent; }
-  .toggle button.active { background:var(--panel); border-color:var(--line-strong); color:var(--blue); box-shadow:var(--shadow); }
-  .metrics,.report-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:14px; }
-  .report-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
-  .metric,.panel,.callout { background:var(--panel); border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow); }
-  .metric { padding:15px 16px; min-height:104px; display:flex; flex-direction:column; justify-content:space-between; }
-  .metric-label,.report-card .label { color:var(--muted); font-size:12px; font-weight:560; }
-  .metric-value { font-size:28px; line-height:1; font-weight:710; margin-top:12px; }
-  .metric-note,.report-card .note { color:var(--muted); font-size:12px; margin-top:8px; }
-  .callout { padding:12px 14px; margin-bottom:14px; color:#344054; } .callout strong { color:var(--text); }
-  .grid { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(320px,.9fr); gap:14px; align-items:start; }
-  .panel { min-width:0; overflow:hidden; }
-  .panel-head { min-height:48px; padding:13px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:12px; }
-  .panel-title { font-weight:650; } .panel-sub { color:var(--muted); font-size:12px; }
-  .panel-body { padding:12px 16px 16px; }
-  .table-wrap { overflow-x:auto; } table { width:100%; border-collapse:collapse; min-width:720px; }
-  th,td { padding:10px 8px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
-  th { color:var(--muted); font-size:11px; font-weight:650; text-transform:uppercase; }
+  .button.danger { color:var(--red); border-color:#e7aaa4; background:#fff; }
+  .button.danger:hover { background:var(--red-soft); }
+  .toggle { display:inline-flex; gap:2px; padding:3px; border:1px solid var(--line); border-radius:6px; background:var(--soft); }
+  .toggle button { border-color:transparent; background:transparent; min-height:28px; padding:4px 10px; }
+  .toggle button.active { border-color:var(--line-strong); background:#fff; color:#1749aa; }
+  .view { display:none; }
+  .view.active { display:block; }
+  .stack { display:grid; gap:14px; }
+  .panel { min-width:0; overflow:hidden; background:var(--panel); border:1px solid var(--line); border-radius:6px; }
+  .panel-head {
+    min-height:54px; padding:13px 16px; border-bottom:1px solid var(--line);
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+  }
+  .panel-title { font-size:14px; font-weight:680; }
+  .panel-sub { margin-top:2px; color:var(--muted); font-size:12px; }
+  .panel-body { padding:14px 16px 16px; }
+  .kpi-strip {
+    display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); margin-bottom:14px;
+    background:var(--panel); border:1px solid var(--line); border-radius:6px; overflow:hidden;
+  }
+  .metric { min-width:0; min-height:98px; padding:15px 17px; border-right:1px solid var(--line); }
+  .metric:last-child { border-right:0; }
+  .metric-label { color:var(--muted); font-size:12px; font-weight:600; }
+  .metric-value { margin-top:8px; font-size:26px; line-height:1.05; font-weight:720; font-variant-numeric:tabular-nums; }
+  .metric-note { margin-top:7px; color:var(--muted); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .overview-secondary { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; }
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; min-width:720px; }
+  th,td { padding:11px 12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+  th { background:#fafbfc; color:var(--muted); font-size:11px; font-weight:650; text-transform:uppercase; }
+  tbody tr:hover { background:#fafbfc; }
   tr:last-child td { border-bottom:0; }
-  .id-link { color:var(--blue); text-decoration:none; font-weight:610; } .id-link:hover { text-decoration:underline; }
-  .muted { color:var(--muted); } .clip { max-width:420px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .badge { display:inline-flex; align-items:center; min-height:22px; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:580; background:var(--soft); color:#475569; white-space:nowrap; }
-  .badge.ok { background:var(--green-soft); color:var(--green); } .badge.warn { background:var(--amber-soft); color:var(--amber); } .badge.bad { background:var(--red-soft); color:var(--red); } .badge.info { background:var(--blue-soft); color:var(--blue); } .badge.purple { background:var(--purple-soft); color:var(--purple); }
-  .bars { display:grid; gap:10px; } .bar-row { display:grid; grid-template-columns:minmax(86px,138px) minmax(0,1fr) 42px; gap:10px; align-items:center; }
-  .bar-label { color:#344054; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; } .bar-track { height:8px; border-radius:999px; background:var(--soft); overflow:hidden; } .bar-fill { height:100%; border-radius:inherit; background:var(--blue); min-width:3px; } .bar-count { color:var(--muted); text-align:right; font-variant-numeric:tabular-nums; }
-  .filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; } select,input { border:1px solid var(--line-strong); background:var(--panel); color:var(--text); border-radius:7px; min-height:32px; padding:6px 10px; font:inherit; } input { width:240px; }
-  .view { display:none; } .view.active { display:block; } .stack { display:grid; gap:14px; }
-  .report-card { background:#fbfcfe; border:1px solid var(--line); border-radius:8px; padding:12px; min-height:92px; } .report-card .value { font-size:24px; font-weight:710; margin-top:10px; }
-  .focus-grid { margin-bottom:14px; }
-  .item-list { display:grid; gap:8px; } .item-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center; padding:9px 0; border-bottom:1px solid var(--line); } .item-row:last-child { border-bottom:0; } .item-main { min-width:0; } .item-title { font-weight:610; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .item-sub { color:var(--muted); font-size:12px; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .decision-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:14px; } .decision-card { border:1px solid var(--line); border-radius:8px; background:#fbfcfe; padding:12px; }
-  .insight-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; } .insight-column { display:grid; gap:10px; align-content:start; }
-  .insight-card { border:1px solid var(--line); border-radius:8px; background:#fbfcfe; padding:12px; }
-  .insight-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:8px; } .insight-title { font-weight:650; } .insight-detail { color:#344054; font-size:13px; } .insight-evidence { color:var(--muted); font-size:12px; margin-top:8px; }
-  .examples { display:grid; gap:4px; margin-top:8px; } .examples a { color:var(--blue); font-size:12px; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .examples a:hover { text-decoration:underline; }
-  .summary-list,.action-list { margin:0; padding-left:18px; color:#344054; } .summary-list li,.action-list li { margin:5px 0; }
-  .health-list { display:grid; gap:0; }
-  .health-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:center; min-height:42px; padding:9px 0; border-bottom:1px solid var(--line); }
+  .priority-table { min-width:760px; table-layout:fixed; }
+  .priority-table th:nth-child(1) { width:23%; }
+  .priority-table th:nth-child(2) { width:49%; }
+  .priority-table th:nth-child(3) { width:17%; }
+  .priority-table th:nth-child(4) { width:11%; }
+  .cell-title { font-weight:620; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cell-sub { margin-top:3px; color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .id-link { color:#1d55bd; text-decoration:none; font-weight:630; }
+  .id-link:hover { text-decoration:underline; }
+  .muted { color:var(--muted); }
+  .clip { max-width:420px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .badge {
+    display:inline-flex; align-items:center; min-height:21px; padding:2px 7px; border-radius:999px;
+    background:#f0f2f5; color:#515967; font-size:11px; font-weight:620; white-space:nowrap;
+  }
+  .badge.ok { background:var(--green-soft); color:var(--green); }
+  .badge.warn { background:var(--amber-soft); color:var(--amber); }
+  .badge.bad { background:var(--red-soft); color:var(--red); }
+  .badge.info,.badge.purple { background:var(--blue-soft); color:#2758ad; }
+  .health-list { display:grid; }
+  .health-row {
+    display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px;
+    min-height:42px; padding:9px 0; border-bottom:1px solid var(--line);
+  }
   .health-row:last-child { border-bottom:0; }
-  .health-label { color:#344054; }
-  .health-value { font-weight:650; text-align:right; font-variant-numeric:tabular-nums; }
-  .health-note { color:var(--muted); font-size:12px; margin-top:2px; }
-  .coverage-block { display:grid; gap:7px; padding:9px 0 12px; }
+  .health-label { color:#424955; }
+  .health-value { text-align:right; font-weight:650; font-variant-numeric:tabular-nums; }
+  .health-note { margin-top:3px; color:var(--muted); font-size:11px; }
+  .problem-list { display:grid; gap:7px; }
+  .problem-row { margin-top:8px; padding:10px; border-left:3px solid var(--red); background:var(--red-soft); }
+  .coverage-block { display:grid; gap:7px; padding:5px 0 14px; }
   .coverage-top { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-  .coverage-track { height:8px; border-radius:999px; overflow:hidden; background:var(--soft); }
-  .coverage-fill { height:100%; background:var(--green); border-radius:inherit; }
-  .problem-list { display:grid; gap:7px; margin-top:10px; }
-  .problem-row { border-top:1px solid var(--line); padding-top:8px; }
-  .missing { color:#98a2b3; font-size:12px; }
-  .empty { color:var(--muted); padding:28px 0; text-align:center; }
-  @media (max-width:1040px) { .shell { grid-template-columns:1fr; } .sidebar { position:static; height:auto; border-right:0; border-bottom:1px solid var(--line); } .nav { grid-template-columns:repeat(5,minmax(0,1fr)); } .metrics,.report-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .grid,.insight-grid { grid-template-columns:1fr; } }
-  @media (max-width:640px) { .main { padding:18px 14px 28px; } .topbar { align-items:flex-start; flex-direction:column; } .nav { grid-template-columns:repeat(2,minmax(0,1fr)); } .metrics,.report-grid { grid-template-columns:1fr; } input { width:100%; } .filters { width:100%; } .filters select,.filters .button { flex:1; } }
+  .coverage-top strong { font-variant-numeric:tabular-nums; }
+  .coverage-track { height:6px; overflow:hidden; border-radius:99px; background:#eceff3; }
+  .coverage-fill { height:100%; border-radius:inherit; background:var(--green); }
+  .scope-note { margin-top:2px; padding-top:11px; border-top:1px solid var(--line); color:var(--muted); font-size:11px; }
+  .report-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border-top:1px solid var(--line); }
+  .report-card { min-width:0; padding:14px 16px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); }
+  .report-card:nth-child(3n) { border-right:0; }
+  .report-card .label { color:var(--muted); font-size:11px; font-weight:600; }
+  .report-card .value { margin-top:7px; font-size:22px; font-weight:720; }
+  .report-card .note { margin-top:5px; color:var(--muted); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .source-note { padding:10px 16px; color:var(--muted); font-size:11px; }
+  .report-layout { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(300px,.65fr); gap:14px; }
+  .summary-list,.action-list { margin:0; padding-left:19px; color:#3d4450; }
+  .summary-list li,.action-list li { margin:7px 0; }
+  .decision-list { display:grid; }
+  .decision-row { padding:12px 0; border-top:1px solid var(--line); }
+  .decision-row:first-child { margin-top:8px; }
+  .decision-top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .decision-title { font-weight:650; }
+  .decision-detail { margin-top:5px; color:#4e5663; font-size:12px; }
+  .examples { display:flex; gap:8px; flex-wrap:wrap; margin-top:7px; }
+  .examples a { color:#1d55bd; font-size:11px; text-decoration:none; }
+  .filters { display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
+  select,input {
+    min-height:32px; padding:6px 9px; border:1px solid var(--line-strong); border-radius:5px;
+    background:#fff; color:var(--text); font:inherit;
+  }
+  input { width:220px; }
+  .missing { color:#959ca8; font-size:11px; }
+  .empty { padding:30px 12px; color:var(--muted); text-align:center; }
+  @media (max-width:1040px) {
+    .shell { grid-template-columns:1fr; }
+    .sidebar { position:static; height:auto; padding:12px 14px; border-right:0; border-bottom:1px solid var(--line); }
+    .brand { padding:0 4px 12px; }
+    .nav { grid-template-columns:repeat(5,minmax(0,1fr)); }
+    .nav button { text-align:center; border-left:0; border-bottom:2px solid transparent; }
+    .nav button.active { border-bottom-color:var(--blue); }
+    .main { padding:20px; }
+    .report-layout { grid-template-columns:1fr; }
+  }
+  @media (max-width:760px) {
+    .topbar { flex-direction:column; }
+    .actions { justify-content:flex-start; }
+    .kpi-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .metric:nth-child(2) { border-right:0; }
+    .metric:nth-child(-n+2) { border-bottom:1px solid var(--line); }
+    .overview-secondary,.report-layout { grid-template-columns:1fr; }
+    .report-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .report-card:nth-child(3n) { border-right:1px solid var(--line); }
+    .report-card:nth-child(2n) { border-right:0; }
+  }
+  @media (max-width:540px) {
+    .main { padding:16px 12px 28px; }
+    .nav { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .kpi-strip,.report-grid { grid-template-columns:1fr; }
+    .metric,.metric:nth-child(2) { border-right:0; border-bottom:1px solid var(--line); }
+    .metric:last-child { border-bottom:0; }
+    .report-card,.report-card:nth-child(2n),.report-card:nth-child(3n) { border-right:0; }
+    .filters { width:100%; }
+    .filters select,.filters input,.filters .button { width:100%; }
+  }
 </style>
 </head>
 <body>
 <div class="shell">
-  <aside class="sidebar"><div class="brand"><div class="mark">D</div><div><div class="brand-title">Front-Agent</div><div class="brand-sub" data-i18n="brandSub"></div></div></div><nav class="nav"><button class="active" data-view="overview"><span class="nav-dot"></span><span data-i18n="navOverview"></span></button><button data-view="reports"><span class="nav-dot"></span><span data-i18n="navReports"></span></button><button data-view="conversations"><span class="nav-dot"></span><span data-i18n="navConversations"></span></button><button data-view="actions"><span class="nav-dot"></span><span data-i18n="navActions"></span></button><button data-view="sybil"><span class="nav-dot"></span><span data-i18n="navSybil"></span></button></nav></aside>
-  <main class="main"><div class="topbar"><div><h1>Dify Support Ops</h1><div class="meta" id="generated"></div></div><div class="actions"><span class="pill"><span class="status-dot" id="service-dot"></span><span id="service-status"></span></span><span class="pill" id="scheduler-status"></span><button class="button" id="lang-toggle"></button><button class="button" id="refresh"></button></div></div>
-    <section class="view active" id="view-overview">
-      <div class="callout" id="data-note"></div>
-      <div class="metrics" id="metrics"></div>
-      <div class="grid focus-grid">
-        <div class="stack">
-          <section class="panel">
-            <div class="panel-head">
-              <div>
-                <div class="panel-title" id="priority-title"></div>
-                <div class="panel-sub" id="priority-sub"></div>
-              </div>
-              <button class="button" data-open-view="conversations" data-status="attention" data-i18n="open"></button>
-            </div>
-            <div class="table-wrap"><table id="priority-table"></table></div>
-          </section>
-          <section class="panel">
-            <div class="panel-head">
-              <div>
-                <div class="panel-title" id="opportunity-title"></div>
-                <div class="panel-sub" id="opportunity-sub"></div>
-              </div>
-              <button class="button" data-open-view="reports" data-i18n="open"></button>
-            </div>
-            <div class="panel-body"><div class="item-list" id="opportunity-list"></div></div>
-          </section>
-        </div>
-        <div class="stack">
-          <section class="panel">
-            <div class="panel-head">
-              <div>
-                <div class="panel-title" id="automation-title"></div>
-                <div class="panel-sub" id="automation-sub"></div>
-              </div>
-            </div>
-            <div class="panel-body">
-              <div class="health-list" id="automation-health"></div>
-              <div class="problem-list" id="webhook-problems"></div>
-            </div>
-          </section>
-          <section class="panel">
-            <div class="panel-head">
-              <div>
-                <div class="panel-title" id="coverage-title"></div>
-                <div class="panel-sub" id="coverage-sub"></div>
-              </div>
-            </div>
-            <div class="panel-body" id="data-health"></div>
-          </section>
-          <section class="panel">
-            <div class="panel-head">
-              <div>
-                <div class="panel-title" id="friction-title"></div>
-                <div class="panel-sub" id="friction-sub"></div>
-              </div>
-            </div>
-            <div class="panel-body"><div class="bars" id="friction-bars"></div></div>
-          </section>
-        </div>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark">FA</div>
+      <div><div class="brand-title">Front-Agent</div><div class="brand-sub" data-i18n="brandSub"></div></div>
+    </div>
+    <nav class="nav">
+      <button class="active" data-view="overview"><span data-i18n="navOverview"></span></button>
+      <button data-view="conversations"><span data-i18n="navConversations"></span></button>
+      <button data-view="reports"><span data-i18n="navReports"></span></button>
+      <button data-view="actions"><span data-i18n="navActions"></span></button>
+      <button data-view="sybil"><span data-i18n="navSybil"></span></button>
+    </nav>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div><h1 id="page-title"></h1><div class="meta" id="generated"></div></div>
+      <div class="actions">
+        <span class="service-state"><span class="status-dot" id="service-dot"></span><span id="service-status"></span></span>
+        <span class="scheduler-state" id="scheduler-status"></span>
+        <button class="button" id="lang-toggle"></button>
+        <button class="button" id="refresh"></button>
       </div>
-      <div class="grid">
+    </header>
+
+    <section class="view active" id="view-overview">
+      <div class="kpi-strip" id="metrics"></div>
+      <div class="stack">
         <section class="panel">
           <div class="panel-head">
-            <div>
-              <div class="panel-title" data-i18n="recentActions"></div>
-              <div class="panel-sub" data-i18n="recentActionsSub"></div>
-            </div>
-            <button class="button" data-open-view="actions" data-i18n="open"></button>
+            <div><div class="panel-title" id="priority-title"></div><div class="panel-sub" id="priority-sub"></div></div>
+            <button class="button" data-open-view="conversations" data-status="attention" data-i18n="open"></button>
           </div>
-          <div class="table-wrap"><table id="recent-actions-table"></table></div>
+          <div class="table-wrap"><table class="priority-table" id="priority-table"></table></div>
         </section>
-        <div class="stack">
+        <div class="overview-secondary">
           <section class="panel">
-            <div class="panel-head">
-              <div class="panel-title" data-i18n="categories"></div>
-              <div class="panel-sub" data-i18n="allTrackedStates"></div>
-            </div>
-            <div class="panel-body"><div class="bars" id="category-bars"></div></div>
+            <div class="panel-head"><div><div class="panel-title" id="automation-title"></div><div class="panel-sub" id="automation-sub"></div></div></div>
+            <div class="panel-body"><div class="health-list" id="automation-health"></div><div class="problem-list" id="webhook-problems"></div></div>
           </section>
           <section class="panel">
-            <div class="panel-head">
-              <div class="panel-title" data-i18n="currentSteps"></div>
-              <div class="panel-sub" data-i18n="latestState"></div>
-            </div>
-            <div class="panel-body"><div class="bars" id="step-bars"></div></div>
-          </section>
-          <section class="panel">
-            <div class="panel-head">
-              <div class="panel-title" data-i18n="sybilDigest"></div>
-              <div class="panel-sub" id="sybil-sub"></div>
-            </div>
-            <div class="panel-body" id="sybil-summary"></div>
+            <div class="panel-head"><div><div class="panel-title" id="coverage-title"></div><div class="panel-sub" id="coverage-sub"></div></div></div>
+            <div class="panel-body"><div id="data-health"></div><div class="scope-note" id="data-note"></div></div>
           </section>
         </div>
       </div>
     </section>
-    <section class="view" id="view-reports"><div class="stack"><section class="panel"><div class="panel-head"><div><div class="panel-title" data-i18n="generatedReport"></div><div class="panel-sub" id="report-window"></div></div><div class="toggle"><button class="active" data-period="daily" data-i18n="daily"></button><button data-period="weekly" data-i18n="weekly"></button><button data-period="monthly" data-i18n="monthly"></button></div></div><div class="panel-body"><div class="callout" id="report-note"></div><div class="report-grid" id="report-cards"></div></div></section><section class="panel"><div class="panel-head"><div><div class="panel-title" data-i18n="analysis"></div><div class="panel-sub" data-i18n="analysisSub"></div></div></div><div class="panel-body"><div class="callout"><ul class="summary-list" id="analysis-summary"></ul></div><div class="decision-grid" id="decision-points"></div><div class="insight-grid"><div><div class="panel-sub" data-i18n="opportunities"></div><div class="insight-column" id="opportunity-insights"></div></div><div><div class="panel-sub" data-i18n="userExperience"></div><div class="insight-column" id="experience-insights"></div></div><div><div class="panel-sub" data-i18n="operationalRisks"></div><div class="insight-column" id="risk-insights"></div></div></div></div></section><section class="panel"><div class="panel-head"><div><div class="panel-title" data-i18n="recommendedActions"></div><div class="panel-sub" data-i18n="recommendedActionsSub"></div></div></div><div class="panel-body"><ol class="action-list" id="recommended-actions"></ol></div></section><section class="panel"><div class="panel-head"><div><div class="panel-title" data-i18n="reportDistribution"></div><div class="panel-sub" data-i18n="withinWindow"></div></div></div><div class="panel-body"><div class="grid"><div><div class="panel-sub" data-i18n="categories"></div><div class="bars" id="report-category-bars"></div></div><div><div class="panel-sub" data-i18n="steps"></div><div class="bars" id="report-step-bars"></div></div></div></div></section><section class="panel"><div class="panel-head"><div><div class="panel-title" data-i18n="currentRiskList"></div><div class="panel-sub" data-i18n="currentRiskListSub"></div></div></div><div class="table-wrap"><table id="report-attention-table"></table></div></section></div></section>
-    <section class="view" id="view-conversations"><section class="panel"><div class="panel-head"><div><div class="panel-title" data-i18n="conversations"></div><div class="panel-sub" id="conv-count"></div></div><div class="filters"><select id="status-filter"><option value="all" data-i18n-option="allSteps"></option><option value="attention" data-i18n-option="attention"></option><option value="failed_needs_review" data-i18n-option="failed"></option><option value="manual_review" data-i18n-option="manualReview"></option><option value="draft_created" data-i18n-option="draftCreated"></option><option value="forwarded_keep_open" data-i18n-option="forwarded"></option><option value="moved_inbox" data-i18n-option="movedInbox"></option><option value="closed_spam" data-i18n-option="closedSpam"></option></select><select id="category-filter"><option value=""></option></select><input id="search-filter"><button class="button" id="apply-filters"></button></div></div><div class="table-wrap"><table id="conversation-table"></table></div></section></section>
-    <section class="view" id="view-actions"><section class="panel"><div class="panel-head"><div><div class="panel-title" data-i18n="actionLog"></div><div class="panel-sub" id="action-count"></div></div></div><div class="table-wrap"><table id="actions-table"></table></div></section></section><section class="view" id="view-sybil"><section class="panel"><div class="panel-head"><div><div class="panel-title" data-i18n="sybilQueue"></div><div class="panel-sub" id="sybil-count"></div></div></div><div class="table-wrap"><table id="sybil-table"></table></div></section></section>
+
+    <section class="view" id="view-conversations">
+      <section class="panel">
+        <div class="panel-head">
+          <div><div class="panel-title" data-i18n="conversations"></div><div class="panel-sub" id="conv-count"></div></div>
+          <div class="filters">
+            <select id="status-filter"><option value="all" data-i18n-option="allSteps"></option><option value="attention" data-i18n-option="attention"></option><option value="failed_needs_review" data-i18n-option="failed"></option><option value="manual_review" data-i18n-option="manualReview"></option><option value="draft_created" data-i18n-option="draftCreated"></option><option value="forwarded_keep_open" data-i18n-option="forwarded"></option><option value="moved_inbox" data-i18n-option="movedInbox"></option><option value="closed_spam" data-i18n-option="closedSpam"></option></select>
+            <select id="category-filter"><option value=""></option></select>
+            <input id="search-filter">
+            <button class="button" id="apply-filters"></button>
+          </div>
+        </div>
+        <div class="table-wrap"><table id="conversation-table"></table></div>
+      </section>
+    </section>
+
+    <section class="view" id="view-reports">
+      <div class="stack">
+        <section class="panel">
+          <div class="panel-head">
+            <div><div class="panel-title" data-i18n="generatedReport"></div><div class="panel-sub" id="report-window"></div></div>
+            <div class="toggle"><button class="active" data-period="daily" data-i18n="daily"></button><button data-period="weekly" data-i18n="weekly"></button><button data-period="monthly" data-i18n="monthly"></button></div>
+          </div>
+          <div class="report-grid" id="report-cards"></div>
+          <div class="source-note" id="report-note"></div>
+        </section>
+        <div class="report-layout">
+          <section class="panel">
+            <div class="panel-head"><div><div class="panel-title" data-i18n="analysis"></div><div class="panel-sub" data-i18n="analysisSub"></div></div></div>
+            <div class="panel-body"><ul class="summary-list" id="analysis-summary"></ul><div class="decision-list" id="decision-points"></div></div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><div><div class="panel-title" data-i18n="recommendedActions"></div><div class="panel-sub" data-i18n="recommendedActionsSub"></div></div></div>
+            <div class="panel-body"><ol class="action-list" id="recommended-actions"></ol></div>
+          </section>
+        </div>
+        <section class="panel">
+          <div class="panel-head"><div><div class="panel-title" data-i18n="currentRiskList"></div><div class="panel-sub" data-i18n="currentRiskListSub"></div></div></div>
+          <div class="table-wrap"><table id="report-attention-table"></table></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="view" id="view-actions"><section class="panel"><div class="panel-head"><div><div class="panel-title" data-i18n="actionLog"></div><div class="panel-sub" id="action-count"></div></div></div><div class="table-wrap"><table id="actions-table"></table></div></section></section>
+    <section class="view" id="view-sybil"><section class="panel"><div class="panel-head"><div><div class="panel-title" data-i18n="sybilQueue"></div><div class="panel-sub" id="sybil-count"></div></div></div><div class="table-wrap"><table id="sybil-table"></table></div></section></section>
   </main>
 </div>
 <script>
@@ -198,49 +285,62 @@ function t(key){return I18N[state.lang][key]||I18N.en[key]||key;}function trText
 function applyStaticText(){document.documentElement.lang=state.lang==='zh'?'zh':'en';document.querySelectorAll('[data-i18n]').forEach(el=>{el.textContent=t(el.dataset.i18n);});document.querySelectorAll('[data-i18n-option]').forEach(el=>{el.textContent=t(el.dataset.i18nOption);});$('refresh').textContent=t('refresh');$('lang-toggle').textContent=t('switchLang');$('apply-filters').textContent=t('apply');$('search-filter').placeholder=t('search');const cs=$('category-filter');if(cs.options.length)cs.options[0].textContent=t('allCategories');}
 function badgeClass(step){if(step==='failed_needs_review')return'bad';if(step==='manual_review'||step?.startsWith('awaiting'))return'warn';if(step==='draft_created')return'info';if(step==='closed_spam'||step==='done')return'ok';if(step==='forwarded_keep_open'||step==='moved_inbox'||step==='ticket_created')return'purple';return'';}function actionBadge(status){return status==='failed'?'bad':'ok';}async function fetchJson(url){const response=await fetch(url);if(!response.ok)throw new Error(`${response.status} ${url}`);return response.json();}
 async function load(){applyStaticText();$('generated').textContent=t('loading');const status=$('status-filter')?.value||'all';const category=$('category-filter')?.value||'';const q=encodeURIComponent($('search-filter')?.value||'');const[summary,report,conversations,actions,sybil]=await Promise.all([fetchJson('/ops/api/summary'),fetchJson(`/ops/api/report?period=${state.period}`),fetchJson(`/ops/api/conversations?status=${encodeURIComponent(status)}&category=${encodeURIComponent(category)}&q=${q}`),fetchJson('/ops/api/actions'),fetchJson('/ops/api/sybil')]);state.summary=summary;state.report=report;state.conversations=conversations.items||[];state.actions=actions.items||[];state.sybil=sybil.items||[];render();}
-function render(){applyStaticText();renderChrome();renderMetrics();renderOperationalFocus();renderRecentActions();renderCategoryFilter();renderBars('category-bars',state.summary.by_category||{});renderBars('step-bars',state.summary.by_step||{});renderSybilSummary();renderReport();renderConversations();renderActions();renderSybil();}
+function render(){applyStaticText();renderChrome();renderMetrics();renderOperationalFocus();renderCategoryFilter();renderReport();renderConversations();renderActions();renderSybil();}
 function missingValue(){return state.lang==='zh'?'历史未采集':'Not captured historically';}
-function renderChrome(){const healthy=state.summary.service?.status==='ok';$('generated').textContent=`${t('updated')} ${fmtDate(state.summary.generated_at)}`;$('service-status').textContent=healthy?t('serviceOk'):t('serviceIssue');$('service-dot').classList.toggle('bad',!healthy);$('scheduler-status').textContent=state.summary.service?.scheduler_running?t('schedulerRunning'):t('schedulerDisabled');}
-function renderMetrics(){const m=state.summary.metrics||{};const da=state.summary.draft_adoption_7d||{};const dh=state.summary.data_health||{};const sybil=state.summary.sybil_by_status||{};const items=state.lang==='zh'?[
-['优先处理',m.attention_count||0,`${m.failed_count||0} 个失败 · ${m.stale_waiting_count||0} 个超 7 天等待`],
-['Webhook 队列',m.webhook_queue_count||0,`${m.webhook_dead_letter_count||0} 个死信`],
-['Sybil 待发送',m.pending_sybil_count||0,`${sybil.sent||0} 已发送 · ${sybil.dismissed||0} 已撤销`],
-['7 天草稿原样采用率',pct(da.direct_adoption_rate),`${da.exact_adopted||0}/${da.eligible_drafts||0} 个可判定草稿`],
-['24 小时处理量',m.conversations_24h||0,`${m.webhooks_24h||0} webhook · ${m.actions_24h||0} 动作`],
-['近 30 天数据完整率',pct(dh.recent_30d_coverage_rate),`${dh.recent_30d_complete||0}/${dh.recent_30d_rows||0} 个会话`]
+function renderPageTitle(){const titles=state.lang==='zh'?{overview:'运营概览',conversations:'会话处理',reports:'运营报告',actions:'动作日志',sybil:'Sybil 队列'}:{overview:'Operations overview',conversations:'Conversations',reports:'Operations report',actions:'Action log',sybil:'Sybil queue'};$('page-title').textContent=titles[state.view]||titles.overview;}
+function renderChrome(){const healthy=state.summary.service?.status==='ok';renderPageTitle();$('generated').textContent=`${t('updated')} ${fmtDate(state.summary.generated_at)}`;$('service-status').textContent=healthy?t('serviceOk'):t('serviceIssue');$('service-dot').classList.toggle('bad',!healthy);$('scheduler-status').textContent=state.summary.service?.scheduler_running?t('schedulerRunning'):t('schedulerDisabled');}
+function renderMetrics(){const m=state.summary.metrics||{};const da=state.summary.draft_adoption_7d||{};const items=state.lang==='zh'?[
+['待处理',m.attention_count||0,`${m.failed_count||0} 失败 · ${m.stale_waiting_count||0} 超时等待`],
+['Webhook',m.webhook_queue_count||0,`${m.webhook_dead_letter_count||0} 死信 · ${m.webhooks_24h||0} 今日处理`],
+['Sybil 待发送',m.pending_sybil_count||0,`${state.summary.sybil_by_status?.sent||0} 已发送`],
+['草稿采用率',pct(da.direct_adoption_rate),`${da.exact_adopted||0}/${da.eligible_drafts||0} 原样采用`]
 ]:[
-['Priority queue',m.attention_count||0,`${m.failed_count||0} failed · ${m.stale_waiting_count||0} waiting over 7d`],
-['Webhook queue',m.webhook_queue_count||0,`${m.webhook_dead_letter_count||0} dead letters`],
-['Sybil pending',m.pending_sybil_count||0,`${sybil.sent||0} sent · ${sybil.dismissed||0} dismissed`],
-['7d direct draft adoption',pct(da.direct_adoption_rate),`${da.exact_adopted||0}/${da.eligible_drafts||0} eligible drafts`],
-['24h workload',m.conversations_24h||0,`${m.webhooks_24h||0} webhooks · ${m.actions_24h||0} actions`],
-['30d metadata coverage',pct(dh.recent_30d_coverage_rate),`${dh.recent_30d_complete||0}/${dh.recent_30d_rows||0} conversations`]
-];$('metrics').innerHTML=items.map(([label,value,note])=>`<div class="metric"><div class="metric-label">${esc(label)}</div><div><div class="metric-value">${esc(value)}</div><div class="metric-note">${esc(note)}</div></div></div>`).join('');const complete=dh.recent_30d_complete||0;const total=dh.recent_30d_rows||0;$('data-note').innerHTML=state.lang==='zh'?`<strong>数据口径：</strong>近 30 天 ${complete}/${total} 个会话具备发件人和摘要；历史缺失单独标记，不视为实时故障。`:`<strong>Data scope:</strong> ${complete}/${total} conversations in the last 30 days include sender and summary. Historical gaps are marked separately from live failures.`;}
-function renderOperationalFocus(){const zh=state.lang==='zh';const summary=state.summary||{};const health=summary.automation_health||{};const data=summary.data_health||{};$('priority-title').textContent=zh?'优先处理':'Priority queue';$('priority-sub').textContent=zh?`${summary.metrics?.attention_count||0} 个需要人工处理的会话`:`${summary.metrics?.attention_count||0} conversations need operator action`;renderConversationTable('priority-table',(summary.priority_items||[]).slice(0,10));$('opportunity-title').textContent=zh?'活跃商机':'Active opportunities';$('opportunity-sub').textContent=zh?'仅显示尚未结束的商业、采购、合作和投资会话':'Open business, purchase, partnership, and investment conversations';const opportunities=summary.opportunity_items||[];$('opportunity-list').innerHTML=opportunities.length?opportunities.map(item=>`<div class="item-row"><div class="item-main"><div class="item-title"><a class="id-link" href="${esc(item.front_url)}" target="_blank" rel="noreferrer">${esc(item.conversation_id)}</a> · ${esc(item.category)}</div><div class="item-sub">${esc(item.summary||item.sender_email||missingValue())}</div></div><span class="badge ${badgeClass(item.step)}">${esc(item.step)}</span></div>`).join(''):`<div class="empty">${zh?'暂无待跟进商机':'No active opportunity to review'}</div>`;$('automation-title').textContent=zh?'自动化健康':'Automation health';$('automation-sub').textContent=zh?'队列、调度和数据新鲜度':'Queue, scheduler, and freshness';const inbox=health.webhook_inbox_by_status||{};const healthRows=zh?[
+['Needs action',m.attention_count||0,`${m.failed_count||0} failed · ${m.stale_waiting_count||0} stale`],
+['Webhook',m.webhook_queue_count||0,`${m.webhook_dead_letter_count||0} dead · ${m.webhooks_24h||0} today`],
+['Sybil pending',m.pending_sybil_count||0,`${state.summary.sybil_by_status?.sent||0} sent`],
+['Draft adoption',pct(da.direct_adoption_rate),`${da.exact_adopted||0}/${da.eligible_drafts||0} exact`]
+];$('metrics').innerHTML=items.map(([label,value,note])=>`<div class="metric"><div class="metric-label">${esc(label)}</div><div class="metric-value">${esc(value)}</div><div class="metric-note">${esc(note)}</div></div>`).join('');}
+function renderOperationalFocus(){const zh=state.lang==='zh';const summary=state.summary||{};const health=summary.automation_health||{};const data=summary.data_health||{};$('priority-title').textContent=zh?'优先处理':'Priority queue';$('priority-sub').textContent=zh?`${summary.metrics?.attention_count||0} 个会话需要人工处理，失败项优先`:`${summary.metrics?.attention_count||0} conversations need action, failures first`;renderPriorityTable((summary.priority_items||[]).slice(0,8));$('automation-title').textContent=zh?'系统状态':'System health';$('automation-sub').textContent=zh?'只显示会影响处理的运行信号':'Runtime signals that affect processing';const inbox=health.webhook_inbox_by_status||{};const healthRows=zh?[
 ['调度器',summary.service?.scheduler_running?'运行中':'未运行',summary.service?.scheduler_running?'ok':'bad'],
-['Webhook 到期重试',health.webhook_due_count||0,(health.webhook_due_count||0)?'bad':'ok'],
-['Webhook 已处理',inbox.processed||0,'ok'],
-['最近 Webhook',data.latest_webhook_at?fmtDate(data.latest_webhook_at):missingValue(),''],
-['最近动作',data.latest_action_at?fmtDate(data.latest_action_at):missingValue(),''],
-['下次报告',data.next_report_due_at?fmtDate(data.next_report_due_at):missingValue(),'']
+['到期重试',health.webhook_due_count||0,(health.webhook_due_count||0)?'bad':'ok'],
+['Webhook 队列',health.webhook_queue_count||0,(health.webhook_queue_count||0)?'warn':'ok'],
+['已处理事件',inbox.processed||0,''],
+['最近动作',data.latest_action_at?fmtDate(data.latest_action_at):missingValue(),'']
 ]:[
 ['Scheduler',summary.service?.scheduler_running?'Running':'Stopped',summary.service?.scheduler_running?'ok':'bad'],
-['Webhook retries due',health.webhook_due_count||0,(health.webhook_due_count||0)?'bad':'ok'],
-['Webhooks processed',inbox.processed||0,'ok'],
-['Latest webhook',data.latest_webhook_at?fmtDate(data.latest_webhook_at):missingValue(),''],
-['Latest action',data.latest_action_at?fmtDate(data.latest_action_at):missingValue(),''],
-['Next report',data.next_report_due_at?fmtDate(data.next_report_due_at):missingValue(),'']
-];$('automation-health').innerHTML=healthRows.map(([label,value,status])=>`<div class="health-row"><div class="health-label">${esc(label)}</div><div class="health-value">${status?`<span class="badge ${status}">${esc(value)}</span>`:esc(value)}</div></div>`).join('');const problems=health.webhook_problem_items||[];$('webhook-problems').innerHTML=problems.length?problems.slice(0,4).map(item=>`<div class="problem-row"><div class="item-title"><a class="id-link" href="${esc(item.front_url)}" target="_blank" rel="noreferrer">${esc(item.conversation_id)}</a> · <span class="badge ${item.status==='dead_letter'?'bad':'warn'}">${esc(item.status)}</span></div><div class="health-note">${esc(item.last_error||`attempt ${item.attempts||0}`)}</div></div>`).join(''):'';$('coverage-title').textContent=zh?'数据完整率':'Data coverage';$('coverage-sub').textContent=zh?'区分近期可用数据与历史缺失':'Recent usable data vs historical gaps';const coverageItems=zh?[
+['Retries due',health.webhook_due_count||0,(health.webhook_due_count||0)?'bad':'ok'],
+['Webhook queue',health.webhook_queue_count||0,(health.webhook_queue_count||0)?'warn':'ok'],
+['Processed events',inbox.processed||0,''],
+['Latest action',data.latest_action_at?fmtDate(data.latest_action_at):missingValue(),'']
+];$('automation-health').innerHTML=healthRows.map(([label,value,status])=>`<div class="health-row"><div class="health-label">${esc(label)}</div><div class="health-value">${status?`<span class="badge ${status}">${esc(value)}</span>`:esc(value)}</div></div>`).join('');const problems=health.webhook_problem_items||[];$('webhook-problems').innerHTML=problems.length?problems.slice(0,3).map(item=>`<div class="problem-row"><div class="cell-title"><a class="id-link" href="${esc(item.front_url)}" target="_blank" rel="noreferrer">${esc(item.conversation_id)}</a> · ${esc(item.status)}</div><div class="health-note">${esc(item.last_error||`attempt ${item.attempts||0}`)}</div></div>`).join(''):'';$('coverage-title').textContent=zh?'数据完整度':'Data coverage';$('coverage-sub').textContent=zh?'历史缺失与当前处理分开统计':'Historical gaps separated from live health';const attentionRate=(data.attention_rows||0)?((data.attention_rows-data.attention_missing_count)/data.attention_rows*100):100;const coverageItems=zh?[
 ['近 30 天发件人 + 摘要',data.recent_30d_coverage_rate||0,`${data.recent_30d_complete||0}/${data.recent_30d_rows||0}`],
+['优先队列资料',attentionRate,`${(data.attention_rows||0)-(data.attention_missing_count||0)}/${data.attention_rows||0}`],
 ['全量发件人',data.sender_coverage_rate||0,`${data.missing_sender_count||0} 条历史缺失`]
 ]:[
 ['30d sender + summary',data.recent_30d_coverage_rate||0,`${data.recent_30d_complete||0}/${data.recent_30d_rows||0}`],
+['Priority metadata',attentionRate,`${(data.attention_rows||0)-(data.attention_missing_count||0)}/${data.attention_rows||0}`],
 ['All-time sender',data.sender_coverage_rate||0,`${data.missing_sender_count||0} historical gaps`]
-];$('data-health').innerHTML=coverageItems.map(([label,value,note])=>`<div class="coverage-block"><div class="coverage-top"><span>${esc(label)}</span><strong>${pct(value)}</strong></div><div class="coverage-track"><div class="coverage-fill" style="width:${Math.max(0,Math.min(100,Number(value||0)))}%"></div></div><div class="health-note">${esc(note)}</div></div>`).join('')+`<div class="health-note">${zh?`优先队列仍有 ${data.attention_missing_count||0} 条待补全；subtype 历史缺失 ${data.missing_subtype_count||0} 条。`:`${data.attention_missing_count||0} priority rows still need enrichment; ${data.missing_subtype_count||0} historical subtype gaps.`}</div>`;$('friction-title').textContent=zh?'24 小时用户阻塞':'24h user friction';$('friction-sub').textContent=zh?'账号、账单、教育和技术问题':'Account, billing, education, and technical issues';const friction={};(summary.top_user_frictions||[]).forEach(item=>{friction[`${item.category}:${item.sub_type}`]=item.count;});renderBars('friction-bars',friction);}
-function renderCategoryFilter(){const select=$('category-filter');const current=select.value;const categories=Object.keys(state.summary.by_category||{}).sort();select.innerHTML=`<option value="">${t('allCategories')}</option>`+categories.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');select.value=categories.includes(current)?current:'';}function renderRecentActions(){renderActionTable('recent-actions-table',state.summary.recent_actions||[]);}function renderBars(id,data){const entries=Object.entries(data).sort((a,b)=>b[1]-a[1]).slice(0,10);const max=Math.max(...entries.map(([,v])=>v),1);$(id).innerHTML=entries.length?entries.map(([label,count])=>`<div class="bar-row"><div class="bar-label" title="${esc(label)}">${esc(label)}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.max(4,Math.round(count/max*100))}%"></div></div><div class="bar-count">${esc(count)}</div></div>`).join(''):`<div class="empty">${t('noData')}</div>`;}function renderSybilSummary(){const data=state.summary.sybil_by_status||{};const total=Object.values(data).reduce((a,b)=>a+b,0);$('sybil-sub').textContent=`${total} ${t('notifications')}`;renderBars('sybil-summary',data);}
-function renderReport(){const r=state.report||{};const m=r.metrics||{};$('report-window').textContent=`${r.period==='monthly'?t('last30'):r.period==='weekly'?t('last7'):t('last24')} - ${fmtDate(r.window_start)} ${t('to')} ${fmtDate(r.window_end)}`;$('report-note').innerHTML=`<strong>${t('sourceNote')}</strong>${esc(trText(r.source_note||''))}`;const cards=[[state.lang==='zh'?'更新会话':'Updated conversations',m.updated_conversations||0,`${m.new_state_rows||0} ${state.lang==='zh'?'个新增跟踪行':'new tracked rows'}`],[state.lang==='zh'?'Webhook 处理数':'Webhooks processed',m.webhooks_processed||0,state.lang==='zh'?'窗口内接收事件':'accepted events in window'],[state.lang==='zh'?'动作日志':'Actions logged',m.actions_logged||0,state.lang==='zh'?'去重后的工具副作用':'deduped tool side effects'],[state.lang==='zh'?'处理信号':'Handled signals',m.handled_signal||0,`${m.drafts||0} drafts, ${m.handoffs||0} handoffs, ${m.tickets||0} tickets`],[state.lang==='zh'?'草稿原样采用率':'Direct draft adoption',pct(m.draft_direct_adoption_rate),state.lang==='zh'?'发送内容与 AI 草稿完全一致':'sent body exactly matched draft'],[state.lang==='zh'?'草稿回复采用率':'Draft sent/replied rate',pct(m.draft_sent_or_replied_rate),state.lang==='zh'?'原样采用 + 修改后发送':'exact + modified/manual sent'],[state.lang==='zh'?'关闭垃圾邮件':'Closed spam',m.closed_spam||0,state.lang==='zh'?'确定性 spam 路由':'deterministic spam route'],[state.lang==='zh'?'当前关注项':'Current attention',m.current_attention||0,`${pct(m.attention_rate)} ${state.lang==='zh'?'占已跟踪总量':'of tracked total'}`],[state.lang==='zh'?'当前失败':'Current failed',m.current_failed||0,`${pct(m.failure_rate_period)} ${state.lang==='zh'?'窗口内失败率':'failure rate in window'}`],[state.lang==='zh'?'Sybil 队列':'Sybil queue',m.pending_sybil||0,`${m.sent_sybil||0} ${state.lang==='zh'?'窗口内已发送':'sent in window'}`],[state.lang==='zh'?'已跟踪总量':'Tracked total',m.tracked_total||0,state.lang==='zh'?'conversation_states 全量':'conversation_states all time']];$('report-cards').innerHTML=cards.map(([label,value,note])=>`<div class="report-card"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div><div class="note">${esc(note)}</div></div>`).join('');renderAnalysis(r.analysis||{});renderBars('report-category-bars',r.by_category||{});renderBars('report-step-bars',r.by_step||{});renderConversationTable('report-attention-table',r.attention_items||[]);}
-function renderAnalysis(analysis){const summaries=analysis.executive_summary||[];$('analysis-summary').innerHTML=summaries.length?summaries.map(item=>`<li>${esc(trText(item))}</li>`).join(''):`<li>${t('noAnalysis')}</li>`;renderDecisionPoints(analysis.decision_points||[]);renderInsightColumn('opportunity-insights',analysis.opportunities||[]);renderInsightColumn('experience-insights',analysis.experience_signals||[]);renderInsightColumn('risk-insights',analysis.operational_risks||[]);const actions=analysis.recommended_actions||[];$('recommended-actions').innerHTML=actions.length?actions.map(item=>`<li>${esc(trText(item))}</li>`).join(''):`<li>${t('noRecommended')}</li>`;}function renderDecisionPoints(items){const target=document.getElementById('decision-points');target.innerHTML=items.length?items.map(item=>{const cls=item.priority==='high'?'bad':item.priority==='medium'?'warn':'info';const examples=item.examples||[];const links=examples.length?'<div class="examples">'+examples.map(ex=>'<a href="'+esc(ex.front_url)+'" target="_blank" rel="noreferrer">'+esc(ex.conversation_id)+' · '+esc(ex.category)+' · '+esc(ex.step)+'</a>').join('')+'</div>':'';return '<div class="decision-card"><div class="insight-top"><div class="insight-title">'+esc(trText(item.title))+'</div><span class="badge '+cls+'">'+esc(priorityText(item.priority))+'</span></div><div class="insight-detail">'+esc(trText(item.detail))+'</div>'+links+'</div>';}).join(''):'';}function renderInsightColumn(id,items){$(id).innerHTML=items.length?items.map(item=>{const examples=item.examples||[];const links=examples.length?`<div class="examples">${examples.map(ex=>`<a href="${esc(ex.front_url)}" target="_blank" rel="noreferrer">${esc(ex.conversation_id)} · ${esc(ex.category)} · ${esc(ex.step)}</a>`).join('')}</div>`:'';return`<div class="insight-card"><div class="insight-top"><div class="insight-title">${esc(trText(item.title))}</div><span class="badge ${item.priority==='high'?'bad':item.priority==='medium'?'warn':'info'}">${esc(priorityText(item.priority))}</span></div><div class="insight-detail">${esc(trText(item.detail))}</div><div class="insight-evidence">${t('evidence')}: ${esc(item.evidence_count||0)} ${t('trackedRows')}</div>${links}</div>`;}).join(''):`<div class="empty">${t('noSignal')}</div>`;}
-function renderConversationTable(id,items){if(!items.length){$(id).innerHTML=`<tbody><tr><td><div class="empty">${t('noConversations')}</div></td></tr></tbody>`;return;}$(id).innerHTML=`<thead><tr><th>${t('conversation')}</th><th>${t('sender')}</th><th>${t('category')}</th><th>${t('step')}</th><th>${t('summary')}</th><th>${t('updatedCol')}</th></tr></thead><tbody>${items.map(item=>`<tr><td><a class="id-link" href="${esc(item.front_url)}" target="_blank" rel="noreferrer">${esc(item.conversation_id)}</a></td><td>${item.sender_email?esc(item.sender_email):`<span class="missing">${esc(missingValue())}</span>`}</td><td>${esc(item.category)}</td><td><span class="badge ${badgeClass(item.step)}">${esc(item.step)}</span></td><td class="clip" title="${esc(item.summary)}">${item.summary?esc(item.summary):`<span class="missing">${esc(missingValue())}</span>`}</td><td class="muted">${esc(fmtDate(item.updated_at))}</td></tr>`).join('')}</tbody>`;}function renderActionTable(id,items){if(!items.length){$(id).innerHTML=`<tbody><tr><td><div class="empty">${t('noActions')}</div></td></tr></tbody>`;return;}$(id).innerHTML=`<thead><tr><th>${t('action')}</th><th>${t('status')}</th><th>${t('conversation')}</th><th>${t('result')}</th><th>${t('created')}</th></tr></thead><tbody>${items.map(item=>`<tr><td>${esc(item.action_type)}</td><td><span class="badge ${actionBadge(item.status)}">${esc(item.status)}</span></td><td><a class="id-link" href="${esc(item.front_url)}" target="_blank" rel="noreferrer">${esc(item.conversation_id)}</a></td><td class="clip" title="${esc(item.result)}">${esc(item.result||'-')}</td><td class="muted">${esc(fmtDate(item.created_at))}</td></tr>`).join('')}</tbody>`;}function renderSybilTable(id,items){if(!items.length){$(id).innerHTML=`<tbody><tr><td><div class="empty">${t('noNotifications')}</div></td></tr></tbody>`;return;}$(id).innerHTML=`<thead><tr><th>${t('status')}</th><th>${t('type')}</th><th>${t('conversation')}</th><th>${t('message')}</th><th>${t('queued')}</th><th>${t('sent')}</th><th>${t('actionCol')}</th></tr></thead><tbody>${items.map(item=>`<tr><td><span class="badge ${item.status==='sent'?'ok':item.status==='dismissed'?'':item.error?'bad':'warn'}">${esc(item.status)}</span></td><td>${esc(item.handoff_type||'-')}</td><td><a class="id-link" href="${esc(item.front_url)}" target="_blank" rel="noreferrer">${esc(item.conversation_id)}</a></td><td class="clip" title="${esc(item.message)}">${esc(item.message||item.error||'-')}</td><td class="muted">${esc(fmtDate(item.created_at))}</td><td class="muted">${esc(fmtDate(item.sent_at))}</td><td>${item.status==='pending'?`<button type="button" class="button compact danger" data-sybil-dismiss="${esc(item.id)}" data-conversation-id="${esc(item.conversation_id)}">${t('remove')}</button>`:''}</td></tr>`).join('')}</tbody>`;$(id).querySelectorAll('[data-sybil-dismiss]').forEach(button=>button.addEventListener('click',()=>dismissSybil(button.dataset.sybilDismiss,button.dataset.conversationId).catch(showError)));}function renderConversations(){$('conv-count').textContent=`${state.conversations.length} ${t('rowsFiltered')}`;renderConversationTable('conversation-table',state.conversations);}function renderActions(){$('action-count').textContent=`${state.actions.length} ${t('rowsActions')}`;renderActionTable('actions-table',state.actions);}function renderSybil(){$('sybil-count').textContent=`${state.sybil.length} ${t('rowsSybil')}`;renderSybilTable('sybil-table',state.sybil);}function setView(view){state.view=view;document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active',el.id===`view-${view}`));document.querySelectorAll('.nav button').forEach(btn=>btn.classList.toggle('active',btn.dataset.view===view));}
+];$('data-health').innerHTML=coverageItems.map(([label,value,note])=>`<div class="coverage-block"><div class="coverage-top"><span>${esc(label)}</span><strong>${pct(value)}</strong></div><div class="coverage-track"><div class="coverage-fill" style="width:${Math.max(0,Math.min(100,Number(value||0)))}%"></div></div><div class="health-note">${esc(note)}</div></div>`).join('');$('data-note').textContent=zh?'历史资料每 15 分钟自动补全 20 条；不会覆盖已有值，也不会计入新工作量。':'Historical metadata backfills 20 rows every 15 minutes without overwriting values or inflating workload.';}
+function renderPriorityTable(items){if(!items.length){$('priority-table').innerHTML=`<tbody><tr><td><div class="empty">${t('noConversations')}</div></td></tr></tbody>`;return;}$('priority-table').innerHTML=`<thead><tr><th>${t('conversation')}</th><th>${state.lang==='zh'?'问题':'Issue'}</th><th>${t('step')}</th><th>${t('updatedCol')}</th></tr></thead><tbody>${items.map(item=>`<tr><td><div class="cell-title"><a class="id-link" href="${esc(item.front_url)}" target="_blank" rel="noreferrer">${esc(item.conversation_id)}</a></div><div class="cell-sub">${item.sender_email?esc(item.sender_email):`<span class="missing">${esc(missingValue())}</span>`}</div></td><td><div class="cell-title">${esc(item.category)}</div><div class="cell-sub" title="${esc(item.summary)}">${item.summary?esc(item.summary):`<span class="missing">${esc(missingValue())}</span>`}</div></td><td><span class="badge ${badgeClass(item.step)}">${esc(item.step)}</span></td><td class="muted">${esc(fmtDate(item.updated_at))}</td></tr>`).join('')}</tbody>`;}
+function renderCategoryFilter(){const select=$('category-filter');const current=select.value;const categories=Object.keys(state.summary.by_category||{}).sort();select.innerHTML=`<option value="">${t('allCategories')}</option>`+categories.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');select.value=categories.includes(current)?current:'';}
+function renderReport(){const r=state.report||{};const m=r.metrics||{};$('report-window').textContent=`${r.period==='monthly'?t('last30'):r.period==='weekly'?t('last7'):t('last24')} · ${fmtDate(r.window_start)} ${t('to')} ${fmtDate(r.window_end)}`;const cards=state.lang==='zh'?[
+['更新会话',m.updated_conversations||0,`${m.new_state_rows||0} 新增`],
+['Webhook',m.webhooks_processed||0,'窗口内处理'],
+['动作',m.actions_logged||0,'去重后记录'],
+['草稿',m.drafts||0,`${m.handoffs||0} 转交 · ${m.tickets||0} 工单`],
+['原样采用率',pct(m.draft_direct_adoption_rate),'已发送草稿'],
+['当前待处理',m.current_attention||0,`${m.current_failed||0} 失败`]
+]:[
+['Updated',m.updated_conversations||0,`${m.new_state_rows||0} new`],
+['Webhooks',m.webhooks_processed||0,'processed in window'],
+['Actions',m.actions_logged||0,'deduplicated'],
+['Drafts',m.drafts||0,`${m.handoffs||0} handoffs · ${m.tickets||0} tickets`],
+['Direct adoption',pct(m.draft_direct_adoption_rate),'sent drafts'],
+['Needs action',m.current_attention||0,`${m.current_failed||0} failed`]
+];$('report-cards').innerHTML=cards.map(([label,value,note])=>`<div class="report-card"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div><div class="note">${esc(note)}</div></div>`).join('');$('report-note').textContent=trText(r.source_note||'');renderAnalysis(r.analysis||{});renderConversationTable('report-attention-table',(r.attention_items||[]).slice(0,12));}
+function renderAnalysis(analysis){const summaries=(analysis.executive_summary||[]).slice(0,3);$('analysis-summary').innerHTML=summaries.length?summaries.map(item=>`<li>${esc(trText(item))}</li>`).join(''):`<li>${t('noAnalysis')}</li>`;renderDecisionPoints((analysis.decision_points||[]).slice(0,3));const actions=(analysis.recommended_actions||[]).slice(0,5);$('recommended-actions').innerHTML=actions.length?actions.map(item=>`<li>${esc(trText(item))}</li>`).join(''):`<li>${t('noRecommended')}</li>`;}
+function renderDecisionPoints(items){$('decision-points').innerHTML=items.map(item=>{const examples=item.examples||[];const links=examples.length?`<div class="examples">${examples.map(ex=>`<a href="${esc(ex.front_url)}" target="_blank" rel="noreferrer">${esc(ex.conversation_id)}</a>`).join('')}</div>`:'';return`<div class="decision-row"><div class="decision-top"><div class="decision-title">${esc(trText(item.title))}</div><span class="badge ${item.priority==='high'?'bad':item.priority==='medium'?'warn':'info'}">${esc(priorityText(item.priority))}</span></div><div class="decision-detail">${esc(trText(item.detail))}</div>${links}</div>`;}).join('');}
+function renderConversationTable(id,items){if(!items.length){$(id).innerHTML=`<tbody><tr><td><div class="empty">${t('noConversations')}</div></td></tr></tbody>`;return;}$(id).innerHTML=`<thead><tr><th>${t('conversation')}</th><th>${t('sender')}</th><th>${t('category')}</th><th>${t('step')}</th><th>${t('summary')}</th><th>${t('updatedCol')}</th></tr></thead><tbody>${items.map(item=>`<tr><td><a class="id-link" href="${esc(item.front_url)}" target="_blank" rel="noreferrer">${esc(item.conversation_id)}</a></td><td>${item.sender_email?esc(item.sender_email):`<span class="missing">${esc(missingValue())}</span>`}</td><td>${esc(item.category)}</td><td><span class="badge ${badgeClass(item.step)}">${esc(item.step)}</span></td><td class="clip" title="${esc(item.summary)}">${item.summary?esc(item.summary):`<span class="missing">${esc(missingValue())}</span>`}</td><td class="muted">${esc(fmtDate(item.updated_at))}</td></tr>`).join('')}</tbody>`;}function renderActionTable(id,items){if(!items.length){$(id).innerHTML=`<tbody><tr><td><div class="empty">${t('noActions')}</div></td></tr></tbody>`;return;}$(id).innerHTML=`<thead><tr><th>${t('action')}</th><th>${t('status')}</th><th>${t('conversation')}</th><th>${t('result')}</th><th>${t('created')}</th></tr></thead><tbody>${items.map(item=>`<tr><td>${esc(item.action_type)}</td><td><span class="badge ${actionBadge(item.status)}">${esc(item.status)}</span></td><td><a class="id-link" href="${esc(item.front_url)}" target="_blank" rel="noreferrer">${esc(item.conversation_id)}</a></td><td class="clip" title="${esc(item.result)}">${esc(item.result||'-')}</td><td class="muted">${esc(fmtDate(item.created_at))}</td></tr>`).join('')}</tbody>`;}function renderSybilTable(id,items){if(!items.length){$(id).innerHTML=`<tbody><tr><td><div class="empty">${t('noNotifications')}</div></td></tr></tbody>`;return;}$(id).innerHTML=`<thead><tr><th>${t('status')}</th><th>${t('type')}</th><th>${t('conversation')}</th><th>${t('message')}</th><th>${t('queued')}</th><th>${t('sent')}</th><th>${t('actionCol')}</th></tr></thead><tbody>${items.map(item=>`<tr><td><span class="badge ${item.status==='sent'?'ok':item.status==='dismissed'?'':item.error?'bad':'warn'}">${esc(item.status)}</span></td><td>${esc(item.handoff_type||'-')}</td><td><a class="id-link" href="${esc(item.front_url)}" target="_blank" rel="noreferrer">${esc(item.conversation_id)}</a></td><td class="clip" title="${esc(item.message)}">${esc(item.message||item.error||'-')}</td><td class="muted">${esc(fmtDate(item.created_at))}</td><td class="muted">${esc(fmtDate(item.sent_at))}</td><td>${item.status==='pending'?`<button type="button" class="button compact danger" data-sybil-dismiss="${esc(item.id)}" data-conversation-id="${esc(item.conversation_id)}">${t('remove')}</button>`:''}</td></tr>`).join('')}</tbody>`;$(id).querySelectorAll('[data-sybil-dismiss]').forEach(button=>button.addEventListener('click',()=>dismissSybil(button.dataset.sybilDismiss,button.dataset.conversationId).catch(showError)));}function renderConversations(){$('conv-count').textContent=`${state.conversations.length} ${t('rowsFiltered')}`;renderConversationTable('conversation-table',state.conversations);}function renderActions(){$('action-count').textContent=`${state.actions.length} ${t('rowsActions')}`;renderActionTable('actions-table',state.actions);}function renderSybil(){$('sybil-count').textContent=`${state.sybil.length} ${t('rowsSybil')}`;renderSybilTable('sybil-table',state.sybil);}function setView(view){state.view=view;document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active',el.id===`view-${view}`));document.querySelectorAll('.nav button').forEach(btn=>btn.classList.toggle('active',btn.dataset.view===view));renderPageTitle();}
 async function dismissSybil(id,conversationId){if(!window.confirm(`${t('removeConfirm')} ${conversationId}`))return;if(!opsWriteSecret)opsWriteSecret=window.prompt(t('writePassword'))||'';if(!opsWriteSecret)return;const response=await fetch(`/ops/api/sybil/${encodeURIComponent(id)}`,{method:'DELETE',headers:{'X-Ops-Write-Secret':opsWriteSecret}});if(response.status===403)opsWriteSecret='';if(!response.ok){let detail=t('dismissFailed');try{const body=await response.json();detail=body.detail||detail;}catch(_error){}throw new Error(detail);}await load();}
 document.querySelectorAll('.nav button').forEach(btn=>btn.addEventListener('click',()=>setView(btn.dataset.view)));document.querySelectorAll('[data-open-view]').forEach(btn=>btn.addEventListener('click',()=>{const status=btn.dataset.status;if(status)$('status-filter').value=status;setView(btn.dataset.openView);load().catch(showError);}));document.querySelectorAll('[data-period]').forEach(btn=>btn.addEventListener('click',()=>{state.period=btn.dataset.period;document.querySelectorAll('[data-period]').forEach(x=>x.classList.toggle('active',x.dataset.period===state.period));load().catch(showError);}));$('refresh').addEventListener('click',()=>load().catch(showError));$('apply-filters').addEventListener('click',()=>load().catch(showError));$('search-filter').addEventListener('keydown',event=>{if(event.key==='Enter')load().catch(showError);});$('lang-toggle').addEventListener('click',()=>{state.lang=state.lang==='zh'?'en':'zh';localStorage.setItem('ops_lang',state.lang);render();});function showError(error){$('generated').textContent=error.message;console.error(error);}applyStaticText();load().catch(showError);
 </script>
