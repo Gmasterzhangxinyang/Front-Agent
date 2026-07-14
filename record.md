@@ -138,3 +138,4 @@
 ## 2026-07-14
 - [docs] document the approved durable Front webhook recovery design (docs/superpowers/specs/2026-07-14-durable-webhook-recovery-design.md)
 - [docs] add the test-driven durable Front webhook recovery implementation plan (docs/superpowers/plans/2026-07-14-durable-webhook-recovery.md)
+- [docs] document authenticated soft dismissal for individual pending Sybil queue items (docs/superpowers/specs/2026-07-14-sybil-queue-dismissal-design.md)
