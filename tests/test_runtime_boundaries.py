@@ -2,7 +2,7 @@ import asyncio
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 from fastapi import HTTPException
@@ -15,6 +15,7 @@ from agent.tool_registry import (
     prepare_llm_tool_call,
 )
 import agent.orchestrator as orchestrator_module
+import main as main_module
 import webhooks.front_webhook as front_webhook_module
 from config import settings
 from tools.attachments import bounded_attachments, clip_attachment_text
@@ -81,6 +82,25 @@ def _context() -> ToolExecutionContext:
         conversation_id="cnv_trusted",
         sender_email="customer@example.com",
     )
+
+
+def test_lifespan_gracefully_stops_started_scheduler():
+    async def run_case():
+        scheduler = SimpleNamespace(running=True, shutdown=Mock())
+        with (
+            patch.object(main_module, "validate_webhook_security_config"),
+            patch.object(main_module, "init_db", AsyncMock()),
+            patch.object(main_module, "start_scheduler") as start,
+            patch.object(main_module, "scheduler", scheduler, create=True),
+            patch.object(settings, "enable_scheduler", True),
+        ):
+            async with main_module.lifespan(main_module.app):
+                pass
+
+        start.assert_called_once_with()
+        scheduler.shutdown.assert_called_once_with(wait=True)
+
+    asyncio.run(run_case())
 
 
 def test_llm_tool_context_overrides_conversation_id():
