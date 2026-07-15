@@ -231,7 +231,7 @@ Every example below includes all required fields. Follow this shape exactly. Use
 | billing | refund | Wants a refund |
 | billing | duplicate_charge | Charged twice |
 | billing | downgrade | Wants to downgrade or cancel subscription |
-| billing | invoice | Invoice download, address/details update, correction/reissue, or Credit Note request |
+| billing | invoice | Invoice download, address/details update, correction/reissue, Credit Note request, or Mainland China tax invoice/fapiao/VAT special invoice request |
 | billing | other | Other billing questions |
 | partnership | plugin | Plugin cooperation or bug |
 | partnership | marketplace | Marketplace cooperation |
