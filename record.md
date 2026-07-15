@@ -152,3 +152,6 @@
 - [fix] serialize Ops maintenance and release SQLite transactions before Front API calls so report and metadata refreshes cannot block each other or webhook writes (services/draft_adoption.py, tasks/scheduler.py, tests/test_draft_adoption.py, tests/test_routing.py, docs/runtime-boundaries.md)
 - [refactor] simplify the Ops frontend into a focused workbench with four KPIs, one priority queue, system health, and data coverage; remove secondary overview clutter and compress reports (routes/static/ops.html, tests/test_ops_data_quality.py)
 - [refactor] rename the user-facing Sybil queue to the education account exception queue while retaining internal API and storage identifiers (routes/static/ops.html, tests/test_ops_data_quality.py, README.md)
+
+## 2026-07-15
+- [fix] keep Linear issue metadata internal in technical-support drafts, present Contact Us as the priority-support channel for paid users, and avoid exhaustive ticket-content checklists (skills/technical.md, tests/test_skills.py)

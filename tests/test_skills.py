@@ -220,6 +220,7 @@ def test_sybil_group_message_is_single_mention_prefixed_body():
 def test_technical_support_has_paid_and_non_paid_paths():
     text = _skill_text("technical")
     for expected in [
+        "access to priority technical support",
         "question mark icon next to the personal avatar",
         "GitHub issues",
         "https://docs.dify.ai",
@@ -228,6 +229,20 @@ def test_technical_support_has_paid_and_non_paid_paths():
         "Do not create Linear tickets for non-paid technical support",
     ]:
         assert expected in text, f"technical.md missing {expected!r}"
+
+
+def test_technical_paid_support_keeps_internal_linear_private_and_avoids_checklist():
+    text = _skill_text("technical")
+    for expected in [
+        "Linear is strictly internal",
+        "Never include a Linear issue URL, ID, title",
+        "without any Linear reference",
+        "Do not enumerate what the ticket should contain",
+        "without asking them to repeat an exhaustive list of details",
+    ]:
+        assert expected in text, f"technical.md missing {expected!r}"
+
+    assert "then include that URL in the Front draft" not in text
 
 
 def test_skills_do_not_reference_unavailable_tools_or_url_placeholders():
