@@ -29,18 +29,20 @@ Use the existing-invoice flow below only when the user asks to correct or reissu
 #### First message: existing invoice correction or reissue
 This first-message branch always creates a customer draft. It never creates the internal Credit Note comment, even if the first message asks whether a Credit Note is possible.
 
-1. Call `front_create_draft` using this approved content, adapting the greeting and invoice number to facts in the conversation. Use definitive finalized/paid wording only when the conversation supports it; otherwise explain the finalized-invoice policy conditionally.
+1. Call `front_create_draft` using this approved content, adapting the greeting and invoice number to facts in the conversation. Use definitive already-issued wording only when the conversation supports it; otherwise explain the issued-invoice policy conditionally.
 
 ```text
 Hi <name>,
 
-Thank you for updating the billing information in the billing portal.
+Thank you for reaching out.
 
-As invoice <invoice number> has already been finalized and paid, we're unable to modify or reissue the original invoice. The updated billing information will be reflected on future invoices.
+As invoice <invoice number> has already been issued, we're unfortunately unable to make changes to or reissue the original invoice.
 
-As an alternative, our billing team may be able to provide a supplementary Credit Note containing the updated billing information. Please note that a Credit Note does not modify or replace the original invoice, and acceptance for reimbursement is subject to your institution's review.
+To ensure that your billing details appear correctly on future invoices, could you please update and verify them in the Billing Portal?
 
-Please let us know if you would like us to request a Credit Note for you.
+For the existing invoice, our billing team may be able to provide a supplementary Credit Note containing the updated information. Please note that this would not modify or replace the original invoice, and acceptance for reimbursement is subject to your institution's review.
+
+If you would like us to request a Credit Note for you, please let us know and we'll be happy to assist.
 
 Cheers
 ```

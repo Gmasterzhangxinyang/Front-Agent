@@ -78,7 +78,7 @@ FastAPI app that receives Front webhook events, classifies emails with an OpenAI
 - `OPS_WRITE_SECRET` protects Ops mutations. Sybil dismissal changes only `pending` to `dismissed`, retains the row and audit action, and must use HTTPS remotely.
 - The digest claims pending Sybil rows as `sending` before network I/O, so in-flight sends cannot be reported as dismissed.
 - Operational details and deploy checks are in `docs/runtime-boundaries.md`.
-- Billing multi-turn handling is limited to `billing/invoice` at `awaiting_credit_note_confirmation`: an explicit second customer confirmation adds only the approved internal Elsie comment, with no assignment, ticket, Ops queue, or billing-provider action.
+- Billing multi-turn handling is limited to `billing/invoice` at `awaiting_credit_note_confirmation`: an explicit second customer confirmation that they want a Credit Note adds only the approved internal Elsie comment, with no assignment, ticket, Ops queue, or billing-provider action.
 
 ## Verification
 

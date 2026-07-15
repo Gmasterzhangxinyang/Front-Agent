@@ -155,3 +155,4 @@
 
 ## 2026-07-15
 - [fix] keep Linear issue metadata internal in technical-support drafts, present Contact Us as the priority-support channel for paid users, and avoid exhaustive ticket-content checklists (skills/technical.md, tests/test_skills.py)
+- [fix] politely remind existing-invoice customers to update Billing Info in the portal for future invoices before offering an optional supplementary Credit Note (skills/billing.md, tests/test_skills.py, README.md, CLAUDE.md)

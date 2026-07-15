@@ -218,9 +218,10 @@ Important steps:
 | `failed_needs_review` | tool or handler did not safely complete |
 | `closed_spam` | deterministic spam route archived |
 
-Existing-invoice correction requests create a draft explaining that finalized
-invoices cannot be changed, that updated billing details apply to future
-invoices, and asking whether the customer wants a supplementary Credit Note.
+Existing-invoice correction requests create a draft explaining that already-issued
+invoices cannot be changed or reissued, politely asking the customer to update and
+verify Billing Info in the portal for future invoices, and asking whether the
+customer wants a supplementary Credit Note for the existing invoice.
 Only an explicit second customer reply while in
 `awaiting_credit_note_confirmation` adds a deduplicated internal Front comment
 stating that the case should go to Elsie; it does not assign the conversation,
