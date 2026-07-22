@@ -25,7 +25,9 @@ from tools.attachments import bounded_attachments, clip_attachment_text
 from tools.front import (
     AttachmentDownloadRejected,
     AttachmentTooLarge,
+    create_draft,
     get_attachment,
+    markdown_to_safe_html,
     read_limited_attachment,
     validate_attachment_url,
 )
@@ -78,6 +80,73 @@ class _InboxResponse:
 
     def json(self):
         return {"_results": [{"id": "inb_f9fvf"}]}
+
+
+class _FrontResponse:
+    def __init__(self, status_code=200, payload=None):
+        self.status_code = status_code
+        self.payload = payload or {}
+        self.text = ""
+
+    def json(self):
+        return self.payload
+
+
+def test_front_email_markdown_is_rendered_as_safe_html():
+    result = markdown_to_safe_html(
+        "Options:\n"
+        "- **Free Sandbox plan**: Start at no cost.\n"
+        "- [Education discount](https://dify.ai/pricing#education)\n"
+        "More details are available above.\n\n"
+        "<script>alert('unsafe')</script>\n\n"
+        "[Unsafe link](javascript:alert('unsafe'))"
+    )
+
+    assert "<ul>" in result
+    assert "<strong>Free Sandbox plan</strong>" in result
+    assert '<a href="https://dify.ai/pricing#education"' in result
+    assert 'target="_blank"' in result
+    assert "script" not in result
+    assert "javascript:" not in result
+
+
+def test_front_draft_payload_uses_rendered_markdown_html():
+    async def run_case():
+        request = AsyncMock(
+            side_effect=[
+                _FrontResponse(
+                    payload={
+                        "_results": [
+                            {"send_as": "support@dify.ai"},
+                        ]
+                    }
+                ),
+                _FrontResponse(status_code=200),
+            ]
+        )
+        with (
+            patch(
+                "tools.front.get_conversation",
+                AsyncMock(
+                    return_value={
+                        "recipient": {"handle": "customer@example.com"}
+                    }
+                ),
+            ),
+            patch("tools.front.front_request", request),
+        ):
+            assert await create_draft(
+                "cnv_markdown",
+                "Hello\n- **First**\n- **Second**",
+            )
+
+        payload = request.await_args_list[1].kwargs["json"]
+        assert payload["body"] == (
+            "<p>Hello</p>\n<ul>\n<li><strong>First</strong></li>\n"
+            "<li><strong>Second</strong></li>\n</ul>"
+        )
+
+    asyncio.run(run_case())
 
 
 def test_only_waiting_invoice_credit_note_reply_continues_billing_flow():

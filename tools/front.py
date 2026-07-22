@@ -5,6 +5,8 @@ import re
 from urllib.parse import urlsplit
 
 import httpx
+import markdown
+from bs4 import BeautifulSoup, Comment
 from config import settings
 
 BASE_URL = "https://api2.frontapp.com"
@@ -229,6 +231,101 @@ def _plain_to_html(body: str) -> str:
     return "".join(f"<p>{html.escape(block).replace(chr(10), '<br>')}</p>" for block in blocks)
 
 
+_MARKDOWN_ALLOWED_TAGS = {
+    "a",
+    "blockquote",
+    "br",
+    "code",
+    "del",
+    "em",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "hr",
+    "li",
+    "ol",
+    "p",
+    "pre",
+    "strong",
+    "table",
+    "tbody",
+    "td",
+    "th",
+    "thead",
+    "tr",
+    "ul",
+}
+_MARKDOWN_DROP_TAGS = {"embed", "iframe", "math", "object", "script", "style", "svg"}
+_MARKDOWN_LINK_SCHEMES = {"http", "https", "mailto"}
+_MARKDOWN_LIST_ITEM_RE = re.compile(r"^ {0,3}(?:[-+*]|\d+[.)])\s+")
+
+
+def _normalize_markdown_lists(body: str) -> str:
+    """Let common email-style lists interrupt paragraphs without requiring blank lines."""
+    normalized: list[str] = []
+    in_list = False
+
+    for line in body.splitlines():
+        stripped = line.strip()
+        is_list_item = bool(_MARKDOWN_LIST_ITEM_RE.match(line))
+
+        if is_list_item:
+            if normalized and normalized[-1].strip() and not in_list:
+                normalized.append("")
+            in_list = True
+        elif in_list:
+            if not stripped:
+                in_list = False
+            elif not line.startswith((" ", "\t")):
+                normalized.append("")
+                in_list = False
+
+        normalized.append(line)
+
+    return "\n".join(normalized)
+
+
+def markdown_to_safe_html(body: str) -> str:
+    """Render model-authored Markdown as the safe HTML expected by Front email bodies."""
+    rendered = markdown.markdown(
+        _normalize_markdown_lists(body or ""),
+        extensions=["extra", "sane_lists", "nl2br"],
+        output_format="html",
+    )
+    soup = BeautifulSoup(rendered, "html.parser")
+
+    for comment in soup.find_all(string=lambda value: isinstance(value, Comment)):
+        comment.extract()
+    for tag in soup.find_all(_MARKDOWN_DROP_TAGS):
+        tag.decompose()
+
+    for tag in soup.find_all(True):
+        if tag.name not in _MARKDOWN_ALLOWED_TAGS:
+            tag.unwrap()
+            continue
+
+        allowed_attributes = {"href", "title"} if tag.name == "a" else set()
+        if tag.name == "ol":
+            allowed_attributes.add("start")
+        for attribute in list(tag.attrs):
+            if attribute not in allowed_attributes:
+                del tag.attrs[attribute]
+
+        if tag.name == "a":
+            href = str(tag.get("href") or "").strip()
+            if urlsplit(href).scheme.lower() not in _MARKDOWN_LINK_SCHEMES:
+                tag.unwrap()
+                continue
+            tag["href"] = href
+            tag["target"] = "_blank"
+            tag["rel"] = "noopener noreferrer"
+
+    return str(soup)
+
+
 async def _build_forward_body(conversation_id: str, summary: str, label: str) -> str:
     sender_email = ""
     try:
@@ -322,7 +419,7 @@ async def create_draft(conversation_id: str, body: str, author_id: str = None, t
     if not channel_id:
         logging.error("create_draft: channel_id is None, draft will likely fail")
 
-    html_body = "<p>" + body.replace("\n\n", "</p><p>").replace("\n", "<br>") + "</p>"
+    html_body = markdown_to_safe_html(body)
     payload = {"body": html_body, "mode": "shared"}
     if channel_id:
         payload["channel_id"] = channel_id
@@ -375,7 +472,7 @@ async def reply_to_conversation(conversation_id: str, body: str, author_id: str 
     except Exception as e:
         logging.error("reply_to_conversation: failed to get channel_id: %r", e)
 
-    html_body = body.replace("\n", "<br>")
+    html_body = markdown_to_safe_html(body)
     payload = {"body": html_body, "type": "email"}
     if sender_email:
         payload["to"] = [sender_email]
