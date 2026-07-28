@@ -10,7 +10,8 @@ Handle refund requests, duplicate charges, subscription changes, invoice issues,
 - If required facts are missing, ask for the minimum specific information needed instead of guessing.
 - Do not mention internal tools, Linear, Sybil, Bobby, action logs, routing, or internal handoffs in customer-facing drafts.
 - Do not promise that an issue is fixed, approved, refunded, or escalated unless a tool result or policy explicitly proves it.
-- End with a clear next step for the user or a clear expectation that the team will review.
+- When a self-service path exists, give the exact navigation labels and location. Do not replace a known self-service path with vague wording such as "our team can review", "we'll assist", or "contact support if you have trouble".
+- End with a clear next step for the user.
 
 ## Steps by Sub-type
 
@@ -19,9 +20,30 @@ Handle refund requests, duplicate charges, subscription changes, invoice issues,
 2. Call `state_set` with step="draft_created".
 3. Do NOT close automatically.
 
-### downgrade
-1. Call `front_create_draft` with self-service downgrade template.
-2. Call `state_set` with step="draft_created".
+### downgrade / paid subscription cancellation
+Use this branch when a Dify Cloud paid-plan customer wants to downgrade, stop renewal, or cancel the subscription. This is a self-service flow; do not offer manual cancellation or say that the team will review it.
+
+1. Call `front_create_draft` with concise instructions using the most specific route supported by the conversation:
+   - If the customer replied to a Stripe renewal reminder, make that the primary route: in the renewal reminder email, scroll to the bottom of the subscription card and click **Manage your subscriptions**, located directly below the blue **Update payment method** button. In the Stripe billing portal, select the active Dify subscription, click **Cancel plan**, and confirm the cancellation.
+   - Also give the Dify Cloud route when helpful: click the current workspace name in the upper-left corner -> **Settings** -> **Billing** -> the **Billing and Subscriptions** card -> **Manage**. In the Stripe billing portal, select the active Dify subscription, click **Cancel plan**, and confirm.
+   - If the conversation includes a renewal date, tell the customer to complete the cancellation before that exact date to prevent renewal.
+   - Do not claim the subscription was already canceled. Do not claim cancellation immediately deletes the workspace or terminates access.
+   - Do not add a fallback asking the customer to provide an account/workspace email for manual review.
+2. Call `state_set` with step="draft_created", sub_type="downgrade", waiting=false.
+
+Approved example for a customer who replied to a renewal reminder:
+
+```text
+Hi,
+
+To cancel your Dify Professional subscription before <renewal date>, please open the renewal reminder email you replied to. At the bottom of the subscription card, directly below the blue "Update payment method" button, click "Manage your subscriptions."
+
+In the Stripe billing portal, select your active Dify subscription, click "Cancel plan," and confirm the cancellation.
+
+You can also reach the same portal from Dify Cloud: click your current workspace name in the upper-left corner, then go to Settings -> Billing -> Billing and Subscriptions -> Manage.
+
+Cheers
+```
 
 ### invoice
 Use the existing-invoice flow below only when the user asks to correct or reissue an invoice that has already been issued. For ordinary invoice downloads or future billing-detail updates, create the normal billing-portal self-service draft and set step="draft_created".

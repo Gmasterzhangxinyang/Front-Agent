@@ -193,6 +193,30 @@ def test_invoice_credit_note_flow_is_draft_then_internal_comment_only():
     assert "@Elsie" not in invoice_section
 
 
+def test_paid_subscription_cancellation_gives_exact_self_service_path():
+    billing = _skill_text("billing")
+    cancellation_section = billing.split(
+        "### downgrade / paid subscription cancellation",
+        1,
+    )[1].split("### invoice", 1)[0]
+
+    for expected in [
+        "directly below the blue **Update payment method** button",
+        "**Manage your subscriptions**",
+        "current workspace name in the upper-left corner",
+        "**Settings** -> **Billing**",
+        "**Billing and Subscriptions** card -> **Manage**",
+        "**Cancel plan**",
+        "do not offer manual cancellation",
+        "Do not add a fallback asking the customer to provide an account/workspace email for manual review",
+    ]:
+        assert expected in cancellation_section, (
+            f"billing cancellation guidance missing {expected!r}"
+        )
+
+    assert "our team can review" not in cancellation_section
+
+
 def test_mainland_china_vat_invoice_policy_is_explicit():
     billing = _skill_text("billing")
     classify = _skill_text("classify")
@@ -285,7 +309,15 @@ def test_skills_do_not_reference_unavailable_tools_or_url_placeholders():
 
 def test_skill_guardrails_are_current():
     technical = _skill_text("technical")
-    for expected in ["docs_search", "github_search", "Linear ticket policy"]:
+    for expected in [
+        "docs_search",
+        "github_search",
+        "Linear ticket policy",
+        "Do not open a reply by emphasizing that the customer is on a free",
+        "The first substantive sentence must be about the user's issue, not their plan",
+        "acknowledge the user's effort and specific symptom",
+        "Do not present an unverified mechanism as what \"usually\" happens",
+    ]:
         assert expected in technical, f"technical.md missing {expected!r}"
 
     education = _skill_text("education")
