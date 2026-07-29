@@ -197,6 +197,7 @@ Every example below includes all required fields. Follow this shape exactly. Use
 - Classify candidate job applications, internship requests, resume submissions, and employment inquiries as `recruiting`, not `unclear`.
 - Classify YouTube/video/podcast/newsletter/content creator or media channel collaboration pitches as `marketing` with sub_type `collaboration`, unless the email is clearly an unrelated mass ad service pitch. These should be moved to the Marketing inbox, not auto-closed as spam.
 - Classify Marketplace/plugin/template ecosystem cooperation as `partnership`; that route is forwarded to `marketing@dify.ai` by the system.
+- Words such as `promotion`, `joint promotion`, `推广`, or `联合推广` do not make an email spam when its primary request is to join, list, publish, review, or integrate with the Dify Marketplace/plugin ecosystem.
 - Classify security reports, vulnerabilities, abuse reports, data leaks, hacked accounts with active compromise, or responsible disclosure as `security` unless the primary issue is ordinary account login help.
 - Use `unclear` when the email lacks enough evidence to choose a route. Do not force a category.
 - `evidence` must contain short non-sensitive phrases that justify the route.

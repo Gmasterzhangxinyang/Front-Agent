@@ -25,27 +25,7 @@ ALLOWED_CATEGORIES = {
 
 ALLOWED_URGENCIES = {"normal", "high"}
 
-SPAM_SUMMARY_KEYWORDS = (
-    "seo",
-    "advertising",
-    "广告",
-    "推广",
-    "sponsor",
-    "sponsorship",
-    "pricelist",
-    "price list",
-    "pricing list",
-    "视频合作",
-    "promotion",
-    "promotional",
-    "cold outreach",
-    "guest post",
-    "backlink",
-    "press release",
-    "event marketing",
-    "summit sponsor",
-    "media package",
-)
+PARTNERSHIP_SUB_TYPES = {"marketplace", "plugin", "plugin_takedown"}
 
 CLASSIFICATION_OPTIONS = [
     {"label": "技术问题(technical)", "category": "technical"},
@@ -161,15 +141,17 @@ def normalize_classification(
 
 
 def should_auto_close_spam(classification: ClassificationResult) -> bool:
-    if classification.category == "spam":
-        return True
-    summary = classification.summary.lower()
-    evidence = " ".join(classification.evidence).lower()
-    route_text = f"{summary} {evidence}"
-    collaboration_terms = ("youtube", "video", "channel", "podcast", "newsletter", "content creator", "creator collaboration", "media collaboration", "视频合作")
-    if classification.category in {"marketing", "partnership"} and any(term in route_text for term in collaboration_terms):
+    """Allow destructive archive only for an unambiguous spam classification.
+
+    Summary keywords such as "promotion" are supporting evidence, not an
+    independent reason to close a non-spam conversation. Contradictory route
+    signals always keep the conversation open.
+    """
+    if classification.category != "spam":
         return False
-    return any(keyword in summary or keyword in evidence for keyword in SPAM_SUMMARY_KEYWORDS)
+    if "legal_threat" in classification.flags:
+        return False
+    return classification.sub_type not in PARTNERSHIP_SUB_TYPES
 
 
 def _loads_object(text: str) -> dict[str, Any] | None:

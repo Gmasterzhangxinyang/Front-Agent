@@ -1,7 +1,11 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-from agent.classification import ClassificationResult, should_auto_close_spam
+from agent.classification import (
+    PARTNERSHIP_SUB_TYPES,
+    ClassificationResult,
+    should_auto_close_spam,
+)
 
 
 @dataclass(frozen=True)
@@ -35,6 +39,16 @@ def decide_initial_route(
     category = classification.category
     sub_type = classification.sub_type
     summary = classification.summary or "No summary provided by classifier."
+
+    # A spam category paired with a partnership subtype is contradictory.
+    # Explicit Marketplace/plugin lifecycle intent takes the partnership route;
+    # weaker conflicts stay open for manual review.
+    if category == "spam" and sub_type in PARTNERSHIP_SUB_TYPES:
+        category = (
+            "partnership"
+            if _is_explicit_marketplace_application(classification)
+            else "unclear"
+        )
 
     if _is_creator_marketing_collaboration(classification):
         return RouteDecision(
@@ -185,6 +199,41 @@ def decide_initial_route(
         )
 
     return _skill_route(category, sub_type)
+
+
+def _is_explicit_marketplace_application(
+    classification: ClassificationResult,
+) -> bool:
+    text = " ".join(
+        [
+            classification.summary or "",
+            " ".join(classification.evidence),
+        ]
+    ).lower()
+    marketplace_actions = (
+        "join",
+        "apply",
+        "application",
+        "list",
+        "listing",
+        "submit",
+        "publish",
+        "review",
+        "入驻",
+        "申请",
+        "上架",
+        "提交",
+        "发布",
+        "审核",
+    )
+    plugin_actions = marketplace_actions + ("takedown", "下架")
+    return (
+        "dify marketplace" in text
+        and any(term in text for term in marketplace_actions)
+    ) or (
+        any(term in text for term in ("plugin", "插件"))
+        and any(term in text for term in plugin_actions)
+    )
 
 
 def _is_creator_marketing_collaboration(classification: ClassificationResult) -> bool:

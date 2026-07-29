@@ -39,6 +39,79 @@ def test_spam_category_auto_closes():
     assert route.state_step == "closed_spam"
 
 
+def test_marketplace_joint_promotion_does_not_auto_close():
+    result = normalize_classification({
+        "category": "partnership",
+        "sub_type": "marketplace",
+        "confidence": 0.96,
+        "summary": (
+            "TokenStar AI platform wants to join Dify Marketplace and discuss "
+            "plugin/tool ecosystem cooperation and joint promotion."
+        ),
+        "evidence": [
+            "希望申请入驻 Dify Marketplace",
+            "提供聚合式的模型接入工具/插件",
+            "联合推广",
+        ],
+    })
+
+    assert not should_auto_close_spam(result)
+    route = decide_initial_route(result, "cnv_1j71l47v", "gekangning@kunbyte.com")
+    assert route.name == "partnership_forwarded_keep_open"
+    assert route.tool_name == "front_forward_to_community"
+    assert route.state_category == "partnership"
+    assert route.state_sub_type == "marketplace"
+    assert route.keep_open is True
+
+
+def test_explicit_marketplace_application_overrides_conflicting_spam_category():
+    result = normalize_classification({
+        "category": "spam",
+        "sub_type": "marketplace",
+        "confidence": 0.96,
+        "summary": "Vendor wants to join Dify Marketplace for plugin cooperation.",
+        "evidence": ["申请入驻 Dify Marketplace", "提供模型接入插件"],
+    })
+
+    assert not should_auto_close_spam(result)
+    route = decide_initial_route(result, "cnv_test", "sender@example.com")
+    assert route.name == "partnership_forwarded_keep_open"
+    assert route.tool_name == "front_forward_to_community"
+    assert route.state_category == "partnership"
+    assert route.state_step == "forwarded_keep_open"
+
+
+def test_weak_spam_marketplace_conflict_requires_manual_review():
+    result = normalize_classification({
+        "category": "spam",
+        "sub_type": "marketplace",
+        "confidence": 0.9,
+        "summary": "Unsolicited sales message with no clear operational request.",
+    })
+
+    assert not should_auto_close_spam(result)
+    route = decide_initial_route(result, "cnv_test", "sender@example.com")
+    assert route.name == "manual_review_bobby"
+    assert route.tool_name == "front_forward_to_bobby"
+    assert route.state_category == "unclear"
+    assert route.state_step == "manual_review"
+    assert route.keep_open is True
+
+
+def test_promotion_keyword_cannot_override_non_spam_category():
+    result = normalize_classification({
+        "category": "technical",
+        "sub_type": "how_to",
+        "confidence": 0.9,
+        "summary": "User asks how to build a promotion workflow.",
+    })
+
+    assert not should_auto_close_spam(result)
+    route = decide_initial_route(result, "cnv_test", "sender@example.com")
+    assert route.name == "technical_skill_flow"
+    assert route.keep_open is True
+
+
 def test_video_channel_collaboration_routes_to_marketing_not_spam():
     result = normalize_classification({
         "category": "marketing",
@@ -392,6 +465,25 @@ def test_case_memory_redacts_and_formats_lessons():
     assert "[email]" in prompt
     assert "[phone]" in prompt
     assert "previously failed" in prompt
+
+
+def test_case_memory_treats_spam_marketplace_history_as_cautionary():
+    from services.case_memory import CaseMemoryItem, build_case_memory_prompt
+
+    prompt = build_case_memory_prompt([
+        CaseMemoryItem(
+            category="spam",
+            sub_type="marketplace",
+            step="closed_spam",
+            summary="Marketplace plugin integration and joint promotion",
+            reason="spam_auto_close",
+            outcome="previously closed as spam",
+            score=4,
+        )
+    ])
+
+    assert "Cautionary patterns:" in prompt
+    assert "Successful patterns:" not in prompt
 
 
 def test_case_memory_requires_strong_overlap():

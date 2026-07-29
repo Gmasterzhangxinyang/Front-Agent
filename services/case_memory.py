@@ -13,6 +13,7 @@ MAX_CANDIDATES = 300
 MAX_TEXT = 220
 MIN_CLASSIFICATION_OVERLAP = 3
 MIN_CATEGORY_OVERLAP = 2
+PARTNERSHIP_SUB_TYPES = {"marketplace", "plugin", "plugin_takedown"}
 STOPWORDS = {
     "the",
     "and",
@@ -81,7 +82,7 @@ def score_case(query: str, item: CaseMemoryItem, category: str | None = None) ->
         score += 2
     if item.step in {"done", "draft_created", "closed_spam", "moved_inbox", "forwarded_keep_open"}:
         score += 1
-    if _is_cautionary_step(item.step):
+    if _is_cautionary_item(item):
         score += 1
     return score
 
@@ -98,8 +99,8 @@ def build_case_memory_prompt(items: list[CaseMemoryItem]) -> str:
         "- Do not copy an old outcome blindly; apply the current skill and route policy.",
     ]
 
-    successful = [item for item in items if not _is_cautionary_step(item.step)]
-    cautionary = [item for item in items if _is_cautionary_step(item.step)]
+    successful = [item for item in items if not _is_cautionary_item(item)]
+    cautionary = [item for item in items if _is_cautionary_item(item)]
     if successful:
         lines.append("Successful patterns:")
         for item in successful:
@@ -124,6 +125,13 @@ def _format_case_line(item: CaseMemoryItem) -> str:
     if item.reason:
         parts.append(f"note={_clip(_redact(item.reason))}")
     return "- " + " | ".join(parts)
+
+
+def _is_cautionary_item(item: CaseMemoryItem) -> bool:
+    conflicting_spam_partnership = (
+        item.category == "spam" and item.sub_type in PARTNERSHIP_SUB_TYPES
+    )
+    return conflicting_spam_partnership or _is_cautionary_step(item.step)
 
 
 def _is_cautionary_step(step: str) -> bool:
