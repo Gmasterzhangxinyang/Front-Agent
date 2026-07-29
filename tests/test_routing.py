@@ -343,11 +343,13 @@ def test_keep_open_guard_coerces_unclear_done_state_to_manual_review():
     assert coerced["waiting"] is False
 
 
-def test_tool_registry_reopens_after_bobby_forward_and_linear():
+def test_tool_registry_reopens_keep_open_handoffs():
     source = Path("agent/tool_registry.py").read_text()
 
     assert '_safe_reopen_conversation(conversation_id, "linear_create_ticket")' in source
     assert '_safe_reopen_conversation(conv_id, "front_forward_to_bobby")' in source
+    assert 'conversation_id, "front_forward_to_partnerships"' in source
+    assert 'conversation_id, "front_forward_to_community"' in source
 
 
 def test_legal_threat_does_not_notify_bobby_from_orchestrator():

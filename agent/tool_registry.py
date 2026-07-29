@@ -575,6 +575,10 @@ async def _execute_tool_call_uncached(tool_name: str, args: dict, db: AsyncSessi
             settings.internal_forward_bobby_email,
             summary,
         )
+        if ok:
+            await _safe_reopen_conversation(
+                conversation_id, "front_forward_to_partnerships"
+            )
         return "forwarded_to_marketing" if ok else "forward_failed"
 
     elif tool_name == "front_forward_to_community":
@@ -587,6 +591,10 @@ async def _execute_tool_call_uncached(tool_name: str, args: dict, db: AsyncSessi
             settings.internal_forward_bobby_email,
             summary,
         )
+        if ok:
+            await _safe_reopen_conversation(
+                conversation_id, "front_forward_to_community"
+            )
         return "forwarded_to_marketing" if ok else "forward_failed"
 
     elif tool_name == "front_forward_to_investment":
