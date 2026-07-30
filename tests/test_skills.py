@@ -136,6 +136,27 @@ def test_internal_forwarding_skill_targets_are_current():
 
 
 
+def test_education_reply_continuation_and_application_policy_is_explicit():
+    education = _skill_text("education")
+    for expected in [
+        "Reply Continuation Policy",
+        "how_to_apply",
+        "Get Education Verified",
+        "forwarded_keep_open",
+        "Never call `linear_create_ticket` again",
+        "front_add_comment",
+        "education_review_followup",
+        "preserve the existing `school_name`, `school_domain`, `linear_url`",
+        "subscription-management#dify-for-education",
+        "yearly Professional plan",
+    ]:
+        assert expected in education, f"education.md missing {expected!r}"
+
+    classify = _skill_text("classify")
+    assert "Education Plan Application Question" in classify
+    assert "| education | how_to_apply |" in classify
+
+
 def test_education_card_binding_without_supported_card_is_final_draft():
     text = _skill_text("education")
     for expected in [

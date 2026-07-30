@@ -27,6 +27,63 @@ ALLOWED_URGENCIES = {"normal", "high"}
 
 PARTNERSHIP_SUB_TYPES = {"marketplace", "plugin", "plugin_takedown"}
 
+_EXPLICIT_EDUCATION_TOPIC_PATTERNS = (
+    re.compile(
+        r"\b(?:(?:education(?:al)?|academic)\s+"
+        r"(?:plan|discount|pricing|coupon|verification|programme|program)"
+        r"|student\s+(?:plan|discount|pricing|coupon|programme|program))\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:plan|discount|pricing|coupon)\s+"
+        r"(?:for\s+)?(?:students?|teachers?|educators?)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:教育|學生|学生)"
+        r"(?:版|方案|計畫|计划|優惠|优惠|折扣|認證|认证)"
+    ),
+)
+
+_EDUCATION_CANCEL_PATTERNS = (
+    re.compile(r"\b(?:cancel|stop|end|terminate|not renew|no longer renew)\b", re.IGNORECASE),
+    re.compile(r"(?:取消|停止|終止|终止|不再續訂|不再续订|不要續訂|不要续订)"),
+)
+
+_EDUCATION_EXPIRED_EMAIL_PATTERNS = (
+    re.compile(r"\bgraduat(?:e|ed|ing|ion)\b", re.IGNORECASE),
+    re.compile(
+        r"\b(?:school|student|university|college)\s+email\b.{0,40}"
+        r"\b(?:expired|disabled|inaccessible|unavailable|no longer)\b",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    re.compile(r"(?:畢業|毕业|學校|学校).{0,20}(?:信箱|邮箱).{0,20}(?:失效|無法使用|无法使用|不能使用|停用)"),
+)
+
+_EDUCATION_REJECTED_PATTERNS = (
+    re.compile(
+        r"\b(?:application|verification|education plan)\b.{0,50}"
+        r"\b(?:rejected|denied|declined|failed|not approved|unsuccessful)\b",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    re.compile(r"(?:教育|學生|学生).{0,20}(?:申請|申请|認證|认证|驗證|验证).{0,20}(?:拒絕|拒绝|失敗|失败|未通過|未通过)"),
+)
+
+_EDUCATION_NO_DISCOUNT_PATTERNS = (
+    re.compile(
+        r"\b(?:verified|approved|education badge|edu badge)\b.{0,60}"
+        r"\b(?:discount|coupon)\b.{0,30}"
+        r"\b(?:missing|not showing|not applied|unavailable|cannot see|can't see)\b",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    re.compile(
+        r"\b(?:discount|coupon)\b.{0,30}"
+        r"\b(?:missing|not showing|not applied|unavailable|cannot see|can't see)\b",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    re.compile(r"(?:已通過|已通过|已認證|已认证|已驗證|已验证).{0,30}(?:優惠|优惠|折扣).{0,20}(?:沒有|没有|未顯示|未显示|看不到)"),
+)
+
 CLASSIFICATION_OPTIONS = [
     {"label": "技术问题(technical)", "category": "technical"},
     {"label": "账号问题(account)", "category": "account"},
@@ -76,6 +133,42 @@ class ClassificationResult:
             "secondary_intents": self.secondary_intents,
             "evidence": self.evidence,
         }
+
+
+def classify_explicit_education_topic(
+    message: str | None,
+    sender_email: str = "",
+) -> ClassificationResult | None:
+    """Recognize an unambiguous education-plan topic in the latest reply.
+
+    This deliberately requires plan/discount/verification wording. A sender
+    merely saying that they are a student must not redirect an unrelated
+    technical or billing conversation.
+    """
+    text = (message or "").strip()
+    if not text or not any(pattern.search(text) for pattern in _EXPLICIT_EDUCATION_TOPIC_PATTERNS):
+        return None
+
+    if any(pattern.search(text) for pattern in _EDUCATION_CANCEL_PATTERNS):
+        sub_type = "cancel_subscription"
+    elif any(pattern.search(text) for pattern in _EDUCATION_EXPIRED_EMAIL_PATTERNS):
+        sub_type = "email_expired_graduated"
+    elif any(pattern.search(text) for pattern in _EDUCATION_REJECTED_PATTERNS):
+        sub_type = "rejected"
+    elif any(pattern.search(text) for pattern in _EDUCATION_NO_DISCOUNT_PATTERNS):
+        sub_type = "no_discount"
+    else:
+        sub_type = "how_to_apply"
+
+    return ClassificationResult(
+        category="education",
+        sub_type=sub_type,
+        sender_email=sender_email,
+        summary="User has an explicit Education Plan question in the latest reply",
+        confidence=1.0,
+        evidence=[text[:240]],
+        raw={"source": "deterministic_latest_reply_topic_switch"},
+    )
 
 
 def parse_classification_json(raw: str | None) -> dict[str, Any] | None:

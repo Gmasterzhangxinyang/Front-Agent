@@ -29,6 +29,26 @@ Return only the JSON object. Do not wrap it in Markdown and do not add explanati
 
 Every example below includes all required fields. Follow this shape exactly. Use JSON `null`, not the string `"null"`.
 
+### Example 0: Education Plan Application Question
+**Email:** "請問要使用學生方案，可以怎麼進行呢？"
+
+**Classification:**
+```json
+{
+  "category": "education",
+  "sub_type": "how_to_apply",
+  "is_paid_user": false,
+  "is_premium": false,
+  "urgency": "normal",
+  "sender_email": "user@example.com",
+  "summary": "User asks how to apply for and use the Education Plan",
+  "confidence": 0.99,
+  "flags": [],
+  "secondary_intents": [],
+  "evidence": ["使用學生方案", "怎麼進行"]
+}
+```
+
 ### Example 1: Education Plan Rejection
 **Email:** "Hi, I applied for the education plan but it was rejected. I'm a student at Stanford University, my school email is john@stanford.edu. Can you help me verify?"
 
@@ -226,8 +246,10 @@ Every example below includes all required fields. Follow this shape exactly. Use
 | purchase | pro_team | Asking about Pro/Team/Premium pricing |
 | purchase | promo_code | Asking for promo code, discount code, or holiday deals |
 | purchase | reseller | Wants to become reseller or agent |
+| education | how_to_apply | Asking how to apply for, activate, or use the Education Plan/student plan |
 | education | rejected | Education plan application rejected |
 | education | no_discount | Edu verified but discount not showing |
+| education | email_expired_graduated | Graduated or school-issued email is no longer accessible |
 | education | cancel_subscription | Education plan user wants to cancel/not renew |
 | billing | refund | Wants a refund |
 | billing | duplicate_charge | Charged twice |

@@ -703,6 +703,11 @@ async def ops_summary():
             db,
             since=now - timedelta(days=7),
         )
+        education_draft_adoption_7d = await draft_adoption_metrics(
+            db,
+            since=now - timedelta(days=7),
+            category="education",
+        )
         report_rows = await db.execute(
             select(OpsReport)
             .order_by(OpsReport.generated_at.desc())
@@ -781,6 +786,7 @@ async def ops_summary():
             "actions_24h_by_type": actions_by_type,
             "sybil_by_status": sybil_by_status,
             "draft_adoption_7d": draft_adoption_7d,
+            "education_draft_adoption_7d": education_draft_adoption_7d,
             "automation_health": {
                 "webhook_inbox_by_status": webhook_inbox_by_status,
                 "webhook_due_count": webhook_due_count,

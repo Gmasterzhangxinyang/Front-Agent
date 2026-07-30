@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import ConversationAction, DraftAdoption
+from models import ConversationAction, ConversationState, DraftAdoption
 from tools.front import get_conversation_messages
 
 DRAFT_TOOL_NAME = "front_create_draft"
@@ -189,20 +189,34 @@ async def refresh_draft_adoptions(
     return {"checked": len(actions), "refreshed": refreshed, "skipped": skipped, "failed": failed}
 
 
-async def draft_adoption_metrics(db: AsyncSession, *, since: datetime) -> dict[str, Any]:
+async def draft_adoption_metrics(
+    db: AsyncSession,
+    *,
+    since: datetime,
+    category: str | None = None,
+) -> dict[str, Any]:
     since = effective_since(since)
     try:
-        action_count_result = await db.execute(
-            select(func.count()).select_from(ConversationAction).where(
-                ConversationAction.action_type == DRAFT_TOOL_NAME,
-                ConversationAction.created_at >= since,
-            )
+        action_query = select(func.count()).select_from(ConversationAction).where(
+            ConversationAction.action_type == DRAFT_TOOL_NAME,
+            ConversationAction.created_at >= since,
         )
-        draft_actions = int(action_count_result.scalar() or 0)
+        adoption_query = select(DraftAdoption).where(
+            DraftAdoption.draft_created_at >= since
+        )
+        if category:
+            action_query = action_query.join(
+                ConversationState,
+                ConversationState.conversation_id == ConversationAction.conversation_id,
+            ).where(ConversationState.category == category)
+            adoption_query = adoption_query.join(
+                ConversationState,
+                ConversationState.conversation_id == DraftAdoption.conversation_id,
+            ).where(ConversationState.category == category)
 
-        adoption_result = await db.execute(
-            select(DraftAdoption).where(DraftAdoption.draft_created_at >= since)
-        )
+        action_count_result = await db.execute(action_query)
+        draft_actions = int(action_count_result.scalar() or 0)
+        adoption_result = await db.execute(adoption_query)
         rows = list(adoption_result.scalars().all())
     except OperationalError:
         return _empty_metrics()

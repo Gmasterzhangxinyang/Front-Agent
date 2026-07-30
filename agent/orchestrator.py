@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from config import settings
@@ -10,7 +11,12 @@ from tools.attachments import (
     fetch_attachments_as_text,
 )
 from tools.front import get_conversation_messages
-from agent.classification import ClassificationResult, normalize_classification, parse_classification_json
+from agent.classification import (
+    ClassificationResult,
+    classify_explicit_education_topic,
+    normalize_classification,
+    parse_classification_json,
+)
 from agent.llm_client import chat_completion_kwargs, make_async_openai_client
 from agent.routing import RouteDecision, decide_initial_route
 from agent.tool_registry import (
@@ -63,9 +69,17 @@ async def handle_email(
 ) -> None:
     existing_state = await state_tool.get_state(db, conversation_id)
     retrying_failed_state = is_failed_retry_state(existing_state)
+    education_topic_classification = None
+    if existing_state and existing_state.category != "education":
+        education_topic_classification = classify_explicit_education_topic(
+            message_body,
+            sender_email,
+        )
+    education_topic_switch = education_topic_classification is not None
     initial_flow = (
         not existing_state
         or existing_state.step in ("initial", "done", "failed_needs_review")
+        or education_topic_switch
     )
 
     # Existing-state webhook events are replies on conversations we have already handled.
@@ -79,7 +93,11 @@ async def handle_email(
             and existing_state.sub_type == "invoice"
             and step == "awaiting_credit_note_confirmation"
         )
-        if category != "education" and not billing_credit_note_confirmation:
+        if (
+            category != "education"
+            and not billing_credit_note_confirmation
+            and not education_topic_switch
+        ):
             logger.info(
                 "Skipping reply without an approved continuation for conv %s — step=%s category=%s",
                 conversation_id, existing_state.step, existing_state.category,
@@ -173,13 +191,15 @@ Use the tools available to you to handle the email completely.
 
     # If classifying, do a two-step: first classify, then load skill and act
     if initial_flow:
-        classification = await _classify(
-            conversation_text,
-            message_body,
-            sender_email,
-            attachment_content,
-            case_memory_context=classification_case_memory,
-        )
+        classification = education_topic_classification
+        if classification is None:
+            classification = await _classify(
+                conversation_text,
+                message_body,
+                sender_email,
+                attachment_content,
+                case_memory_context=classification_case_memory,
+            )
         if not classification:
             return
 
@@ -251,7 +271,9 @@ Sender email: {sender_email}
             db,
             conversation_id=conversation_id,
             sender_email=sender_email,
+            preserved_state_payload=_preserved_reply_payload(existing_state),
             message_body=message_body,
+            blocked_tool_names=_blocked_reply_tools(existing_state),
         )
 
 
@@ -286,7 +308,9 @@ Sender email: {sender_email}
             db,
             conversation_id=conversation_id,
             sender_email=sender_email,
+            preserved_state_payload=_preserved_reply_payload(existing_state),
             message_body=message_body,
+            blocked_tool_names=_blocked_reply_tools(existing_state),
         )
 
 
@@ -456,6 +480,26 @@ def _coerce_keep_open_state_args(args: dict, preferred_step: str) -> dict:
     return coerced
 
 
+def _blocked_reply_tools(existing_state) -> set[str]:
+    """Prevent a follow-up from opening a second education review ticket."""
+    if not existing_state or existing_state.category != "education":
+        return set()
+
+    payload = existing_state.payload if isinstance(existing_state.payload, dict) else {}
+    has_existing_ticket = bool(payload.get("linear_url"))
+    if existing_state.step == "forwarded_keep_open" or has_existing_ticket:
+        return {"linear_create_ticket"}
+    return set()
+
+
+def _preserved_reply_payload(existing_state) -> dict:
+    """Keep trusted education review data available across user follow-ups."""
+    if not _blocked_reply_tools(existing_state):
+        return {}
+    payload = existing_state.payload if isinstance(existing_state.payload, dict) else {}
+    return dict(payload)
+
+
 async def _run_agent_loop(
     messages: list,
     db: AsyncSession,
@@ -463,6 +507,8 @@ async def _run_agent_loop(
     max_iterations: int = 10,
     sender_email: str = "",
     message_body: str = "",
+    preserved_state_payload: dict | None = None,
+    blocked_tool_names: set[str] | None = None,
 ) -> None:
     notified_conversations: set[str] = set()  # deduplicate Bobby handoff forwards per conv
     keep_open_state_step: str | None = None
@@ -471,6 +517,7 @@ async def _run_agent_loop(
         sender_email=sender_email,
         original_message=message_body,
     )
+    trusted_linear_url = str((preserved_state_payload or {}).get("linear_url") or "")
     for _ in range(max_iterations):
         response = await client.chat.completions.create(**chat_completion_kwargs(
             settings.openai_model,
@@ -488,6 +535,22 @@ async def _run_agent_loop(
 
         for tc in msg.tool_calls:
             tool_name = tc.function.name
+            if tool_name in (blocked_tool_names or set()):
+                result = (
+                    "tool_blocked_by_reply_policy: an education review ticket "
+                    "already exists for this conversation"
+                )
+                logger.warning(
+                    "Blocked duplicate continuation tool %s for conv %s",
+                    tool_name,
+                    conversation_id,
+                )
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": result,
+                })
+                continue
             try:
                 raw_args = json.loads(tc.function.arguments)
                 args = prepare_llm_tool_call(tool_name, raw_args, context)
@@ -500,6 +563,21 @@ async def _run_agent_loop(
                     "content": result,
                 })
                 continue
+
+            if tool_name in ("feishu_notify_sybil_group", "front_forward_to_sybil") and trusted_linear_url:
+                args["linear_url"] = trusted_linear_url
+                args["message"] = re.sub(
+                    r"https://linear\.app/[^\s)>]+",
+                    "",
+                    args.get("message", ""),
+                ).strip()
+
+            if tool_name == "state_set" and preserved_state_payload:
+                merged_payload = dict(preserved_state_payload)
+                merged_payload.update(args.get("payload") or {})
+                if trusted_linear_url:
+                    merged_payload["linear_url"] = trusted_linear_url
+                args["payload"] = merged_payload
 
             # Reassert the trusted recipient immediately before side effects.
             if tool_name == "front_create_draft" and sender_email:

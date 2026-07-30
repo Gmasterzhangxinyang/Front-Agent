@@ -5,10 +5,14 @@ Handle education plan applications, rejections, and discount issues.
 
 ## Key Facts
 - Education discount: 100% off, valid for 1 year
-- After 1 year, user can reapply
+- It applies only to the yearly Professional plan
+- Eligibility must be verified again each year
+- The applicant must be at least 18 and be a current student, teacher, or education staff member
 - Only higher education institutions (universities, colleges, government-accredited) qualify
 - K-12 schools and unaccredited institutions do NOT qualify
-- Must use school email domain (not personal email like Gmail)
+- The user must register Dify Cloud with a school-issued educational email, not a personal address such as Gmail or Yahoo
+- Official self-service application path: register at `https://cloud.dify.ai` with the school email -> **Settings** -> **Billing** -> **Get Education Verified** -> enter the full school name and role -> after approval select the workspace -> **Use education discount** -> choose yearly Professional and complete activation
+- Official documentation: `https://docs.dify.ai/en/cloud/use-dify/workspace/subscription-management#dify-for-education`
 
 
 ## Tool Sequencing and Hard Stops
@@ -17,6 +21,25 @@ Handle education plan applications, rejections, and discount issues.
 - For successful education reviews, call tools in this order: `linear_create_ticket` -> `feishu_notify_sybil_group` -> `front_create_draft` -> `state_set`.
 - The final `state_set` payload for successful reviews should include `school_name`, `school_domain`, and `linear_url`.
 - If asking the user for more information or proof, call `state_set` with `waiting=true`.
+- If the current step is `forwarded_keep_open` or saved data already contains `linear_url`, a review ticket already exists. Never call `linear_create_ticket` again. The runtime will block it even if requested.
+- A follow-up to an existing review may reuse only the exact saved `linear_url` for `feishu_notify_sybil_group`; never create or guess a replacement URL.
+
+
+## Reply Continuation Policy
+- Treat the latest user reply as authoritative for the next step. Do not blindly repeat the previous draft.
+- A user may switch among education intents within the same conversation. When the latest reply clearly reports rejection, missing discount, expired school email/graduation, or cancellation, follow that sub-type and save the new `sub_type`.
+- For `awaiting_school_info` and `awaiting_identity_verification`, use the newest reply together with the saved payload. Preserve previously collected facts when calling `state_set`.
+- For `draft_created`:
+  - Answer a new education question with a new concise draft in the user's language.
+  - If the user reports that verification or activation succeeded, create a brief acknowledgment draft; do not create a Linear ticket or notify Sybil.
+  - Save the resulting education sub-type and keep step=`draft_created` unless another defined step applies.
+- For `forwarded_keep_open`, or whenever saved data contains `linear_url`:
+  1. Never call `linear_create_ticket` again.
+  2. If the reply contains material new information, call `front_add_comment` with a concise internal summary of only the new facts.
+  3. For material review information, call `feishu_notify_sybil_group` with handoff_type=`education_review_followup`, the exact saved `linear_url`, and a concise Chinese summary. This creates at most one follow-up digest item for that review.
+  4. Call `front_create_draft` acknowledging receipt and saying the information has been added for review. Do not expose the Linear URL or internal routing.
+  5. Call `state_set` with step=`forwarded_keep_open`, waiting=false, and preserve the existing `school_name`, `school_domain`, `linear_url`, and other saved data.
+  6. If the reply only says thanks and contains no new facts, create a brief acknowledgment draft and preserve the same state without another internal notification.
 
 
 ## Draft Quality Bar
@@ -28,6 +51,14 @@ Handle education plan applications, rejections, and discount issues.
 - End with a clear next step for the user or a clear expectation that the team will review.
 
 ## Steps by Sub-Type
+
+### how_to_apply (asks how to get or use the Education Plan)
+
+**Step: initial or draft_created**
+1. Call `front_create_draft` with the self-service application template in the user's language.
+2. Do not create a Linear ticket or notify Sybil for a general how-to-apply question.
+3. Call `state_set` with category=`education`, sub_type=`how_to_apply`, step=`draft_created`, waiting=false.
+4. If the user later reports a rejection, missing discount, expired school email, or cancellation, follow the matching sub-type under the Reply Continuation Policy.
 
 ### rejected (education plan application rejected)
 
@@ -137,6 +168,32 @@ Handle education plan applications, rejections, and discount issues.
 
 ## Reply Templates
 
+### Self-service application
+```
+Dear [User's Name / Valued Customer],
+
+Thank you for your interest in Dify's Education Plan.
+
+You can apply through Dify Cloud using these steps:
+
+1. Register or sign in at https://cloud.dify.ai with your school-issued educational email.
+2. Go to **Settings** -> **Billing**.
+3. Select **Get Education Verified**, then enter your school's full name and your role.
+4. After verification is approved, select the workspace where you want to use the benefit and click **Use education discount**.
+5. Choose the yearly **Professional** plan and complete the activation process. The 100% education discount applies to this yearly plan.
+
+Please note:
+
+- Applicants must be at least 18 and be a current student, teacher, or education staff member.
+- A school-issued educational email is required; personal email addresses are not eligible for verification.
+- Eligibility must be verified again each year.
+
+Official guide: https://docs.dify.ai/en/cloud/use-dify/workspace/subscription-management#dify-for-education
+
+Best regards,
+Dify Support Team
+```
+
 ### Request school info
 ⚠️ 需确认: 语气是否合适？
 ```
@@ -198,14 +255,12 @@ Thank you for providing your school information!
 
 We've received your application and have forwarded it to our team for review. We'll get back to you once the verification is complete.
 
-This typically takes 1–3 business days.
 
 Best regards,
 Dify Support Team
 ```
 
 ### Billing guidance (edu badge visible but no discount)
-⚠️ 需确认: 操作路径是否正确？
 ```
 Dear [User's Name / Valued Customer],
 
@@ -213,12 +268,13 @@ Thank you for reaching out!
 
 To apply your education discount, please follow these steps:
 
-1. Go to **Bill** in your Dify dashboard
-2. Select the **Pro** plan
-3. Choose **annual billing** (yearly)
-4. The 100% education discount coupon should appear automatically
+1. Go to **Settings** -> **Billing** in your Dify dashboard.
+2. Select the workspace where you want to use the benefit.
+3. Click **Use education discount**.
+4. Choose the yearly **Professional** plan and complete activation.
+5. The 100% education discount should be applied to that yearly plan.
 
-Please note that the discount only applies to the Pro plan with annual billing. If you've selected monthly billing, the discount will not show.
+Please note that the discount applies only to the yearly Professional plan. It will not appear for monthly billing.
 
 If you've followed these steps and still don't see the discount, please reply and let us know — we'll be happy to investigate further.
 

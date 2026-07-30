@@ -3,7 +3,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from agent.classification import normalize_classification, parse_classification_json, should_auto_close_spam
+from agent.classification import (
+    classify_explicit_education_topic,
+    normalize_classification,
+    parse_classification_json,
+    should_auto_close_spam,
+)
 from agent.routing import decide_initial_route
 
 
@@ -24,6 +29,56 @@ def test_invalid_category_falls_back_to_unclear_low_confidence():
     assert result.confidence == 0.2
     assert result.sender_email == "user@example.com"
 
+def test_explicit_chinese_student_plan_reply_switches_to_education_how_to_apply():
+    result = classify_explicit_education_topic(
+        "請問要使用學生方案，可以怎麼進行呢？",
+        "user@example.com",
+    )
+
+    assert result is not None
+    assert result.category == "education"
+    assert result.sub_type == "how_to_apply"
+    assert result.sender_email == "user@example.com"
+    assert result.confidence == 1.0
+
+
+def test_explicit_education_reply_detects_followup_subtypes():
+    cases = {
+        "My Education Plan verification was rejected.": "rejected",
+        "My Education Plan is verified, but the discount is not showing.": "no_discount",
+        "I want to cancel my student plan.": "cancel_subscription",
+        "I graduated and my student plan school email is no longer accessible.": "email_expired_graduated",
+    }
+
+    for message, expected_sub_type in cases.items():
+        result = classify_explicit_education_topic(message)
+        assert result is not None, message
+        assert result.category == "education"
+        assert result.sub_type == expected_sub_type
+
+
+def test_student_identity_alone_does_not_switch_unrelated_topic_to_education():
+    assert classify_explicit_education_topic(
+        "I am a student and my workflow HTTP node keeps returning 500."
+    ) is None
+
+    assert classify_explicit_education_topic(
+        "I am a student and the account verification code did not arrive."
+    ) is None
+
+def test_education_topic_switch_is_wired_before_existing_state_reply_skip():
+    source = Path("agent/orchestrator.py").read_text(encoding="utf-8")
+    assert "education_topic_switch = education_topic_classification is not None" in source
+    assert "and not education_topic_switch" in source
+    assert "or education_topic_switch" in source
+
+
+def test_existing_education_review_blocks_duplicate_linear_ticket():
+    source = Path("agent/orchestrator.py").read_text(encoding="utf-8")
+    assert "def _blocked_reply_tools" in source
+    assert 'existing_state.step == "forwarded_keep_open" or has_existing_ticket' in source
+    assert 'return {"linear_create_ticket"}' in source
+    assert "tool_blocked_by_reply_policy" in source
 
 def test_spam_category_auto_closes():
     result = normalize_classification({
