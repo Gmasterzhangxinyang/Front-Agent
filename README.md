@@ -290,7 +290,10 @@ CLAUDIA_EMAIL=
 
 DATABASE_URL=sqlite+aiosqlite:///./email_automation.db
 ENABLE_SCHEDULER=true
-OPS_WRITE_SECRET=
+OPS_ADMIN_USERNAME=
+OPS_ADMIN_PASSWORD=
+OPS_SESSION_HOURS=12
+OPS_COOKIE_SECURE=false
 PORT=8000
 ```
 
@@ -301,12 +304,14 @@ set `ALLOW_UNSIGNED_FRONT_WEBHOOKS=true`; never enable it in production.
 hosts used by the deployment. Attachment count, byte, and text limits bound
 memory use and model prompt growth.
 
-`OPS_WRITE_SECRET` enables authenticated Ops mutations. The
-`DELETE /ops/api/sybil/{id}` endpoint changes only a `pending` notification to
-`dismissed`; it does not delete the database row, `sent` rows are immutable, and dismissed
-rows remain visible for audit. The digest atomically claims pending rows as
-`sending`, so an in-flight send cannot be reported as dismissed. The Ops page
-keeps the entered secret only in page memory. Use HTTPS for remote access.
+`OPS_ADMIN_USERNAME` and `OPS_ADMIN_PASSWORD` are required at startup and
+protect the entire Ops page and every `/ops/api/*` data endpoint. Successful
+login creates a process-local, revocable HttpOnly session with the lifetime set
+by `OPS_SESSION_HOURS`. Set `OPS_COOKIE_SECURE=true` only when Ops is served
+through HTTPS. Mutations also require the same-origin `X-Ops-Request` header.
+The education exception dismissal changes only a `pending` row to `dismissed`;
+`sent` rows remain immutable and dismissed rows remain visible for audit.
+Use HTTPS for any remote login so credentials are not transmitted in plaintext.
 
 See [Runtime Security and Retry Boundaries](docs/runtime-boundaries.md) for
 deployment checks, failure semantics, and the exact verification commands.
@@ -337,6 +342,7 @@ Run before commit/deploy:
 .venv/bin/python tests/test_linear_ticket_deduplication.py
 .venv/bin/python tests/test_runtime_boundaries.py
 .venv/bin/python tests/test_ops_sybil_dismissal.py
+.venv/bin/python tests/test_ops_auth.py
 .venv/bin/python tests/test_ops_data_quality.py
 .venv/bin/python tests/test_routing.py
 .venv/bin/python tests/test_skills.py
@@ -354,6 +360,6 @@ smoke test; the repository suite does not call Front or the configured LLM.
 - Do not commit `.env`, SQLite DB files, screen logs, virtualenvs, or generated caches.
 - `screenlog.*` is runtime log output, not source.
 - Production state should use a persistent SQLite path or external DB.
-- Ops dashboard is available at `/ops` and reads existing processing state. Its overview separates actionable failures and queues from historical data gaps, and reports 30-day sender/summary coverage instead of presenting missing values as live facts. Its only operator write is authenticated soft dismissal of pending Sybil queue records. It does not edit skills or send customer messages. Use ENABLE_SCHEDULER=false for local UI-only previews next to a running production instance.
+- Ops dashboard is available at `/ops` only after administrator login. The same session protects every Ops API, and mutations additionally require a same-origin write header. Its overview separates actionable failures and queues from historical data gaps. It does not edit skills or send customer messages.
 - Every 15 minutes, at most 20 missing conversation rows are enriched from Front, with actionable rows first and a 60-second run limit. The job only fills blank original sender and subject-derived summary fields, preserves the business activity timestamp, and never overwrites existing values.
 - Ops report snapshots are generated once when the scheduler starts, then every 3 hours. Each run stores both `daily` and `monthly` reports in `ops_reports`; the dashboard reads the latest snapshot for the selected period.

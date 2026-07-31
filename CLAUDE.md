@@ -75,7 +75,7 @@ FastAPI app that receives Front webhook events, classifies emails with an OpenAI
 - Front attachment credentials are sent only to exact HTTPS hosts in `FRONT_ATTACHMENT_ALLOWED_HOSTS`.
 - Attachment count, bytes per file, and extracted text are bounded by settings.
 - Unexpected handler failures return HTTP 503, are not recorded in `webhook_events`, and remain queued for internal recovery; `failed_needs_review` can re-enter classification on retry.
-- `OPS_WRITE_SECRET` protects Ops mutations. Sybil dismissal changes only `pending` to `dismissed`, retains the row and audit action, and must use HTTPS remotely.
+- `OPS_ADMIN_USERNAME` and `OPS_ADMIN_PASSWORD` protect the full Ops UI/API with revocable sessions; mutations also require a same-origin write header. Use HTTPS remotely and set `OPS_COOKIE_SECURE=true`.
 - The digest claims pending Sybil rows as `sending` before network I/O, so in-flight sends cannot be reported as dismissed.
 - Operational details and deploy checks are in `docs/runtime-boundaries.md`.
 - Billing multi-turn handling is limited to `billing/invoice` at `awaiting_credit_note_confirmation`: an explicit second customer confirmation that they want a Credit Note adds only the approved internal Elsie comment, with no assignment, ticket, Ops queue, or billing-provider action.
@@ -89,6 +89,7 @@ Run all standalone checks before commit or deploy:
 .venv/bin/python tests/test_linear_ticket_deduplication.py
 .venv/bin/python tests/test_runtime_boundaries.py
 .venv/bin/python tests/test_ops_sybil_dismissal.py
+.venv/bin/python tests/test_ops_auth.py
 .venv/bin/python tests/test_ops_data_quality.py
 .venv/bin/python tests/test_routing.py
 .venv/bin/python tests/test_skills.py
@@ -100,4 +101,4 @@ git diff --check
 
 ## Environment variables (set in .env)
 
-`FRONT_API_TOKEN`, `FRONT_WEBHOOK_SECRET`, `ALLOW_UNSIGNED_FRONT_WEBHOOKS`, `FRONT_ATTACHMENT_ALLOWED_HOSTS`, `MAX_ATTACHMENT_COUNT`, `MAX_ATTACHMENT_BYTES`, `MAX_ATTACHMENT_TEXT_CHARS`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `MINIMAX_API_KEY`, `MINIMAX_BASE_URL`, `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, `FEISHU_SYBIL_OPEN_ID`, `FEISHU_EDUCATION_GROUP_CHAT_ID`, `FEISHU_WEBHOOK_BOBBY`, `LINEAR_API_KEY`, `LINEAR_TEAM_ID`, `LINEAR_CUS_PROJECT_ID`, `OPS_WRITE_SECRET`, `PORT`
+`FRONT_API_TOKEN`, `FRONT_WEBHOOK_SECRET`, `ALLOW_UNSIGNED_FRONT_WEBHOOKS`, `FRONT_ATTACHMENT_ALLOWED_HOSTS`, `MAX_ATTACHMENT_COUNT`, `MAX_ATTACHMENT_BYTES`, `MAX_ATTACHMENT_TEXT_CHARS`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `MINIMAX_API_KEY`, `MINIMAX_BASE_URL`, `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, `FEISHU_SYBIL_OPEN_ID`, `FEISHU_EDUCATION_GROUP_CHAT_ID`, `FEISHU_WEBHOOK_BOBBY`, `LINEAR_API_KEY`, `LINEAR_TEAM_ID`, `LINEAR_CUS_PROJECT_ID`, `OPS_ADMIN_USERNAME`, `OPS_ADMIN_PASSWORD`, `OPS_SESSION_HOURS`, `OPS_COOKIE_SECURE`, `PORT`

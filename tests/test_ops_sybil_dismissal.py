@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from config import settings
 from database import Base
 from models import ConversationAction, SybilNotification
 import routes.ops as ops_module
@@ -47,75 +46,12 @@ async def _insert_notification(sessions, *, status="pending", error=""):
         return item.id
 
 
-def test_missing_server_secret_disables_dismissal():
-    async def call():
-        with patch.object(settings, "ops_write_secret", ""):
-            await ops_module.dismiss_sybil_notification(1, "anything")
-
-    try:
-        asyncio.run(call())
-    except HTTPException as exc:
-        assert exc.status_code == 503
-    else:
-        raise AssertionError("missing server secret must disable Ops writes")
-
-
-def test_missing_request_header_does_not_mutate_pending_row():
-    async def case(sessions):
-        item_id = await _insert_notification(sessions)
-        with patch.object(settings, "ops_write_secret", "correct"):
-            try:
-                await ops_module.dismiss_sybil_notification(item_id, None)
-            except HTTPException as exc:
-                assert exc.status_code == 403
-            else:
-                raise AssertionError("missing write secret must be rejected")
-        async with sessions() as db:
-            assert (await db.get(SybilNotification, item_id)).status == "pending"
-
-    asyncio.run(_with_database(case))
-
-
-def test_wrong_secret_does_not_mutate_pending_row():
-    async def case(sessions):
-        item_id = await _insert_notification(sessions)
-        with patch.object(settings, "ops_write_secret", "correct"):
-            try:
-                await ops_module.dismiss_sybil_notification(item_id, "wrong")
-            except HTTPException as exc:
-                assert exc.status_code == 403
-            else:
-                raise AssertionError("wrong write secret must be rejected")
-        async with sessions() as db:
-            assert (await db.get(SybilNotification, item_id)).status == "pending"
-
-    asyncio.run(_with_database(case))
-
-
-def test_non_ascii_secret_header_is_rejected_without_server_error():
-    async def case(sessions):
-        item_id = await _insert_notification(sessions)
-        with patch.object(settings, "ops_write_secret", "correct"):
-            try:
-                await ops_module.dismiss_sybil_notification(item_id, "错误")
-            except HTTPException as exc:
-                assert exc.status_code == 403
-            else:
-                raise AssertionError("non-ASCII write secret must be rejected")
-
-        async with sessions() as db:
-            item = await db.get(SybilNotification, item_id)
-            assert item.status == "pending"
-
-    asyncio.run(_with_database(case))
-
 
 def test_pending_row_is_retained_as_dismissed_with_one_audit_action():
     async def case(sessions):
         item_id = await _insert_notification(sessions)
-        with patch.object(settings, "ops_write_secret", "correct"):
-            response = await ops_module.dismiss_sybil_notification(item_id, "correct")
-            repeated = await ops_module.dismiss_sybil_notification(item_id, "correct")
+        response = await ops_module.dismiss_sybil_notification(item_id)
+        repeated = await ops_module.dismiss_sybil_notification(item_id)
 
         assert response["item"]["status"] == "dismissed"
         assert repeated["item"]["status"] == "dismissed"
@@ -142,13 +78,12 @@ def test_pending_row_is_retained_as_dismissed_with_one_audit_action():
 def test_sent_row_cannot_be_dismissed():
     async def case(sessions):
         item_id = await _insert_notification(sessions, status="sent")
-        with patch.object(settings, "ops_write_secret", "correct"):
-            try:
-                await ops_module.dismiss_sybil_notification(item_id, "correct")
-            except HTTPException as exc:
-                assert exc.status_code == 409
-            else:
-                raise AssertionError("sent notification must be immutable")
+        try:
+            await ops_module.dismiss_sybil_notification(item_id)
+        except HTTPException as exc:
+            assert exc.status_code == 409
+        else:
+            raise AssertionError("sent notification must be immutable")
         async with sessions() as db:
             assert (await db.get(SybilNotification, item_id)).status == "sent"
 
@@ -157,13 +92,12 @@ def test_sent_row_cannot_be_dismissed():
 
 def test_unknown_notification_returns_404():
     async def case(_sessions):
-        with patch.object(settings, "ops_write_secret", "correct"):
-            try:
-                await ops_module.dismiss_sybil_notification(999, "correct")
-            except HTTPException as exc:
-                assert exc.status_code == 404
-            else:
-                raise AssertionError("unknown notification must return 404")
+        try:
+            await ops_module.dismiss_sybil_notification(999)
+        except HTTPException as exc:
+            assert exc.status_code == 404
+        else:
+            raise AssertionError("unknown notification must return 404")
 
     asyncio.run(_with_database(case))
 
@@ -194,14 +128,13 @@ def test_digest_claim_prevents_successful_dismiss_during_send():
             assert sending_item["status"] == "sending"
             assert sending_item["error"] == ""
 
-            with patch.object(settings, "ops_write_secret", "correct"):
-                try:
-                    await ops_module.dismiss_sybil_notification(item_id, "correct")
-                except HTTPException as exc:
-                    assert exc.status_code == 409
-                    dismissed_during_send = False
-                else:
-                    dismissed_during_send = True
+            try:
+                await ops_module.dismiss_sybil_notification(item_id)
+            except HTTPException as exc:
+                assert exc.status_code == 409
+                dismissed_during_send = False
+            else:
+                dismissed_during_send = True
 
             release_send.set()
             result = await asyncio.wait_for(digest_task, timeout=1)
@@ -284,17 +217,6 @@ def test_digest_still_selects_pending_notifications_only():
     assert 'PENDING = "pending"' in source
 
 
-def test_ops_ui_keeps_secret_in_memory_and_only_pending_rows_are_actionable():
-    source = Path("routes/static/ops.html").read_text()
-    assert "let opsWriteSecret=''" in source
-    assert "X-Ops-Write-Secret" in source
-    assert "sessionStorage.setItem" not in source
-    assert "localStorage.setItem('ops_write" not in source
-    assert "item.status==='pending'" in source
-    assert "dismissSybil" in source
-    assert "window.confirm" in source
-    assert "window.prompt" in source
-    assert "method:'DELETE'" in source
 
 
 def run_all():

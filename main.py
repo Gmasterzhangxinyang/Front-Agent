@@ -9,6 +9,7 @@ from webhooks.front_webhook import (
     validate_webhook_security_config,
 )
 from routes.ops import router as ops_router
+from services.ops_auth import validate_ops_auth_config
 from tasks.scheduler import start_scheduler, stop_scheduler
 
 logging.basicConfig(
@@ -21,6 +22,7 @@ logging.basicConfig(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     validate_webhook_security_config()
+    validate_ops_auth_config()
     await init_db()
     try:
         if settings.enable_scheduler:
@@ -32,6 +34,25 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Dify Email Automation", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def add_ops_security_headers(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/ops"):
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+            "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; "
+            "form-action 'self'"
+        )
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+    return response
+
+
 app.include_router(webhook_router)
 app.include_router(ops_router)
 

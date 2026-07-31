@@ -83,8 +83,11 @@ class Settings(BaseSettings):
     # Scheduler runs production background jobs. Disable only for local UI previews.
     enable_scheduler: bool = True
 
-    # Shared secret for authenticated Ops mutations. Read-only routes stay open.
-    ops_write_secret: str = ""
+    # Ops dashboard login. Keep the password in environment configuration only.
+    ops_admin_username: str = ""
+    ops_admin_password: str = ""
+    ops_session_hours: int = 12
+    ops_cookie_secure: bool = False
 
     class Config:
         env_file = ".env"

@@ -1,12 +1,12 @@
-import hmac
 import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import case, func, or_, select, update
 
 from config import settings
@@ -20,6 +20,7 @@ from models import (
     WebhookInbox,
 )
 from services.draft_adoption import draft_adoption_metrics, refresh_draft_adoptions
+from services import ops_auth
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -30,15 +31,32 @@ REPORT_PERIODS = {"daily": 1, "weekly": 7, "monthly": 30}
 REPORT_INTERVAL_HOURS = 3
 
 
-def _require_ops_write_secret(provided: str | None) -> None:
-    configured = settings.ops_write_secret
-    if not configured:
-        raise HTTPException(status_code=503, detail="Ops write operations are disabled")
-    if not provided or not hmac.compare_digest(
-        provided.encode("utf-8"),
-        configured.encode("utf-8"),
-    ):
-        raise HTTPException(status_code=403, detail="Invalid Ops write secret")
+class OpsLoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=256)
+    password: str = Field(min_length=1, max_length=256)
+
+
+def _session_token(request: Request) -> str:
+    return request.cookies.get(ops_auth.SESSION_COOKIE_NAME, "")
+
+
+def _require_ops_session(request: Request) -> None:
+    if not ops_auth.session_valid(_session_token(request)):
+        raise HTTPException(status_code=401, detail="Ops login required")
+
+
+def _require_ops_write_request(request: Request) -> None:
+    if request.headers.get("X-Ops-Request") != "1":
+        raise HTTPException(status_code=403, detail="Invalid Ops write request")
+
+
+def _client_key(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+protected_router = APIRouter(
+    dependencies=[Depends(_require_ops_session)],
+)
 
 
 def _iso(value: datetime | None) -> str | None:
@@ -449,12 +467,71 @@ def _build_report_analysis(
 
 
 
+@router.get("/ops/login")
+async def ops_login_page(request: Request):
+    if ops_auth.session_valid(_session_token(request)):
+        return RedirectResponse("/ops", status_code=303)
+    return FileResponse(STATIC_DIR / "ops_login.html")
+
+
+@router.post("/ops/api/login")
+async def ops_login(credentials: OpsLoginRequest, request: Request):
+    client_key = _client_key(request)
+    retry_after = ops_auth.login_retry_after(client_key)
+    if retry_after:
+        raise HTTPException(
+            status_code=429,
+            detail="登录尝试过多，请稍后再试。",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    if not ops_auth.credentials_valid(
+        credentials.username,
+        credentials.password,
+    ):
+        ops_auth.record_failed_login(client_key)
+        raise HTTPException(status_code=401, detail="用户名或密码错误。")
+
+    ops_auth.clear_failed_logins(client_key)
+    token = ops_auth.create_session()
+    response = JSONResponse({"ok": True})
+    response.set_cookie(
+        key=ops_auth.SESSION_COOKIE_NAME,
+        value=token,
+        max_age=ops_auth.session_max_age_seconds(),
+        path="/ops",
+        secure=settings.ops_cookie_secure,
+        httponly=True,
+        samesite="strict",
+    )
+    return response
+
+
+@protected_router.post(
+    "/ops/api/logout",
+    dependencies=[Depends(_require_ops_write_request)],
+)
+async def ops_logout(request: Request):
+    ops_auth.revoke_session(_session_token(request))
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(
+        key=ops_auth.SESSION_COOKIE_NAME,
+        path="/ops",
+        secure=settings.ops_cookie_secure,
+        httponly=True,
+        samesite="strict",
+    )
+    return response
+
+
 @router.get("/ops")
-async def ops_page():
+async def ops_page(request: Request):
+    if not ops_auth.session_valid(_session_token(request)):
+        return RedirectResponse("/ops/login", status_code=303)
     return FileResponse(STATIC_DIR / "ops.html")
 
 
-@router.get("/ops/api/summary")
+@protected_router.get("/ops/api/summary")
 async def ops_summary():
     now = datetime.utcnow()
     cutoff = now - timedelta(hours=24)
@@ -1005,7 +1082,7 @@ async def generate_all_ops_reports() -> None:
         await generate_ops_report(period)
 
 
-@router.get("/ops/api/report")
+@protected_router.get("/ops/api/report")
 async def ops_report(period: str = "daily", fresh: bool = False):
     if period not in REPORT_PERIODS:
         raise HTTPException(status_code=400, detail="period must be daily, weekly, or monthly")
@@ -1035,7 +1112,10 @@ async def ops_report(period: str = "daily", fresh: bool = False):
         return payload
 
 
-@router.post("/ops/api/draft-adoption/refresh")
+@protected_router.post(
+    "/ops/api/draft-adoption/refresh",
+    dependencies=[Depends(_require_ops_write_request)],
+)
 async def refresh_draft_adoption(days: int = Query(default=7, ge=1, le=30), limit: int = Query(default=80, ge=1, le=300), force: bool = False):
     since = datetime.utcnow() - timedelta(days=days)
     async with AsyncSessionLocal() as db:
@@ -1044,7 +1124,7 @@ async def refresh_draft_adoption(days: int = Query(default=7, ge=1, le=30), limi
         return {"window_days": days, "refresh": result, "draft_adoption": metrics}
 
 
-@router.get("/ops/api/conversations")
+@protected_router.get("/ops/api/conversations")
 async def list_conversations(
     limit: int = Query(default=80, ge=1, le=300),
     status: str = "all",
@@ -1074,7 +1154,7 @@ async def list_conversations(
         return {"items": items, "count": len(items)}
 
 
-@router.get("/ops/api/conversations/{conversation_id}")
+@protected_router.get("/ops/api/conversations/{conversation_id}")
 async def conversation_detail(conversation_id: str):
     async with AsyncSessionLocal() as db:
         state_result = await db.execute(
@@ -1101,7 +1181,7 @@ async def conversation_detail(conversation_id: str):
         }
 
 
-@router.get("/ops/api/actions")
+@protected_router.get("/ops/api/actions")
 async def list_actions(limit: int = Query(default=100, ge=1, le=300)):
     async with AsyncSessionLocal() as db:
         result = await db.execute(
@@ -1111,7 +1191,7 @@ async def list_actions(limit: int = Query(default=100, ge=1, le=300)):
         return {"items": items, "count": len(items)}
 
 
-@router.get("/ops/api/sybil")
+@protected_router.get("/ops/api/sybil")
 async def list_sybil(status: str = "", limit: int = Query(default=100, ge=1, le=300)):
     async with AsyncSessionLocal() as db:
         query = select(SybilNotification).order_by(SybilNotification.created_at.desc()).limit(limit)
@@ -1122,15 +1202,13 @@ async def list_sybil(status: str = "", limit: int = Query(default=100, ge=1, le=
         return {"items": items, "count": len(items)}
 
 
-@router.delete("/ops/api/sybil/{notification_id}")
+@protected_router.delete(
+    "/ops/api/sybil/{notification_id}",
+    dependencies=[Depends(_require_ops_write_request)],
+)
 async def dismiss_sybil_notification(
     notification_id: int,
-    x_ops_write_secret: str | None = Header(
-        default=None,
-        alias="X-Ops-Write-Secret",
-    ),
 ):
-    _require_ops_write_secret(x_ops_write_secret)
 
     async with AsyncSessionLocal() as db:
         item = await db.get(SybilNotification, notification_id)
@@ -1177,3 +1255,6 @@ async def dismiss_sybil_notification(
         await db.commit()
         await db.refresh(item)
         return {"item": _sybil_to_dict(item)}
+
+
+router.include_router(protected_router)

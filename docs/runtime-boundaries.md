@@ -150,16 +150,27 @@ logged and isolated per conversation. Ops maintenance jobs are serialized,
 and both metadata and draft-adoption refreshes close SQLite read transactions
 before calling Front so provider latency does not hold a database lock.
 
+## Ops Authentication
+
+The full `/ops` page and every `/ops/api/*` data route require an administrator
+session. Login credentials come from `OPS_ADMIN_USERNAME` and
+`OPS_ADMIN_PASSWORD`; successful login creates a process-local, revocable
+HttpOnly cookie with `SameSite=Strict`. Mutations additionally require the
+`X-Ops-Request: 1` header. Use HTTPS for remote access and enable
+`OPS_COOKIE_SECURE=true` behind TLS. Five failed logins from one client within
+five minutes temporarily block further attempts.
+
 ## Deploy Checklist
 
 1. Set `FRONT_WEBHOOK_SECRET` in the deployment environment.
 2. Keep `ALLOW_UNSIGNED_FRONT_WEBHOOKS=false` in production.
 3. Confirm every required attachment hostname is explicitly allowlisted.
 4. Review count, byte, and text limits for the deployment's expected traffic.
-5. Run the verification commands below before restarting the service.
-6. Stop the old process gracefully and allow up to 60 seconds for active scheduler jobs to finish.
-7. Send one signed test webhook and confirm `/health` and service logs after deployment.
-8. Monitor `dead_letter`, `failed_needs_review`, and provider-side duplicate writes; Front Rule Webhooks do not automatically retry failed deliveries.
+5. Configure Ops admin credentials and use HTTPS with secure cookies remotely.
+6. Run the verification commands below before restarting the service.
+7. Stop the old process gracefully and allow up to 60 seconds for active scheduler jobs to finish.
+8. Send one signed test webhook and confirm `/health` and service logs after deployment.
+9. Monitor `dead_letter`, `failed_needs_review`, and provider-side duplicate writes; Front Rule Webhooks do not automatically retry failed deliveries.
 
 ## Verification
 
@@ -170,6 +181,7 @@ The repository tests are standalone Python scripts; `pytest` is not required.
 .venv/bin/python tests/test_linear_ticket_deduplication.py
 .venv/bin/python tests/test_runtime_boundaries.py
 .venv/bin/python tests/test_ops_sybil_dismissal.py
+.venv/bin/python tests/test_ops_auth.py
 .venv/bin/python tests/test_ops_data_quality.py
 .venv/bin/python tests/test_routing.py
 .venv/bin/python tests/test_skills.py
