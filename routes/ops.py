@@ -1038,6 +1038,8 @@ async def _build_ops_report_payload(period: str, db) -> dict[str, Any]:
         "attention_rate": _rate(current_attention, total_tracked),
         "failure_rate_period": _rate(failed_updated, updated),
         "draft_direct_adoption_rate": draft_adoption["direct_adoption_rate"],
+        "draft_response_detected_rate": draft_adoption["response_detected_rate"],
+        "draft_handled_rate": draft_adoption["handled_rate"],
         "draft_sent_or_replied_rate": draft_adoption["sent_or_replied_rate"],
     }
     by_category = _rows_to_dict(category_rows.all())

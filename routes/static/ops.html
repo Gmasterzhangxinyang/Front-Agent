@@ -294,12 +294,12 @@ function renderMetrics(){const m=state.summary.metrics||{};const da=state.summar
 ['待处理',m.attention_count||0,`${m.failed_count||0} 失败 · ${m.stale_waiting_count||0} 超时等待`],
 ['Webhook',m.webhook_queue_count||0,`${m.webhook_dead_letter_count||0} 死信 · ${m.webhooks_24h||0} 今日处理`],
 ['教育异常待发送',m.pending_sybil_count||0,`${state.summary.sybil_by_status?.sent||0} 已发送`],
-['草稿采用率',pct(da.direct_adoption_rate),`${da.exact_adopted||0}/${da.eligible_drafts||0} 原样采用`]
+['草稿原样采用率',pct(da.direct_adoption_rate),`${da.exact_adopted||0}/${da.responded_drafts||0} 个已检测回复`]
 ]:[
 ['Needs action',m.attention_count||0,`${m.failed_count||0} failed · ${m.stale_waiting_count||0} stale`],
 ['Webhook',m.webhook_queue_count||0,`${m.webhook_dead_letter_count||0} dead · ${m.webhooks_24h||0} today`],
 ['Education exceptions',m.pending_sybil_count||0,`${state.summary.sybil_by_status?.sent||0} sent`],
-['Draft adoption',pct(da.direct_adoption_rate),`${da.exact_adopted||0}/${da.eligible_drafts||0} exact`]
+['Exact draft adoption',pct(da.direct_adoption_rate),`${da.exact_adopted||0}/${da.responded_drafts||0} detected responses`]
 ];$('metrics').innerHTML=items.map(([label,value,note])=>`<div class="metric"><div class="metric-label">${esc(label)}</div><div class="metric-value">${esc(value)}</div><div class="metric-note">${esc(note)}</div></div>`).join('');}
 function renderOperationalFocus(){const zh=state.lang==='zh';const summary=state.summary||{};const health=summary.automation_health||{};const data=summary.data_health||{};$('priority-title').textContent=zh?'优先处理':'Priority queue';$('priority-sub').textContent=zh?`${summary.metrics?.attention_count||0} 个会话需要人工处理，失败项优先`:`${summary.metrics?.attention_count||0} conversations need action, failures first`;renderPriorityTable((summary.priority_items||[]).slice(0,8));$('automation-title').textContent=zh?'系统状态':'System health';$('automation-sub').textContent=zh?'只显示会影响处理的运行信号':'Runtime signals that affect processing';const inbox=health.webhook_inbox_by_status||{};const healthRows=zh?[
 ['调度器',summary.service?.scheduler_running?'运行中':'未运行',summary.service?.scheduler_running?'ok':'bad'],
@@ -329,14 +329,14 @@ function renderReport(){const r=state.report||{};const m=r.metrics||{};$('report
 ['Webhook',m.webhooks_processed||0,'窗口内处理'],
 ['动作',m.actions_logged||0,'去重后记录'],
 ['草稿',m.drafts||0,`${m.handoffs||0} 转交 · ${m.tickets||0} 工单`],
-['原样采用率',pct(m.draft_direct_adoption_rate),'已发送草稿'],
+['原样采用率',pct(m.draft_direct_adoption_rate),'仅统计已检测到回复的草稿'],
 ['当前待处理',m.current_attention||0,`${m.current_failed||0} 失败`]
 ]:[
 ['Updated',m.updated_conversations||0,`${m.new_state_rows||0} new`],
 ['Webhooks',m.webhooks_processed||0,'processed in window'],
 ['Actions',m.actions_logged||0,'deduplicated'],
 ['Drafts',m.drafts||0,`${m.handoffs||0} handoffs · ${m.tickets||0} tickets`],
-['Direct adoption',pct(m.draft_direct_adoption_rate),'sent drafts'],
+['Direct adoption',pct(m.draft_direct_adoption_rate),'drafts with detected responses only'],
 ['Needs action',m.current_attention||0,`${m.current_failed||0} failed`]
 ];$('report-cards').innerHTML=cards.map(([label,value,note])=>`<div class="report-card"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div><div class="note">${esc(note)}</div></div>`).join('');$('report-note').textContent=trText(r.source_note||'');renderAnalysis(r.analysis||{});renderConversationTable('report-attention-table',(r.attention_items||[]).slice(0,12));}
 function renderAnalysis(analysis){const summaries=(analysis.executive_summary||[]).slice(0,3);$('analysis-summary').innerHTML=summaries.length?summaries.map(item=>`<li>${esc(trText(item))}</li>`).join(''):`<li>${t('noAnalysis')}</li>`;renderDecisionPoints((analysis.decision_points||[]).slice(0,3));const actions=(analysis.recommended_actions||[]).slice(0,5);$('recommended-actions').innerHTML=actions.length?actions.map(item=>`<li>${esc(trText(item))}</li>`).join(''):`<li>${t('noRecommended')}</li>`;}

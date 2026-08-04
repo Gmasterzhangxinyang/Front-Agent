@@ -132,6 +132,15 @@ async def get_conversation_messages(conversation_id: str) -> list[dict]:
     return r.json().get("_results", [])
 
 
+async def get_conversation_comments(conversation_id: str) -> list[dict]:
+    r = await front_request(
+        "GET",
+        f"{BASE_URL}/conversations/{conversation_id}/comments",
+    )
+    r.raise_for_status()
+    return r.json().get("_results", [])
+
+
 async def get_conversation(conversation_id: str) -> dict:
     r = await front_request("GET", f"{BASE_URL}/conversations/{conversation_id}")
     r.raise_for_status()
