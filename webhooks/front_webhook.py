@@ -8,6 +8,10 @@ from sqlalchemy import select
 from database import AsyncSessionLocal
 from models import WebhookEvent
 from agent.orchestrator import handle_email
+from agent.message_identity import (
+    external_sender_email,
+    is_external_inbound_message,
+)
 from config import settings
 from services.webhook_inbox import (
     claim_webhook,
@@ -62,15 +66,7 @@ ALLOWED_INBOX_IDS = {"inb_f9fvf"}  # Support only
 
 
 def _is_processable_inbound_message(message: dict) -> bool:
-    if not message:
-        return False
-    if message.get("is_draft") is True:
-        return False
-    if message.get("type") == "comment":
-        return False
-    if message.get("is_inbound") is False:
-        return False
-    return bool(message.get("text") or message.get("body") or message.get("attachments"))
+    return is_external_inbound_message(message)
 
 
 @router.post("/webhook/front")
@@ -257,8 +253,7 @@ async def _process_front_webhook_event(payload: dict, event_id: str | None, conv
             return {"status": "ignored", "reason": "not inbound user message"}
 
         message_body = message.get("text") or message.get("body") or ""
-        sender = message.get("from") or {}
-        sender_email = sender.get("handle") or sender.get("email") or ""
+        sender_email = external_sender_email(message)
         attachments = message.get("attachments") or []
 
         # Check which inboxes this conversation is in - must be in Support/Hello inboxes

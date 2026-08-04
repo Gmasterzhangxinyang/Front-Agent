@@ -79,6 +79,25 @@ This is blocking our production workflow.
 Current Plan: team
 ```
 
+### TECH-05 Premium multi-AZ Active-Active (Japan)
+
+Expected: `technical/self_hosted`, create a Japanese Front draft that states the custom dual-AZ Active-Active topology differs from the standard AWS Marketplace one-click Premium deployment, its engineering complexity and possible implementation issues cannot be predicted, and the approach is not recommended. Recommend Enterprise and ask for consent to connect the customer with the Japan sales team. Do not provide configuration steps or claim the inquiry was already forwarded. Keep open.
+
+```text
+Subject: AWS Dify PremiumのマルチAZ Active-Active構成について
+From: test-premium-ha@example.co.jp
+
+お世話になっております。
+
+現在、AWS Marketplaceで購入したDify Premiumを利用しています。
+高可用性と性能要件に対応するため、東京リージョンの2つのAZにDify Premiumを配置し、ALB配下でActive-Active構成にすることを検討しています。
+2台のサーバーは、同じS3、RDS for PostgreSQL、ElastiCache for Redisを共有する予定です。
+
+この構成が標準サポートの対象になるか、また必要な設定を教えてください。
+難しい場合はEnterpriseも検討したいと考えています。
+```
+
+
 ## Account
 
 ### ACC-01 cant_login paid user
@@ -410,7 +429,33 @@ What is the difference between Pro and Team?
 We are a small team of 6 people and want to know which plan to buy.
 ```
 
-### PUR-03 promo_code
+### PUR-03 premium
+
+Expected: `purchase/premium`, create a Premium introduction draft that positions Premium for AWS POC use, recommends Enterprise for demanding production use, and asks for the customer's country or region if they want an Enterprise introduction. Keep open.
+
+```text
+Subject: Is Dify Premium suitable for production?
+From: test-premium@example.com
+
+Hello,
+
+We are considering Dify Premium. Is it intended for an AWS proof of concept, or would it also be the right choice for a high-concurrency production deployment used by several teams?
+```
+
+### PUR-04 premium Japan
+
+Expected: `purchase/premium`, create a localized Premium introduction draft and ask for consent to share the inquiry with and connect the customer to the Japan sales team. Do not claim the inquiry was already forwarded. Keep open.
+
+```text
+Subject: Dify Premium について
+From: test-premium@example.co.jp
+
+こんにちは。
+
+日本の社内で Dify Premium を AWS に導入することを検討しています。Premium と Enterprise のどちらが適しているか教えてください。
+```
+
+### PUR-05 promo_code
 
 Expected: `purchase/promo_code`, create no-promo-code draft, keep open.
 
@@ -423,7 +468,7 @@ Hi,
 Do you have any discount code or Black Friday coupon for the Pro plan?
 ```
 
-### PUR-04 reseller
+### PUR-06 reseller
 
 Expected: `purchase/reseller` or `partnership/partnership`; should forward original thread to `marketing@dify.ai`, keep open. A draft may be created only if purchase skill handles it.
 

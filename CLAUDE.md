@@ -71,6 +71,7 @@ FastAPI app that receives Front webhook events, classifies emails with an OpenAI
 
 - `FRONT_WEBHOOK_SECRET` is required at startup by default.
 - `ALLOW_UNSIGNED_FRONT_WEBHOOKS=true` is permitted only for local fixtures.
+- Front messages authored or sent by `@dify.ai` identities are internal traffic, even when Front marks an internally forwarded message as inbound; they must not enter the customer reply flow.
 - LLM-originated tool calls are schema validated; trusted conversation and sender context override model values.
 - Front attachment credentials are sent only to exact HTTPS hosts in `FRONT_ATTACHMENT_ALLOWED_HOSTS`.
 - Attachment count, bytes per file, and extracted text are bounded by settings.
@@ -86,6 +87,7 @@ Run all standalone checks before commit or deploy:
 
 ```bash
 .venv/bin/python tests/test_webhook_recovery.py
+.venv/bin/python tests/test_internal_forward_loop.py
 .venv/bin/python tests/test_linear_ticket_deduplication.py
 .venv/bin/python tests/test_runtime_boundaries.py
 .venv/bin/python tests/test_ops_sybil_dismissal.py

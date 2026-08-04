@@ -19,6 +19,7 @@ from agent.classification import (
 )
 from agent.llm_client import chat_completion_kwargs, make_async_openai_client
 from agent.routing import RouteDecision, decide_initial_route
+from agent.message_identity import conversation_message_role
 from agent.tool_registry import (
     TOOL_SCHEMAS,
     ToolCallValidationError,
@@ -48,7 +49,11 @@ def load_skill(name: str) -> str:
 def build_conversation_text(messages: list[dict]) -> str:
     parts = []
     for msg in messages:
-        role = "User" if msg.get("type") == "email" and not msg.get("is_draft") else "Support"
+        # Front returns unsent drafts in the message collection. They are not
+        # conversation history and must not be presented to the LLM as sent.
+        if msg.get("is_draft") is True:
+            continue
+        role = conversation_message_role(msg)
         body = msg.get("text") or msg.get("body") or ""
         parts.append(f"[{role}]: {body}")
     return "\n\n---\n\n".join(parts)

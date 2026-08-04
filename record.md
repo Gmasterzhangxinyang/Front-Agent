@@ -160,3 +160,8 @@
 
 ## 2026-07-22
 - [fix] 将 Front 客户草稿和回复中的 Markdown 安全转换为 HTML，使粗体、列表和链接正确渲染（tools/front.py, requirements.txt, tests/test_runtime_boundaries.py）
+
+## 2026-08-04
+- [feat] 新增 Premium 独立咨询话术：说明其基于 Community Edition、主要用于 AWS 一键部署 POC，对大规模生产等场景推荐 Enterprise，并支持普通客户询问国家/地区与日本客户销售转交同意询问（skills/purchase.md, skills/classify.md, sop.md, docs/skill-test-cases.md, tests/test_skills.py）
+- [fix] 修复 Front 内部转发回复被误判为客户新来信并重复生成草稿：根据 author/from/recipients 排除 Dify 内部消息、修正对话角色、忽略未发送草稿，并允许真实外部来信修复被污染的 sender_email（agent/message_identity.py, webhooks/front_webhook.py, agent/orchestrator.py, tools/state.py, tests/test_internal_forward_loop.py, CLAUDE.md）
+- [feat] 新增 Premium 双/多 AZ Active-Active 自定义架构专用话术：明确其不符合 AWS Marketplace 标准一键部署、工程难度和潜在问题无法预估且不建议采用，并为日本客户加入 Enterprise 日本销售对接同意询问及脱敏回归案例（skills/technical.md, skills/purchase.md, skills/classify.md, sop.md, docs/skill-test-cases.md, tests/test_skills.py）

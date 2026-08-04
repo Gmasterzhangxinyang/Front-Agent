@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from agent.message_identity import is_internal_email
 from models import ConversationAction, ConversationState
 
 
@@ -51,10 +52,16 @@ async def set_state(
     state.step = step
     state.payload = payload
     state.waiting_since = datetime.utcnow() if waiting else None
-    # Preserve the original customer sender once known. Front internal forwards
-    # can later make the conversation recipient look like an internal teammate.
-    if sender_email and not state.sender_email:
-        state.sender_email = sender_email
+    # Preserve the original external customer once known. Older records may
+    # contain an internal teammate because Front reports internal forwards as
+    # inbound; a later real customer message is allowed to repair that value.
+    candidate_sender = (sender_email or "").strip()
+    if (
+        candidate_sender
+        and not is_internal_email(candidate_sender)
+        and (not state.sender_email or is_internal_email(state.sender_email))
+    ):
+        state.sender_email = candidate_sender
     await db.commit()
     await db.refresh(state)
     return state

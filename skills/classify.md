@@ -219,6 +219,8 @@ Every example below includes all required fields. Follow this shape exactly. Use
 - Classify Marketplace/plugin/template ecosystem cooperation as `partnership`; that route is forwarded to `marketing@dify.ai` by the system.
 - Words such as `promotion`, `joint promotion`, `推广`, or `联合推广` do not make an email spam when its primary request is to join, list, publish, review, or integrate with the Dify Marketplace/plugin ecosystem.
 - Classify security reports, vulnerabilities, abuse reports, data leaks, hacked accounts with active compromise, or responsible disclosure as `security` unless the primary issue is ordinary account login help.
+- Classify a Premium introduction, pricing, AWS deployment, or Premium-versus-Enterprise fit question as `purchase/premium`. A direct Enterprise sales, demo, quote, or procurement request still takes the `business/enterprise_inquiry` route.
+- Classify an existing Premium customer's implementation, configuration, support-coverage, or feasibility question about a custom self-hosted architecture (including multi-AZ Active-Active) as `technical/self_hosted`. General plan-fit questions remain `purchase/premium`.
 - Use `unclear` when the email lacks enough evidence to choose a route. Do not force a category.
 - `evidence` must contain short non-sensitive phrases that justify the route.
 - `confidence` is for review and evaluation only; do not use a numeric threshold to choose the route.
@@ -234,7 +236,7 @@ Every example below includes all required fields. Follow this shape exactly. Use
 | technical | api_issue | API limits, API key, API usage |
 | technical | outage | Service down, can't access Dify at all |
 | technical | data_privacy | Questions about data storage, training, GDPR |
-| technical | self_hosted | Self-hosted installation/config (non-Premium) |
+| technical | self_hosted | Self-hosted installation/config, including an existing Premium customer's custom deployment architecture |
 | account | cant_login | Can't log in, not receiving verification code |
 | account | delete_account | User wants to delete their account |
 | account | transfer_account | User wants to transfer account to new email |
@@ -243,7 +245,8 @@ Every example below includes all required fields. Follow this shape exactly. Use
 | account | account_hacked | Account compromised, unauthorized access |
 | account | merge_accounts | User wants to merge two accounts |
 | purchase | enterprise | Asking about Enterprise plan |
-| purchase | pro_team | Asking about Pro/Team/Premium pricing |
+| purchase | premium | Asking about the Premium deployment option, pricing, AWS deployment, or whether Premium fits their use case |
+| purchase | pro_team | Asking about Pro/Team pricing |
 | purchase | promo_code | Asking for promo code, discount code, or holiday deals |
 | purchase | reseller | Wants to become reseller or agent |
 | education | how_to_apply | Asking how to apply for, activate, or use the Education Plan/student plan |
@@ -278,6 +281,7 @@ Every example below includes all required fields. Follow this shape exactly. Use
 - Check email body/footer for: `Current Plan: professional` or `Current Plan: team`
 - If found → `is_paid_user: true`
 - If footer says `Current Plan: premium` → `is_premium: true` (self-hosted licensed user)
+- A question about purchasing or evaluating Premium does not by itself make the sender an existing Premium user. Use `is_premium: true` only when the email or footer clearly says Premium is their current plan.
 - If no footer → `is_paid_user: false`, `is_premium: false`
 
 ## Additional Output Fields

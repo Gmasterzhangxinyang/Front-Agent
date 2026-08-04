@@ -103,7 +103,9 @@
 ### 3. 购买 / 询价
 
 - **企业版咨询：** 转发至 business@dify.ai 处理
-- **Pro / Team / Premium 版本咨询：** 引导用户查看 pricing 页面，根据官方文档介绍各计划区别
+- **Premium 版本咨询：** 说明 Premium 是基于 Community Edition、主要面向 AWS 一键部署 POC 的商业化部署选项。如果用于大规模生产、高并发、多团队协作、企业级安全与权限管理，或对稳定性要求较高，建议 Enterprise。有 Enterprise 意向时请用户提供国家或地区；明显日本客户可直接询问是否同意转交并对接日本销售团队
+- **Premium 双/多 AZ Active-Active 自定义架构：** 明确该架构不同于 AWS Marketplace 的标准一键部署，无法预估具体实施的工程难度和潜在问题，因此不建议采用；不要给出环境变量、实施步骤或额外的授权/支持承诺。明显日本客户推荐 Enterprise 后询问是否同意对接日本销售团队
+- **Pro / Team 版本咨询：** 引导用户查看 pricing 页面，根据官方文档介绍各计划区别
 - **Reseller / 代理商咨询：** Front 中将 conversation forward 给赵晗青
 
 ---

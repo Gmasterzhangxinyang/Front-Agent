@@ -297,6 +297,64 @@ def test_technical_support_has_paid_and_non_paid_paths():
         assert expected in text, f"technical.md missing {expected!r}"
 
 
+def test_premium_purchase_guidance_distinguishes_poc_from_enterprise():
+    purchase = _skill_text("purchase")
+    classify = _skill_text("classify")
+
+    for expected in [
+        "commercial deployment option based on Dify Community Edition",
+        "one-click setup for a proof of concept (POC)",
+        "large-scale production environment",
+        "high-concurrency access",
+        "collaboration across multiple teams",
+        "enterprise-grade security management",
+        "access control",
+        "stronger stability requirements",
+        "country or region",
+        "Japan sales team",
+        "Do not say that it has already been forwarded",
+        "Do not forward the conversation to a sales team before the customer provides the requested location or consent",
+    ]:
+        assert expected in purchase, f"purchase.md missing {expected!r}"
+
+    assert "| purchase | premium |" in classify
+    assert "| purchase | pro_team | Asking about Pro/Team pricing |" in classify
+    assert "A question about purchasing or evaluating Premium does not by itself make the sender an existing Premium user" in classify
+
+
+def test_premium_custom_multi_az_active_active_guidance_is_explicit():
+    technical = _skill_text("technical")
+    purchase = _skill_text("purchase")
+    classify = _skill_text("classify")
+
+    for expected in [
+        "Premium custom multi-AZ / Active-Active architecture",
+        "dual-AZ or multi-AZ Active-Active deployment",
+        "current standard one-click Premium deployment on AWS Marketplace",
+        "Dify cannot predict the engineering complexity or issues that may arise during implementation",
+        "this deployment approach is not recommended",
+        "Do not provide environment-variable values, implementation steps, architecture validation",
+        "Japan sales team",
+        "高性能・高可用性要件に対応するため",
+        "具体的な導入時の技術的な難易度や発生し得る問題を事前に予測できず",
+        "この構成での運用は推奨しておりません",
+        "您提到希望通过双 AZ Active-Active 架构部署 Dify Premium",
+        "因此不建议采用该部署方式",
+    ]:
+        assert expected in technical, f"technical.md missing {expected!r}"
+
+    for expected in [
+        "Premium custom multi-AZ / Active-Active architecture",
+        "approved architecture paragraph from `technical.md`",
+        "engineering complexity and possible implementation issues cannot be predicted",
+        "approach is therefore not recommended",
+    ]:
+        assert expected in purchase, f"purchase.md missing {expected!r}"
+
+    assert "multi-AZ Active-Active" in classify
+    assert "General plan-fit questions remain `purchase/premium`" in classify
+
+
 def test_technical_paid_support_keeps_internal_linear_private_and_avoids_checklist():
     text = _skill_text("technical")
     for expected in [

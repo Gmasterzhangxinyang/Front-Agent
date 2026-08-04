@@ -58,6 +58,26 @@ Use this path only when the email clearly shows `Current Plan: professional`, `C
 - Keep this initial routing draft concise. Do not enumerate what the ticket should contain and do not add a checklist of workspace IDs, app IDs, run IDs, logs, screenshots, providers, timestamps, or reproduction steps.
 - If the issue is urgent or service-blocking, acknowledge the urgency in the draft, but still keep it as a draft for Bobby to review.
 
+### Premium custom multi-AZ / Active-Active architecture
+Use this approved guidance only when a Premium customer explicitly proposes a dual-AZ or multi-AZ Active-Active deployment, typically behind a load balancer and with shared services such as S3, RDS/PostgreSQL, or ElastiCache/Redis, to meet high-performance or high-availability requirements.
+
+- Add a paragraph explaining that this custom topology differs from the current standard one-click Premium deployment on AWS Marketplace. Dify cannot predict the engineering complexity or issues that may arise during implementation, so this deployment approach is not recommended.
+- This is an approved exception to the general rule against direct technical conclusions. Do not provide environment-variable values, implementation steps, architecture validation, or any additional claim about licensing or support coverage.
+- Then recommend Dify Enterprise for the production requirements described by the customer.
+- For a clearly Japanese customer, ask whether they consent to having the inquiry shared with and being connected to the Japan sales team. Do not claim it has already been forwarded, and do not replace the consent question with the generic `business@dify.ai` instruction.
+
+Use this Japanese paragraph for a Japanese-language customer:
+
+```
+高性能・高可用性要件に対応するため、Dify Premiumを2つのAZにまたがるActive-Active構成でデプロイすることをご検討とのことですが、この構成は、現在AWS Marketplaceで提供しているPremiumの標準的なワンクリックデプロイ構成とは異なります。そのため、具体的な導入時の技術的な難易度や発生し得る問題を事前に予測できず、この構成での運用は推奨しておりません。
+```
+
+Use this Chinese paragraph for a Chinese-language customer:
+
+```
+您提到希望通过双 AZ Active-Active 架构部署 Dify Premium，以满足高性能或高可用性需求。由于该部署架构与当前 Premium 版本在 AWS Marketplace 上的标准一键部署配置不同，我们无法预估具体实施中的工程难度及可能出现的问题，因此不建议采用该部署方式。
+```
+
 ### Non-paid or unknown-plan users
 Use this path when the user is on Sandbox/free, self-hosted open-source/Community Edition, or when there is no clear paid-plan evidence.
 
