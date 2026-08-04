@@ -34,7 +34,7 @@ PENDING_AFTER_HOURS = 24
 # Start measuring draft adoption from the rollout point; older drafts were not tracked consistently.
 TRACKING_START_AT = datetime(2026, 7, 7, 9, 49, 38)
 WAITING_COMMENT_PATTERN = re.compile(
-    r"(?:\b(?:awaiting|waiting|pending|asking)\b|等待|待确认|确认中|核实中)",
+    r"(?:\b(?:awaiting|waiting|pending|asking|forwarded\s+to)\b|等待|待确认|确认中|核实中|转交)",
     re.IGNORECASE,
 )
 # Historical internal forwards polluted some real customer sender emails with

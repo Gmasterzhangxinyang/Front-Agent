@@ -146,6 +146,20 @@ def test_latest_waiting_comment_keeps_case_out_of_handled_count():
     assert result.status == STATUS_WAITING
 
 
+def test_internal_team_transfer_comment_is_still_waiting():
+    created_at = datetime(2026, 7, 1, 10, 0, 0)
+    result = classify_draft_adoption(
+        text_hash("draft"),
+        created_at,
+        [],
+        comments=[
+            {"posted_at": "2026-07-01T10:10:00", "body": "已转交法务团队"},
+        ],
+        now=created_at + timedelta(hours=25),
+    )
+    assert result.status == STATUS_WAITING
+
+
 def test_workflow_action_after_draft_is_handled_without_send():
     created_at = datetime(2026, 7, 1, 10, 0, 0)
     result = classify_draft_adoption(
