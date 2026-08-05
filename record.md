@@ -166,3 +166,6 @@
 - [fix] 修复 Front 内部转发回复被误判为客户新来信并重复生成草稿：根据 author/from/recipients 排除 Dify 内部消息、修正对话角色、忽略未发送草稿，并允许真实外部来信修复被污染的 sender_email（agent/message_identity.py, webhooks/front_webhook.py, agent/orchestrator.py, tools/state.py, tests/test_internal_forward_loop.py, CLAUDE.md）
 - [feat] 新增 Premium 双/多 AZ Active-Active 自定义架构专用话术：明确其不符合 AWS Marketplace 标准一键部署、工程难度和潜在问题无法预估且不建议采用，并为日本客户加入 Enterprise 日本销售对接同意询问及脱敏回归案例（skills/technical.md, skills/purchase.md, skills/classify.md, sop.md, docs/skill-test-cases.md, tests/test_skills.py）
 - [fix] 完善草稿采纳统计：识别 Front 内部转发线程中的真实人工回复，将评论、工单等工作流处理和等待中会话从“未发送”中分离，持续重算历史 `not_sent`，排除内部测试会话，并将原样采用率限定为已检测到回复的草稿（services/draft_adoption.py, tools/front.py, routes/ops.py, routes/static/ops.html, tests/test_draft_adoption.py）
+
+## 2026-08-05
+- [docs] 基于当前代码补充覆盖实时 webhook、编排与路由、Skill、工具安全、持久化、后台任务、Ops、外部依赖和保证边界的详细系统架构图，并提供可无限缩放的 SVG 和 GraphViz 源文件（docs/current-system-architecture.md, docs/current-system-architecture.dot, docs/assets/front-agent-current-architecture.svg）

@@ -1,0 +1,322 @@
+digraph FrontAgentCurrentArchitecture {
+  graph [
+    label="Front-Agent 当前完整系统架构 · refactor/stable-agent-v2 @ 673049c · 2026-08-05",
+    labelloc=t,
+    labeljust=c,
+    fontsize=28,
+    fontname="Arial",
+    rankdir=TB,
+    bgcolor="#F8FAFC",
+    pad=0.35,
+    nodesep=0.28,
+    ranksep=0.58,
+    splines=polyline,
+    compound=true,
+    newrank=true
+  ];
+
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="Arial",
+    fontsize=11,
+    color="#94A3B8",
+    fillcolor="#FFFFFF",
+    fontcolor="#0F172A",
+    margin="0.12,0.08"
+  ];
+  edge [
+    color="#64748B",
+    fontname="Arial",
+    fontsize=9,
+    fontcolor="#334155",
+    arrowsize=0.7
+  ];
+
+  subgraph cluster_external {
+    label="外部参与者与服务";
+    color="#A5B4FC";
+    fillcolor="#EEF2FF";
+    style="rounded,filled";
+
+    customer [label="客户 / 外部发件人", fillcolor="#E0E7FF"];
+    operator [label="运营人员 / Bobby\n浏览器访问 /ops", fillcolor="#E0E7FF"];
+    front_cloud [label="Front Cloud\nRule Webhook + REST API\nSupport / Security / Marketing / Business Inbox", fillcolor="#E0E7FF"];
+    llm_cloud [label="OpenAI-compatible LLM\n默认 OpenAI gpt-5.5\n可切 MiniMax base URL", fillcolor="#E0E7FF"];
+    linear_cloud [label="Linear GraphQL API\nCUS Project", fillcolor="#E0E7FF"];
+    docs_cloud [label="Dify Docs\ndocs.dify.ai", fillcolor="#E0E7FF"];
+    github_cloud [label="GitHub Search\nlanggenius/dify issues / PRs", fillcolor="#E0E7FF"];
+    feishu_cloud [label="Feishu\nApp Bot 群聊优先\nBobby Webhook 兜底", fillcolor="#E0E7FF"];
+
+    { rank=same; customer; operator; front_cloud; llm_cloud; linear_cloud; docs_cloud; github_cloud; feishu_cloud; }
+  }
+
+  subgraph cluster_boot {
+    label="进程启动、配置与 HTTP 边界";
+    color="#67E8F9";
+    fillcolor="#ECFEFF";
+    style="rounded,filled";
+
+    start [label="start.sh\n加载 .env\n清理旧 uvicorn\n启动 main:app :PORT"];
+    settings [label="config.py / Settings\nFront / LLM / Linear / Feishu\nInbox / Ops / DB / Scheduler"];
+    main [label="main.py / FastAPI lifespan\n校验 Webhook Secret 与 Ops 凭据\ninit_db → 可选 start_scheduler\n退出等待任务最多 60 秒"];
+    http [label="HTTP 路由\nGET /health\nPOST /webhook/front\n/ops + /ops/api/*"];
+    headers [label="Ops Security Headers Middleware\nno-store / CSP / no-referrer\nnosniff / X-Frame-Options DENY"];
+
+    start -> main -> http;
+    settings -> main [style=dashed, label="环境配置"];
+    http -> headers [style=dashed];
+    { rank=same; start; settings; main; http; headers; }
+  }
+
+  subgraph cluster_ingress {
+    label="实时 Webhook 接入与持久恢复 · webhooks/front_webhook.py + services/webhook_inbox.py";
+    color="#60A5FA";
+    fillcolor="#EFF6FF";
+    style="rounded,filled";
+
+    verify [label="1. 原始 Body + X-Front-Signature\nHMAC-SHA1 → Base64 → constant-time compare\n无 Secret 仅本地显式放行", fillcolor="#DBEAFE"];
+    parse [label="2. JSON + conversation_id\nderive_event_id: payload id / event_id\n否则 SHA-256(body)", fillcolor="#DBEAFE"];
+    enqueue [label="3. Durable Intake\nwebhook_inbox INSERT ON CONFLICT DO NOTHING\n认证事件先 Commit，再立即处理", fillcolor="#DBEAFE"];
+    capacity [label="4. 执行容量\n每 conversation 一个 asyncio.Lock\n全局 Semaphore = 2", fillcolor="#DBEAFE"];
+    claim [label="5. 原子 Claim\nstatus=processing / attempts+1\nUUID lease token / 15 分钟租约", fillcolor="#DBEAFE"];
+    event_dedupe [label="6. webhook_events 去重\n只包含成功或确定性忽略的 event_id", fillcolor="#DBEAFE"];
+    identity [label="7. message_identity 过滤\n拒绝 draft / comment / outbound\n拒绝 @dify.ai author/from\n必须有正文或附件", fillcolor="#DBEAFE"];
+    inbox_filter [label="8. Front Inbox 检查\n只允许 Support inb_f9fvf\n瞬态失败 → 503；其他检查异常谨慎继续", fillcolor="#DBEAFE"];
+    extract [label="9. 可信入口上下文\nlatest body / external sender / attachments", fillcolor="#DBEAFE"];
+    success [label="成功 / 确定性忽略\n写 webhook_events\nwebhook_inbox=processed\n清空成功 payload", fillcolor="#DCFCE7", color="#22C55E"];
+    failure [label="异常兜底\n去重 Front forward → Bobby\nreopen + failed_needs_review\n不写 webhook_events + HTTP 503", fillcolor="#FFE4E6", color="#F43F5E"];
+    retry [label="fail_webhook\n1 / 5 / 15 / 60 / 180 分钟退避\n第 6 次 → dead_letter\n保留 payload + 截断错误", fillcolor="#FFE4E6", color="#F43F5E"];
+
+    verify -> parse -> enqueue -> capacity -> claim -> event_dedupe -> identity -> inbox_filter -> extract;
+    event_dedupe -> success [label="已处理"];
+    identity -> success [label="不可处理"];
+    inbox_filter -> success [label="非 Support"];
+    failure -> retry;
+  }
+
+  subgraph cluster_orchestrator {
+    label="上下文、分类与编排 · agent/orchestrator.py / classification.py / routing.py";
+    color="#C4B5FD";
+    fillcolor="#F5F3FF";
+    style="rounded,filled";
+
+    state_gate [label="Conversation State Gate\n新会话 / initial / done / failed_needs_review → 初始流\nEducation 全流程可续接\nBilling 仅 invoice + awaiting_credit_note_confirmation 可续接\n其他既有状态回复跳过", fillcolor="#EDE9FE"];
+    edu_switch [label="确定性 Education Topic Switch\n最新回复明确提到教育方案 / 折扣 / 认证时\n可从非 Education 状态切换", fillcolor="#EDE9FE"];
+    context [label="完整会话上下文\nGET Front messages\n剔除未发送 Draft\n标注 User / Support 角色", fillcolor="#EDE9FE"];
+    attachments [label="附件管道 · tools/attachments.py\n最多 5 个\n图片 → Base64 Vision Content\nPDF / Word → 文本，最多 50k 字符", fillcolor="#EDE9FE"];
+    attachment_guard [label="附件安全 · tools/front.py\nHTTPS + 精确 Host Allowlist\n禁嵌入凭据 / 非 443 端口\nContent-Length + 流式 10MB 双限额", fillcolor="#FEF3C7", color="#F59E0B"];
+    memory [label="Case Memory · services/case_memory.py\n最近最多 300 条候选\n分类 overlap≥3 / 同类 Skill≥2\n最多 4 条成功/警示信号\n邮箱和电话脱敏，仅 Prompt 参考", fillcolor="#EDE9FE"];
+    history [label="可选 30 天 Sender 历史\n初始流先由 LLM 判断是否需要\n用于 follow-up / already contacted 场景", fillcolor="#EDE9FE"];
+    classify [label="skills/classify.md + LLM\n16 Categories / Sub-type\nsummary / flags / evidence\npaid / premium / urgency / confidence", fillcolor="#EDE9FE"];
+    normalize [label="分类解析与归一化\n纯 JSON / Code Fence / Balanced Object\nCategory + urgency 白名单\n失败 → unclear\nconfidence 只观测，不作阈值", fillcolor="#EDE9FE"];
+    decision [label="RouteDecision\nPython 决定 handled_before_skill\n先解决 spam×partnership 冲突\n识别 creator marketing 特例", fillcolor="#FFEDD5", color="#F97316", shape=diamond];
+
+    state_gate -> context;
+    edu_switch -> state_gate [style=dashed];
+    context -> attachments -> attachment_guard;
+    context -> memory;
+    memory -> history -> classify -> normalize -> decision;
+  }
+
+  subgraph cluster_routes {
+    label="确定性路由与 Skill 业务策略";
+    color="#A78BFA";
+    fillcolor="#FAF5FF";
+    style="rounded,filled";
+
+    deterministic [
+      label="PYTHON 确定性路由\n\nspam / 明确广告 → archive → closed_spam\nunclear / 不安全冲突 → Front forward Bobby → manual_review\nlegal 或 legal_threat → Front forward Geyan → forwarded_keep_open\nsecurity → move Security Inbox → moved_inbox\nmarketing / creator collaboration → move Marketing + comment\nbusiness / enterprise / procurement → move Business + comment\npartnership / marketplace / plugin → forward marketing@dify.ai + reopen\n\n工具失败 → failed_needs_review；Security 失败额外通知 Bobby",
+      fillcolor="#F3E8FF",
+      color="#9333EA"
+    ];
+
+    skill_prompt [label="Skill Prompt\n分类事实 + RouteDecision + 当前 State\n完整会话 / 附件 / Case Memory\n全局安全规则", fillcolor="#F3E8FF"];
+    education [label="education\nhow_to_apply / rejected / no_discount\nemail_expired_graduated / cancel_subscription\n审核顺序：Linear → Sybil Queue → Draft → State\n续接禁止重复 Linear", fillcolor="#F3E8FF"];
+    account [label="account\ncant_login / delete / transfer / change_email\nanomaly / hacked / merge\nSaaS 可 Linear + Bobby/Sybil；默认 Draft", fillcolor="#F3E8FF"];
+    technical [label="technical\nworkflow / bug / how_to / feasibility\napi / outage / privacy / self_hosted\nDocs/GitHub Grounding\n付费且严重才 Linear；默认 Draft", fillcolor="#F3E8FF"];
+    billing [label="billing\nrefund / duplicate / downgrade / invoice / other\n已有发票：Draft + 等待确认\n二次明确确认：仅 Elsie Comment + State", fillcolor="#F3E8FF"];
+    purchase [label="purchase\nenterprise / premium / pro_team / promo / reseller\n通常 Draft；Reseller 转 Marketing", fillcolor="#F3E8FF"];
+    other_skills [label="其他 Skills\ninvestment → Claudia + Bobby / Keep Open\nroadmap / data_export / recruiting → Draft\nlegal / business / marketing / security / partnership / spam / unclear\n保留防御性 Skill 文件", fillcolor="#F3E8FF"];
+    agent_loop [label="LLM Agent Loop ≤ 10 轮\n只能选择 TOOL_SCHEMAS\nTool Result 作为 role=tool 回灌\n无 Tool Call 或 stop → 结束", fillcolor="#F3E8FF"];
+
+    decision -> deterministic [label="handled_before_skill=true"];
+    decision -> skill_prompt [label="false / 批准的多轮续接"];
+    skill_prompt -> { education account technical billing purchase other_skills };
+    { education account technical billing purchase other_skills } -> agent_loop;
+  }
+
+  subgraph cluster_tooling {
+    label="模型权限、可信上下文、幂等与副作用 · agent/tool_registry.py";
+    color="#6EE7B7";
+    fillcolor="#ECFDF5";
+    style="rounded,filled";
+
+    schemas [label="19 个模型可见白名单工具\nFront: Draft / Assign / Comment / Tag + 7 类 Handoff/Move\nLinear: Create Ticket\nSybil: Feishu Queue + Compatibility Alias\nState: state_set\nRead-only: docs_search / github_search", fillcolor="#D1FAE5"];
+    validation [label="prepare_llm_tool_call\n拒绝未知工具 / 缺参 / 多余参数\n校验 JSON Type 与 Enum", fillcolor="#D1FAE5"];
+    trust [label="可信上下文重绑定\nconversation_id 来自当前 Webhook\nDraft.to_email = 原始外部 Sender\nLinear Sender + Original Message 由 Python 注入", fillcolor="#D1FAE5"];
+    guards [label="运行时流程护栏\nEducation 已有 Ticket → Block 新 Linear\n保留可信 linear_url 与 Payload\nBobby 单轮去重\nLinear 或 Bobby/Limin/Sybil 后强制 Keep-open State", fillcolor="#D1FAE5"];
+    action_key [label="Action Identity + 进程内 asyncio.Lock\nDraft / Comment: Body Hash\nHandoff: Summary/Message Hash\nSybil: Type + Linear URL 或 Message Hash\nLinear: Trusted Sender + Original Body Hash", fillcolor="#D1FAE5"];
+    action_dedupe [label="conversation_actions 查询\n命中 → 复用成功 Result\n未命中 → 执行外部副作用\n只记录成功，失败允许重试", fillcolor="#D1FAE5"];
+    dispatch [label="_execute_tool_call_uncached\n唯一具体工具分发入口", fillcolor="#D1FAE5"];
+    blocked [label="模型不可见 / 永久阻断\n无任意收件人的 Generic Forward\nfront_close 不在 Schema；仅 Spam 内部授权\nfront_reply / reply_with_template 即使被调也 Blocked", fillcolor="#FFE4E6", color="#F43F5E"];
+    missing_state [label="Skill 结束没有 State\n自动写 failed_needs_review", fillcolor="#FFE4E6", color="#F43F5E"];
+
+    agent_loop -> schemas -> validation -> trust -> guards -> action_key -> action_dedupe -> dispatch;
+    blocked -> validation [style=dashed, label="硬边界"];
+    deterministic -> dispatch [style=dashed, label="Python 可信参数"];
+    dispatch -> agent_loop [style=dashed, label="Tool Result"];
+    agent_loop -> missing_state [style=dashed, label="完成后 State 缺失"];
+  }
+
+  subgraph cluster_tools {
+    label="具体工具实现 · tools/*.py";
+    color="#34D399";
+    fillcolor="#F0FDF4";
+    style="rounded,filled";
+
+    front_tool [label="tools/front.py\n5 次瞬态重试 + 指数退避\n读 Conversation / Messages / Comments / Inboxes\n安全 Markdown → HTML\nDraft / Assign / Comment / Tag / Move / Reopen / Archive\n内部 Forward 重建完整原始线程"];
+    handoff_tool [label="tools/handoff.py\n内部收件人必须 @dify.ai\nBobby / Limin → Front Forward\nSybil → Queue；失败在原会话加 Comment"];
+    linear_tool [label="tools/linear.py\nGraphQL Issue Mutation\n5 次瞬态重试\nTeam + CUS Project"];
+    sybil_tool [label="tools/sybil_digest.py\n同 Conversation 更新现有 Pending\nPending → Sending（30m Lease）→ Sent\n失败恢复 Pending；Dismissed 永久保留"];
+    feishu_tool [label="tools/feishu.py\nGroup App Bot 优先 / Bobby Webhook 兜底\n@Sybil + Type + Linear + Front Link"];
+    search_tool [label="tools/docs_search.py\n搜索 Dify Docs 并抓正文\n\ntools/github.py\n搜索 langgenius/dify Issues / PRs"];
+    state_tool [label="tools/state.py\nState Get/Set/Clear\n保留原始外部 Sender\n30 天 User History\nAction 查询 + 唯一约束冲突恢复"];
+
+    dispatch -> { front_tool handoff_tool linear_tool sybil_tool search_tool state_tool };
+    handoff_tool -> front_tool;
+    handoff_tool -> sybil_tool -> feishu_tool;
+  }
+
+  subgraph cluster_data {
+    label="持久化 · SQLAlchemy Async + aiosqlite · models.py / database.py";
+    color="#FACC15";
+    fillcolor="#FEFCE8";
+    style="rounded,filled";
+
+    database [label="SQLite DB\n默认 /tmp/email_automation.db\n启动 create_all", shape=cylinder, fillcolor="#FEF9C3"];
+    conversation_states [label="conversation_states\nPK conversation_id\nsender / category / sub_type / step\npayload / waiting_since / timestamps", fillcolor="#FEF9C3"];
+    webhook_events [label="webhook_events\nPK event_id\nprocessed_at", fillcolor="#FEF9C3"];
+    webhook_inbox [label="webhook_inbox\nPK event_id / conversation index\npayload / status / attempts / available_at\nlease / error / processed_at", fillcolor="#FEF9C3"];
+    actions [label="conversation_actions\nUNIQUE conversation + type + key\nresult / created_at\nLinear 另做跨会话 24h 查询", fillcolor="#FEF9C3"];
+    sybil_notifications [label="sybil_notifications\nconversation / message / cc / type / Linear URL\npending / sending / sent / dismissed", fillcolor="#FEF9C3"];
+    draft_adoptions [label="draft_adoptions\nPK action_id → Draft Action\nhash / status / sent / checked / error", fillcolor="#FEF9C3"];
+    ops_reports [label="ops_reports\ndaily / weekly / monthly\nwindow / generated_at / JSON payload", fillcolor="#FEF9C3"];
+
+    database -> { conversation_states webhook_events webhook_inbox actions sybil_notifications draft_adoptions ops_reports } [arrowhead=none];
+    actions -> draft_adoptions [style=dashed, label="action_id"];
+    conversation_states -> actions [style=dashed, label="conversation_id"];
+    conversation_states -> sybil_notifications [style=dashed, label="conversation_id"];
+  }
+
+  subgraph cluster_scheduler {
+    label="后台任务 · tasks/scheduler.py / APScheduler / Asia-Shanghai";
+    color="#CBD5E1";
+    fillcolor="#F8FAFC";
+    style="rounded,filled";
+
+    retry_job [label="每 1 分钟\n最多 20 个 Due / 过期 Lease Webhook\n复用 Conversation Lock + Semaphore + Claim"];
+    metadata_job [label="每 15 分钟，首次延迟 5 秒\n最多 20 条缺 Sender/Summary State\nAttention 优先 / 60 秒超时\n不改业务 updated_at"];
+    report_job [label="每 3 小时，立即首跑\nOps Maintenance Lock 串行\n先刷新近 30 天 Draft Adoption\n再生成日/周/月报告"];
+    digest_job [label="每天 10:00 中国时间\n最多 100 条 Pending Sybil\nLease Claim 后合并 Feishu Digest"];
+    close_job [label="每 6 小时\nwaiting_since 超过 10 天且 Step≠done\nFront Archive + State=done"];
+    disabled_job [label="sync_missing_conversations\n代码保留但调度禁用\n只处理 Webhook 触发邮件", style="rounded,dashed,filled"];
+
+    main -> { retry_job metadata_job report_job digest_job close_job } [style=dashed];
+  }
+
+  subgraph cluster_ops {
+    label="运营与观测面 · routes/ops.py + services/ops_auth.py / draft_adoption.py / ops_metadata.py";
+    color="#94A3B8";
+    fillcolor="#F1F5F9";
+    style="rounded,filled";
+
+    ops_login [label="ops_login.html + POST /ops/api/login\n常量时间用户名/密码校验\n同客户端 5 分钟 5 次失败限流"];
+    ops_session [label="进程内随机 Session Token\n默认 12h\nHttpOnly / SameSite=Strict\n可配置 Secure"];
+    ops_ui [label="ops.html Dashboard\n受保护页面"];
+    ops_read [label="受保护 GET API\nsummary / report\nconversations + detail\nactions / sybil"];
+    ops_write [label="受保护写 API + X-Ops-Request: 1\nlogout\nDraft Adoption Refresh\nPending Sybil Soft-dismiss"];
+    adoption [label="Draft Adoption\nDraft Body Hash 对照 Front 后续外发\nExact / Modified / Manual / Waiting\nPending / No-followup / Unknown\n网络 I/O 前释放 SQLite 事务"];
+    metadata [label="Ops Metadata Enrichment\n只回填空 Sender / Summary\nAttention 优先 + checked_at\n保留业务 updated_at"];
+    reporting [label="Ops Summary / Report Builder\n总量 / 24h / Attention / Failed\nQueue + Dead Letter / Metadata Coverage\nDraft Adoption / Friction / Opportunities\n风险与建议摘要"];
+    dismiss [label="Sybil Dismiss CAS\n仅 Pending → Dismissed\n同时写 sybil_dismiss Action"];
+
+    operator -> ops_login -> ops_session -> ops_ui -> ops_read;
+    ops_session -> ops_write;
+    ops_read -> reporting;
+    ops_write -> adoption;
+    ops_write -> dismiss;
+  }
+
+  subgraph cluster_quality {
+    label="测试、部署、工程资料与保证边界";
+    color="#FDA4AF";
+    fillcolor="#FFF1F2";
+    style="rounded,filled";
+
+    tests [label="tests/*.py 离线脚本\nRouting / Skills / Runtime Boundaries\nWebhook Recovery / Linear Dedupe\nOps Auth / Data / Sybil / Draft Adoption\nInternal Forward Loop"];
+    deploy [label="railway.toml\nRAILPACK → bash start.sh\nGET /health\nRestart on_failure"];
+    docs [label="README / CLAUDE / sop / 已测试 / record\nRuntime Boundaries / Engineering Note\nSpecs + Plans / Test Cases / Historical Assets"];
+    guarantee [label="当前保证\nDurable Intake + At-least-once Processing\n进程内并发锁 + 成功 Action 去重\n非 Spam 保持开放 / Customer Draft-first", fillcolor="#DCFCE7", color="#22C55E"];
+    limits [label="明确限制\n不是 Exactly-once：外部成功、本地提交前崩溃可重复\n进程内 Session / Lock 不跨多实例\nSQLite 本地状态\n无 Provider Idempotency / Reconciliation", fillcolor="#FFE4E6", color="#F43F5E"];
+  }
+
+  customer -> front_cloud [label="邮件 / 后续回复"];
+  front_cloud -> verify [label="POST /webhook/front"];
+  extract -> state_gate;
+  attachment_guard -> front_cloud [dir=both, label="认证附件下载"];
+  context -> front_cloud [dir=both, label="会话与消息"];
+  history -> llm_cloud [dir=both, label="Chat Completions"];
+  classify -> llm_cloud [dir=both, label="Chat Completions"];
+  agent_loop -> llm_cloud [dir=both, label="Function Calling"];
+
+  front_tool -> front_cloud [dir=both, label="REST"];
+  linear_tool -> linear_cloud [dir=both, label="GraphQL"];
+  search_tool -> docs_cloud [dir=both];
+  search_tool -> github_cloud [dir=both];
+  feishu_tool -> feishu_cloud [dir=both, label="Open API / Webhook"];
+
+  enqueue -> webhook_inbox;
+  claim -> webhook_inbox [dir=both];
+  success -> webhook_events;
+  success -> webhook_inbox;
+  retry -> webhook_inbox;
+  state_gate -> conversation_states [dir=both, style=dashed];
+  memory -> conversation_states [style=dashed];
+  state_tool -> conversation_states [dir=both];
+  action_dedupe -> actions [dir=both];
+  sybil_tool -> sybil_notifications [dir=both];
+
+  retry_job -> webhook_inbox;
+  retry_job -> capacity;
+  metadata_job -> front_cloud;
+  metadata_job -> conversation_states;
+  report_job -> adoption;
+  report_job -> reporting;
+  digest_job -> sybil_tool;
+  close_job -> front_tool;
+  close_job -> conversation_states;
+
+  ops_read -> { conversation_states webhook_events webhook_inbox actions sybil_notifications draft_adoptions ops_reports } [style=dashed];
+  adoption -> front_cloud [dir=both, label="Messages / Comments / Status"];
+  adoption -> actions [dir=both];
+  adoption -> draft_adoptions [dir=both];
+  metadata -> front_cloud [dir=both];
+  metadata -> conversation_states;
+  reporting -> ops_reports;
+  dismiss -> sybil_notifications;
+  dismiss -> actions;
+
+  deterministic -> success [style=dashed, label="路由完成"];
+  missing_state -> success [style=dashed];
+  dispatch -> failure [style=dashed, label="未处理异常"];
+  deploy -> start;
+  tests -> verify [style=dashed];
+  tests -> decision [style=dashed];
+  tests -> validation [style=dashed];
+  tests -> ops_login [style=dashed];
+  guarantee -> enqueue [style=dashed];
+  guarantee -> action_key [style=dashed];
+  limits -> webhook_inbox [style=dashed];
+  limits -> actions [style=dashed];
+}
