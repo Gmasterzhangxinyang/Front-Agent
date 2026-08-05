@@ -1,12 +1,15 @@
-# Front-Agent 当前详细架构图
+# Front-Agent 当前系统架构（清晰分层版）
 
-> 代码基线：`refactor/stable-agent-v2`，提交 `673049c`，梳理日期 `2026-08-05`。本图以当前代码为准；实线表示主要调用/数据流，虚线表示读取、观测、约束或失败回路。
+> 运行代码基线：`refactor/stable-agent-v2`，提交 `673049c`，梳理日期 `2026-08-05`。按照图中的 ① → ⑦ 自上而下阅读；主链路只在“确定性策略 / LLM Skill”处发生一次分流。
 
-[直接打开可无限缩放的 SVG 架构图](assets/front-agent-current-architecture.svg)
+[打开可无限缩放的高清 SVG](assets/front-agent-current-architecture.svg) · [查看 GraphViz 源图](current-system-architecture.dot)
 
-![Front-Agent 当前完整系统架构](assets/front-agent-current-architecture.svg)
+![Front-Agent 当前系统架构清晰预览](assets/front-agent-current-architecture-preview.png)
 
-下面保留同一系统的 Mermaid 源图，便于在代码审查中搜索节点和继续维护。
+<details>
+<summary>展开完整 Mermaid 明细图（用于检索节点和维护）</summary>
+
+下面保留原始的全量关系图；它的信息密度较高，日常阅读请以上方清晰分层版为准。
 
 ```mermaid
 %%{init: {"theme":"base","flowchart":{"htmlLabels":true,"curve":"basis","nodeSpacing":22,"rankSpacing":34},"themeVariables":{"fontFamily":"Inter, PingFang SC, Microsoft YaHei, sans-serif","fontSize":"13px"}}}%%
@@ -324,5 +327,7 @@ flowchart TB
   class WHERR,WHFAIL,ORCHERR,RFail,MissingState,Limits risk;
   class JRetry,JMeta,JReport,JDigest,JClose,JDisabled,Grace,OpsLogin,OpsSession,OpsUI,OpsRead,OpsWrite,Adoption,Metadata,ReportBuild,SoftDismiss,Tests,Deploy,RepoDocs,Guarantees observe;
 ```
+
+</details>
 
 图中最关键的边界是：LLM 负责理解、分类候选、草稿内容和白名单工具选择；Python 负责可信上下文、确定性路由、权限校验、收件人绑定、关闭授权、状态持久化、去重、重试和失败兜底。

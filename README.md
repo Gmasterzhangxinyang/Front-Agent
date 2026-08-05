@@ -2,6 +2,8 @@
 
 Front-Agent is the Dify support mailbox automation service. It receives Front webhooks, loads the full conversation and attachments, classifies the email with an OpenAI-compatible LLM, applies deterministic Python routing where possible, and otherwise runs a constrained skill flow that can create Front drafts, move inboxes, create Linear tickets, queue Sybil digests, and save state.
 
+[查看当前系统架构（清晰分层版）](docs/current-system-architecture.md) — 一张图覆盖入口、Webhook、编排路由、Skill、工具安全、数据、后台任务、Ops 和保证边界。
+
 Current production screen runs this branch from release directories under `/tmp/front-agent-release-*`.
 
 ## Current Runtime
