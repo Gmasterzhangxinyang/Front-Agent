@@ -168,4 +168,5 @@
 - [fix] 完善草稿采纳统计：识别 Front 内部转发线程中的真实人工回复，将评论、工单等工作流处理和等待中会话从“未发送”中分离，持续重算历史 `not_sent`，排除内部测试会话，并将原样采用率限定为已检测到回复的草稿（services/draft_adoption.py, tools/front.py, routes/ops.py, routes/static/ops.html, tests/test_draft_adoption.py）
 
 ## 2026-08-05
+- [docs] 在不修改总览 SVG 的前提下，新增 ①–⑧ 八张独立架构拆解图及索引文档，逐阶段展开事件入口、可信落盘、上下文、分类路由、两层策略、安全执行、外部副作用、结果持久化与恢复，并保留每张图的 GraphViz 源文件（README.md, docs/current-system-architecture.md, docs/current-system-architecture-details.md, docs/architecture-details/*.dot, docs/assets/architecture-details/*.svg）
 - [docs] 将当前系统架构重绘为 A–E 五条横向泳道：顶部固定 ①–⑧ 实时主链，模块明细按阶段编号对照，安全执行、失败恢复、数据运营和系统边界分别成行；提供 4000px PNG、可无限缩放的 SVG、GraphViz 源文件，默认折叠高密度 Mermaid 明细图，并从 README 提供直达入口（README.md, docs/current-system-architecture.md, docs/current-system-architecture.dot, docs/assets/front-agent-current-architecture.svg, docs/assets/front-agent-current-architecture-preview.png）

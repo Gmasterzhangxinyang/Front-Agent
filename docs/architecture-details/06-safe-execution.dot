@@ -1,0 +1,38 @@
+digraph SafeExecution {
+  graph [label="⑥ 安全执行 · Schema 验证、可信绑定、状态约束与 Action 去重", labelloc=t, labeljust=l, fontsize=28, fontname="Arial", rankdir=TB, bgcolor="#F8FAFC", pad=0.35, nodesep=0.38, ranksep=0.58, splines=polyline, newrank=true];
+  node [shape=box, style="rounded,filled", fontname="Arial", fontsize=12, color="#34D399", fillcolor="#FFFFFF", penwidth=1.5, margin="0.15,0.10"];
+  edge [fontname="Arial", fontsize=9, color="#059669", penwidth=1.7, arrowsize=0.75];
+
+  candidate [label="阶段 ⑤ 动作候选\nTool Name + JSON Arguments", fillcolor="#D1FAE5"];
+  reply_policy [shape=diamond, label="命中多轮 Reply Block？\n例如已有 Education Ticket", fillcolor="#FEF3C7", color="#F59E0B"];
+  parse [shape=diamond, label="Arguments 是合法 JSON Object？", fillcolor="#FEF3C7", color="#F59E0B"];
+  schema [shape=diamond, label="Tool 在 TOOL_SCHEMAS？\n必填参数齐全？\n无多余参数？\n类型与 Enum 正确？", fillcolor="#FEF3C7", color="#F59E0B"];
+  bind [label="可信上下文重新绑定\nconversation_id ← 当前 Webhook Context\nDraft to_email ← 原始外部 Sender\nLinear sender_email ← 可信 Sender\nLinear original_message ← 当前原文", fillcolor="#D1FAE5"];
+  guards [label="执行前业务约束\n保留既有 State Payload / trusted linear_url\nSybil 消息中的模型 URL 被移除后重加可信 URL\nKeep-open Handoff 后拒绝 state=done/closed_spam\nDraft 收件人在副作用前再次重置\n同一 Agent Run 的 Bobby Forward 去重", fillcolor="#ECFDF5"];
+  exposed [label="模型不可越过的边界\n无通用任意 Forward\nfront_reply 永久 Block\nfront_close_conversation 不在模型 Schema\nClose 只接受 Python 内部 _allow_close", fillcolor="#FFE4E6", color="#FB7185"];
+
+  identity [label="构造 Action Identity\nDraft/Comment = Body Hash\nHandoff = Summary/Message Hash\nSybil = Type + Trusted Linear URL\nLinear = Sender + Original Message\n其他无副作用工具不做 Action Dedupe", fillcolor="#D1FAE5"];
+  lock [label="进程内 Action Lock\nLinear Request Key 跨 Conversation 共享\n其余按 Conversation + Tool + Key", fillcolor="#ECFDF5"];
+  exists [shape=diamond, label="conversation_actions\n已有成功结果？", fillcolor="#FEF3C7", color="#F59E0B"];
+  reuse [label="直接复用历史 Result\n跳过外部副作用", fillcolor="#DBEAFE", color="#60A5FA"];
+  execute [label="调用阶段 ⑦ 具体工具", fillcolor="#D1FAE5", color="#34D399"];
+  record [shape=diamond, label="Result 包含 failed / blocked\n/ unknown_tool？", fillcolor="#FEF3C7", color="#F59E0B"];
+  success [label="否：记录成功 Action\nDB Unique Constraint 防并发重复", fillcolor="#D1FAE5"];
+  retryable [label="是：不记录 Action\n允许后续安全重试", fillcolor="#FFE4E6", color="#FB7185"];
+  rejected [label="返回 Tool Message\ntool_validation_failed / blocked\n不调用外部系统", fillcolor="#FFE4E6", color="#FB7185"];
+
+  candidate -> reply_policy;
+  reply_policy -> rejected [label="是", color="#E11D48"];
+  reply_policy -> parse [label="否"];
+  parse -> rejected [label="否", color="#E11D48"];
+  parse -> schema [label="是"];
+  schema -> rejected [label="否", color="#E11D48"];
+  schema -> bind [label="是"];
+  bind -> guards -> identity -> lock -> exists;
+  exposed -> guards [style=dashed, color="#E11D48", label="硬限制"];
+  exists -> reuse [label="是"];
+  exists -> execute [label="否"];
+  execute -> record;
+  record -> retryable [label="是", color="#E11D48"];
+  record -> success [label="否"];
+}

@@ -1,0 +1,40 @@
+digraph ContextBuilding {
+  graph [label="③ 构建上下文 · State、完整会话、附件、Case Memory 与用户历史", labelloc=t, labeljust=l, fontsize=28, fontname="Arial", rankdir=TB, bgcolor="#F8FAFC", pad=0.35, nodesep=0.45, ranksep=0.58, splines=polyline, newrank=true];
+  node [shape=box, style="rounded,filled", fontname="Arial", fontsize=13, color="#A78BFA", fillcolor="#FFFFFF", penwidth=1.5, margin="0.16,0.11"];
+  edge [fontname="Arial", fontsize=10, color="#7C3AED", penwidth=1.8, arrowsize=0.78];
+
+  input [label="阶段 ② 输出\nconversation_id · latest body\n可信 sender_email · attachments", fillcolor="#EDE9FE"];
+  state [shape=cylinder, label="读取 conversation_states\ncategory · sub_type · step · payload\noriginal external sender", fillcolor="#F3E8FF"];
+  flow [shape=diamond, label="Initial 还是批准的续接？", fillcolor="#FEF3C7", color="#F59E0B"];
+  skip [label="停止处理\n非 Education 且非批准 Billing Credit Note 续接\nclosed_spam 也直接跳过", fillcolor="#F1F5F9", color="#94A3B8"];
+  allowed [label="允许继续\n无既有 State 的新会话\nfailed_needs_review 安全重试\nEducation 已批准多轮流程\nBilling invoice awaiting_credit_note_confirmation\n显式 Education Topic Switch", fillcolor="#E0E7FF", color="#60A5FA"];
+
+  history [label="完整 Front 会话\nGET conversation messages\n剔除未发送 Draft\n按 external_customer / support_agent / internal_teammate 标角色", fillcolor="#EDE9FE"];
+  attachments [label="附件入口限制\n最多 5 个（config）\n无 URL 或不支持 MIME → 跳过", fillcolor="#EDE9FE"];
+  download [label="安全下载\n仅 HTTPS · 无 URL Credentials · 端口 443\nHost 精确 Allowlist（默认 api2.frontapp.com）\nContent-Length + 流式读取双重 ≤10MB", fillcolor="#D1FAE5", color="#34D399"];
+  vision [label="图片\nPNG/JPEG/GIF/WebP\nBase64 data URL → Vision Content", fillcolor="#DBEAFE", color="#60A5FA"];
+  docs [label="文档\nPDFMiner / python-docx\nPDF / DOC / DOCX → 文本\n每份最多 50,000 字符", fillcolor="#DBEAFE", color="#60A5FA"];
+
+  memory [label="Case Memory · 全局历史案例\n最近更新 300 条 State\nToken Overlap：分类 ≥3；同类 Skill ≥2\n得分排序 → 最多 4 条\nSuccessful / Cautionary · 邮箱电话脱敏", fillcolor="#F3E8FF"];
+  user_history [shape=diamond, label="新会话且 LLM 判断\n需要同 Sender 历史？", fillcolor="#FEF3C7", color="#F59E0B"];
+  sender_history [label="get_user_history()\n同 sender_email · 最近 30 天\n仅 conversation/category/sub_type/step/time", fillcolor="#F3E8FF"];
+  bundle [label="可信 Context Bundle\n完整会话文本 + 最新消息\n图片 + 文档文本 + State\nCase Memory + 可选同用户历史", fillcolor="#D1FAE5", color="#34D399", fontsize=15];
+
+  input -> state -> flow;
+  flow -> skip [label="未批准", color="#64748B"];
+  flow -> allowed [label="允许"];
+  allowed -> history;
+  allowed -> attachments;
+  attachments -> download;
+  download -> vision;
+  download -> docs;
+  allowed -> memory;
+  allowed -> user_history;
+  user_history -> sender_history [label="是"];
+  history -> bundle;
+  vision -> bundle;
+  docs -> bundle;
+  memory -> bundle;
+  sender_history -> bundle;
+  user_history -> bundle [label="否"];
+}

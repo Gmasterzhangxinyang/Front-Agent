@@ -1,0 +1,36 @@
+digraph TrustDurableIntake {
+  graph [label="② 信任 + 落盘 · Durable Intake、并发控制与入站过滤", labelloc=t, labeljust=l, fontsize=28, fontname="Arial", rankdir=TB, bgcolor="#F8FAFC", pad=0.35, nodesep=0.42, ranksep=0.65, splines=polyline];
+  node [shape=box, style="rounded,filled", fontname="Arial", fontsize=13, color="#93C5FD", fillcolor="#FFFFFF", penwidth=1.5, margin="0.16,0.11"];
+  edge [fontname="Arial", fontsize=10, color="#2563EB", penwidth=1.8, arrowsize=0.78];
+
+  input [label="阶段 ① 输出\n已验签 JSON\nevent_id + conversation_id", fillcolor="#DBEAFE"];
+  enqueue [label="enqueue_webhook()\nINSERT webhook_inbox\nON CONFLICT(event_id) DO NOTHING\nstatus=pending · attempts=0\navailable_at=now", fillcolor="#E0E7FF"];
+  commit [shape=cylinder, label="独立 DB Session Commit\n认证事件先持久化\n再做任何业务处理", fillcolor="#EDE9FE", color="#A78BFA"];
+  status [shape=diamond, label="当前 Status？", fillcolor="#FEF3C7", color="#F59E0B"];
+  lock [label="并发门控\n每 conversation_id 一个 asyncio.Lock\n全局 Semaphore=2", fillcolor="#DBEAFE"];
+  claim [label="原子 Claim\n仅 pending/retry 到期或 Lease 过期\nattempts < 6\n→ processing · attempts+1\nUUID lease_token · 15m lease", fillcolor="#E0E7FF"];
+  claimed [shape=diamond, label="Claim 成功？", fillcolor="#FEF3C7", color="#F59E0B"];
+  event_dedupe [shape=diamond, label="webhook_events\n已有 event_id？", fillcolor="#FEF3C7", color="#F59E0B"];
+  identity [shape=diamond, label="可处理的外部入站？\n非 Draft / Comment / Outbound\n非 @dify.ai 内部来源\n有正文或附件", fillcolor="#FEF3C7", color="#F59E0B"];
+  inbox [shape=diamond, label="Front Inbox 检查\n包含 Support inb_f9fvf？", fillcolor="#FEF3C7", color="#F59E0B"];
+  next [label="交给阶段 ③\nhandle_email()", fillcolor="#D1FAE5", color="#34D399"];
+
+  already [label="already_processed\n不重复执行副作用", fillcolor="#F1F5F9", color="#94A3B8"];
+  queued [label="queued\n其他 Worker 持有 Lease\n或尚未到重试时间", fillcolor="#F1F5F9", color="#94A3B8"];
+  ignored [label="ignored 也记成功 Event\n随后 complete_webhook\n避免无效事件重复进入", fillcolor="#F1F5F9", color="#94A3B8"];
+  transient [label="Front Inbox 检查瞬时失败\nHTTP 503 → 阶段 ⑧ Retry", fillcolor="#FFE4E6", color="#FB7185"];
+
+  input -> enqueue -> commit -> status;
+  status -> already [label="processed"];
+  status -> lock [label="pending / retry / processing"];
+  lock -> claim -> claimed;
+  claimed -> queued [label="否"];
+  claimed -> event_dedupe [label="是"];
+  event_dedupe -> already [label="是"];
+  event_dedupe -> identity [label="否"];
+  identity -> ignored [label="否", color="#64748B"];
+  identity -> inbox [label="是"];
+  inbox -> ignored [label="不在 Support", color="#64748B"];
+  inbox -> transient [label="瞬时错误", color="#E11D48"];
+  inbox -> next [label="允许"];
+}

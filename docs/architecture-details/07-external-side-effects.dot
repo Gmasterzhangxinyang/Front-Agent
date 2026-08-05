@@ -1,0 +1,48 @@
+digraph ExternalSideEffects {
+  graph [label="⑦ 外部副作用 · Front、Linear、Docs/GitHub、Sybil/Feishu 与 State", labelloc=t, labeljust=l, fontsize=28, fontname="Arial", rankdir=TB, bgcolor="#F8FAFC", pad=0.35, nodesep=0.46, ranksep=0.58, splines=polyline, newrank=true];
+  node [shape=box, style="rounded,filled", fontname="Arial", fontsize=12, color="#34D399", fillcolor="#FFFFFF", penwidth=1.5, margin="0.16,0.10"];
+  edge [fontname="Arial", fontsize=9, color="#059669", penwidth=1.7, arrowsize=0.75];
+
+  input [label="阶段 ⑥ 已授权、已绑定、已去重的 Tool Call", fillcolor="#D1FAE5", fontsize=15];
+  dispatch [shape=diamond, label="execute_tool_call() 分派", fillcolor="#FEF3C7", color="#F59E0B"];
+
+  front [label="Front Tools · tools/front.py\n读取 Conversation / Messages / Comments / Inboxes\nCreate Draft：先加 [AI草稿] Comment，再固定原 Sender\nAssign / Tag / Move Inbox / Reopen / Archive\n内部 Forward：重建原线程正文 + Summary\nFront API 瞬时状态最多重试 5 次", fillcolor="#DBEAFE", color="#60A5FA"];
+  handoff [label="Internal Handoff · tools/handoff.py\nBobby / Limin / Legal / Business / Investment / Community\n收件人必须通过 @dify.ai 内部域校验\n成功 Handoff 后安全 Reopen\n不存在任意外部收件人 Forward", fillcolor="#E0E7FF", color="#60A5FA"];
+  linear [label="Linear · tools/linear.py\nGraphQL 创建 CUS Project Issue\nTitle + Body + 可信 Sender/Original Message\n瞬时网络/HTTP 状态重试\n返回 Issue ID + URL", fillcolor="#EDE9FE", color="#A78BFA"];
+  grounding [label="只读 Grounding\nDify Docs Search：最多 3 条并抓取页面摘要\nGitHub Search：langgenius/dify Issues/PRs，最多 5 条\n用于 Technical Draft 的事实依据\n不产生业务写操作", fillcolor="#EDE9FE", color="#A78BFA"];
+  sybil [label="Sybil / Feishu\nnotify_sybil_group 不直接发客户邮件\n先写 sybil_notifications=pending\n携带 conversation_id / handoff_type / trusted linear_url\n每日 10:00 合并最多 100 条 Digest\nPending → Sending(30m Lease) → Sent / 重试", fillcolor="#FEF9C3", color="#FACC15"];
+  state [label="State Tool · tools/state.py\nUpsert conversation_states\ncategory / sub_type / step / payload / waiting_since\n只保存真实外部 Sender，修复旧内部 Sender\nCommit 后供多轮续接、Case Memory、Ops 使用", fillcolor="#F3E8FF", color="#A78BFA"];
+
+  front_cloud [label="Front Cloud", shape=ellipse, fillcolor="#DBEAFE", color="#60A5FA"];
+  linear_cloud [label="Linear GraphQL", shape=ellipse, fillcolor="#EDE9FE", color="#A78BFA"];
+  docs_cloud [label="docs.dify.ai\nGitHub API", shape=ellipse, fillcolor="#EDE9FE", color="#A78BFA"];
+  feishu_cloud [label="Feishu Bot", shape=ellipse, fillcolor="#FEF9C3", color="#FACC15"];
+  sqlite [label="SQLite", shape=cylinder, fillcolor="#F3E8FF", color="#A78BFA"];
+  result [label="标准化 Tool Result\ndraft_created / forwarded / moved / ticket URL\nfeishu_queued / state_saved / search JSON\n或明确 failed/blocked Result", fillcolor="#D1FAE5", color="#34D399", fontsize=14];
+
+  input -> dispatch;
+  dispatch -> front;
+  dispatch -> handoff;
+  dispatch -> linear;
+  dispatch -> grounding;
+  dispatch -> sybil;
+  dispatch -> state;
+  { rank=same; front; handoff; linear; }
+  { rank=same; grounding; sybil; state; }
+  front -> grounding [style=invis, weight=100];
+  handoff -> sybil [style=invis, weight=100];
+  linear -> state [style=invis, weight=100];
+  front -> front_cloud;
+  handoff -> front_cloud;
+  linear -> linear_cloud;
+  grounding -> docs_cloud;
+  sybil -> sqlite;
+  sqlite -> feishu_cloud [style=dashed, label="Scheduler Digest"];
+  state -> sqlite;
+  front -> result;
+  handoff -> result;
+  linear -> result;
+  grounding -> result;
+  sybil -> result;
+  state -> result;
+}

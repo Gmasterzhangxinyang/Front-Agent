@@ -1,0 +1,35 @@
+digraph PolicyLayers {
+  graph [label="⑤ 两层业务策略 · Python 确定性路由 vs 受约束 LLM Skill", labelloc=t, labeljust=l, fontsize=28, fontname="Arial", rankdir=TB, bgcolor="#F8FAFC", pad=0.35, nodesep=0.48, ranksep=0.58, splines=polyline, newrank=true];
+  node [shape=box, style="rounded,filled", fontname="Arial", fontsize=13, color="#C084FC", fillcolor="#FFFFFF", penwidth=1.5, margin="0.17,0.11"];
+  edge [fontname="Arial", fontsize=10, color="#9333EA", penwidth=1.8, arrowsize=0.78];
+
+  route [label="阶段 ④ RouteDecision", fillcolor="#EDE9FE", fontsize=15];
+  handled [shape=diamond, label="handled_before_skill？", fillcolor="#FEF3C7", color="#F59E0B"];
+
+  subgraph cluster_deterministic {
+    label="A · Python 确定性策略 · agent/routing.py";
+    labeljust=l; fontsize=19; fontname="Arial"; color="#C4B5FD"; fillcolor="#FAF5FF"; style="rounded,filled";
+    d_routes [label="固定分类 → 固定动作\nspam → Archive / closed_spam\nunclear → Bobby / manual_review\nlegal → Geyan / forwarded_keep_open\nsecurity → Security Inbox\nmarketing → Marketing Inbox + Comment\nbusiness → Business Inbox + Comment\npartnership → marketing@dify.ai + Reopen", fillcolor="#F3E8FF"];
+    d_policy [label="Python 固定不变量\n只有明确 Spam 可以关闭\n非 Spam Keep Open\n目标邮箱/内部收件人固定\n不由 Confidence 阈值决定\n工具失败 → failed_needs_review", fillcolor="#EDE9FE"];
+    d_output [label="直接生成已授权 Tool Call\n无需进入 Agent Loop", fillcolor="#D1FAE5", color="#34D399"];
+    d_routes -> d_policy -> d_output;
+  }
+
+  subgraph cluster_skill {
+    label="B · LLM Skill 策略 · agent/orchestrator.py + skills/*.md";
+    labeljust=l; fontsize=19; fontname="Arial"; color="#C4B5FD"; fillcolor="#FAF5FF"; style="rounded,filled";
+    prompt [label="组装 Category System Prompt\nClassification + Python Route Policy\nGlobal Safety Rules + Category Skill\n同类 Case Memory + 可选用户历史\n可信 conversation_id / sender_email", fillcolor="#F3E8FF"];
+    categories [label="主要 Skill\neducation：资格/拒绝/折扣/毕业邮箱/取消\naccount：登录/删除/转移/异常/被盗/合并\ntechnical：Docs/GitHub Grounding；严重付费问题才 Linear\nbilling：退款/扣款/降级/发票/Credit Note\npurchase：Enterprise/Premium/Pro-Team/Promo/Reseller\ninvestment / roadmap / data_export / recruiting", fillcolor="#F3E8FF"];
+    loop [label="Agent Loop · 最多 10 轮\nLLM 返回 Tool Calls\n每轮执行结果作为 Tool Message 回填\n没有 Tool Call 或 finish_reason=stop → 结束", fillcolor="#EDE9FE"];
+    special [label="流程特例\nEducation：Linear → Sybil Queue → Draft → State\n已有 Education Ticket 的续接禁止重复建 Ticket\nBilling 只批准 invoice Credit Note 指定两轮续接\nEmotional Flag 可额外通知 Bobby\n所有客户回复默认 Draft-first", fillcolor="#EDE9FE"];
+    candidate [label="只产生白名单动作候选\n交给阶段 ⑥ 再校验和执行", fillcolor="#D1FAE5", color="#34D399"];
+    prompt -> categories -> loop -> special -> candidate;
+  }
+
+  handled -> d_routes [label="是"];
+  handled -> prompt [label="否"];
+  route -> handled;
+  d_output -> next [style=invis];
+  candidate -> next [style=invis];
+  next [label="阶段 ⑥ · 权限与副作用执行", fillcolor="#D1FAE5", color="#34D399", fontsize=15];
+}

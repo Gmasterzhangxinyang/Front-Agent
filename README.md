@@ -4,6 +4,8 @@ Front-Agent is the Dify support mailbox automation service. It receives Front we
 
 [查看当前系统架构地图（单图泳道版）](docs/current-system-architecture.md) — 一张横向地图覆盖入口、Webhook、编排路由、Skill、工具安全、数据、后台任务、Ops 和保证边界。
 
+[查看架构 ①–⑧ 阶段拆解图](docs/current-system-architecture-details.md) — 8 张独立流程图展开每个阶段的输入、判断、动作、状态和异常路径。
+
 Current production screen runs this branch from release directories under `/tmp/front-agent-release-*`.
 
 ## Current Runtime

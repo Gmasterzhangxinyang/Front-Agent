@@ -1,0 +1,31 @@
+digraph EventIngress {
+  graph [label="① 事件进入 · 客户 → Front → FastAPI", labelloc=t, labeljust=l, fontsize=28, fontname="Arial", rankdir=TB, bgcolor="#F8FAFC", pad=0.35, nodesep=0.45, ranksep=0.65, splines=polyline];
+  node [shape=box, style="rounded,filled", fontname="Arial", fontsize=14, color="#93C5FD", fillcolor="#FFFFFF", penwidth=1.5, margin="0.18,0.12"];
+  edge [fontname="Arial", fontsize=11, color="#2563EB", penwidth=2, arrowsize=0.8];
+
+  customer [label="外部客户\n发送新邮件 / 后续回复", fillcolor="#DBEAFE"];
+  front [label="Front Cloud\nSupport Inbox · inb_f9fvf\n生成 Rule Webhook Event", fillcolor="#DBEAFE"];
+  http [label="FastAPI · main.py\nPOST /webhook/front\n读取原始 Body + X-Front-Signature", fillcolor="#E0E7FF"];
+  signature [shape=diamond, label="Webhook 签名有效？", fillcolor="#FEF3C7", color="#F59E0B"];
+  parse [shape=diamond, label="Body 是合法 JSON？", fillcolor="#FEF3C7", color="#F59E0B"];
+  ids [label="提取可信定位信息\nevent_id：payload.id / event_id\n缺失时 SHA-256(raw body)\nconversation.id / conversation_id", fillcolor="#EDE9FE", color="#A78BFA"];
+  has_conv [shape=diamond, label="有 conversation_id？", fillcolor="#FEF3C7", color="#F59E0B"];
+  next [label="交给阶段 ②\nDurable Intake", fillcolor="#D1FAE5", color="#34D399"];
+
+  startup [label="启动前安全配置\nFRONT_WEBHOOK_SECRET 必填\n除非显式 ALLOW_UNSIGNED_FRONT_WEBHOOKS=true", fillcolor="#F1F5F9", color="#94A3B8"];
+  reject401 [label="HTTP 401\nInvalid signature", fillcolor="#FFE4E6", color="#FB7185"];
+  reject400 [label="HTTP 400\nInvalid JSON", fillcolor="#FFE4E6", color="#FB7185"];
+  ignore [label="HTTP 200 ignored\nreason=no conversation_id\n不进入业务处理", fillcolor="#F1F5F9", color="#94A3B8"];
+
+  customer -> front [label="Inbound message"];
+  front -> http [label="签名 Webhook"];
+  startup -> http [style=dashed, color="#64748B", label="lifespan 校验"];
+  http -> signature;
+  signature -> reject401 [label="否", color="#E11D48"];
+  signature -> parse [label="是"];
+  parse -> reject400 [label="否", color="#E11D48"];
+  parse -> ids [label="是"];
+  ids -> has_conv;
+  has_conv -> ignore [label="否", color="#64748B"];
+  has_conv -> next [label="是"];
+}

@@ -4,6 +4,8 @@
 
 [打开可无限缩放的高清 SVG](assets/front-agent-current-architecture.svg) · [打开 4000px PNG](assets/front-agent-current-architecture-preview.png) · [查看 GraphViz 源图](current-system-architecture.dot)
 
+[逐张查看 ①–⑧ 阶段详细拆解图](current-system-architecture-details.md)
+
 ![Front-Agent 当前系统架构单图泳道地图](assets/front-agent-current-architecture-preview.png)
 
 <details>

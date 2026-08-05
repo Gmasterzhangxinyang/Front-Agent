@@ -1,0 +1,46 @@
+digraph ResultPersistenceRecovery {
+  graph [label="⑧ 结果持久化 · State/Action/Queue、Webhook 完成与失败恢复", labelloc=t, labeljust=l, fontsize=28, fontname="Arial", rankdir=TB, bgcolor="#F8FAFC", pad=0.35, nodesep=0.46, ranksep=0.58, splines=polyline, newrank=true];
+  node [shape=box, style="rounded,filled", fontname="Arial", fontsize=12, color="#22D3EE", fillcolor="#FFFFFF", penwidth=1.5, margin="0.16,0.10"];
+  edge [fontname="Arial", fontsize=9, color="#0891B2", penwidth=1.7, arrowsize=0.75];
+
+  outcome [shape=diamond, label="阶段 ⑦ / Handler 最终结果", fillcolor="#FEF3C7", color="#F59E0B"];
+
+  subgraph cluster_success {
+    label="成功路径"; labeljust=l; fontsize=19; fontname="Arial"; color="#6EE7B7"; fillcolor="#ECFDF5"; style="rounded,filled";
+    skill_state [shape=diamond, label="业务路径是否已有 State？\n确定性路由直接保存\nSkill 必须调用 state_set", fillcolor="#FEF3C7", color="#F59E0B"];
+    fallback_state [label="没有 State → 自动保存\nfailed_needs_review\nreason=skill loop completed without state_set", fillcolor="#FFE4E6", color="#FB7185"];
+    state_steps [label="conversation_states\nclosed_spam：唯一关闭终态\nmanual_review / moved_inbox / forwarded_keep_open\ndraft_created / awaiting_* / done / failed_needs_review\n非 Spam Handoff 被强制 Keep Open", fillcolor="#D1FAE5", color="#34D399"];
+    event [label="同一 DB Session 写 webhook_events(event_id)\n标记业务 Handler 已成功\n用于后续 Event Idempotency", fillcolor="#D1FAE5", color="#34D399"];
+    complete [label="complete_webhook() CAS\n要求 status=processing + lease_token 匹配\n→ processed · 清空 Payload/Lease/Error\n写 processed_at", fillcolor="#D1FAE5", color="#34D399"];
+    response [label="HTTP 200\nstatus=ok / ignored / already_processed", fillcolor="#DBEAFE", color="#60A5FA"];
+    skill_state -> state_steps [label="是"];
+    skill_state -> fallback_state [label="否"];
+    fallback_state -> state_steps;
+    state_steps -> event -> complete -> response;
+  }
+
+  subgraph cluster_failure {
+    label="异常与恢复路径"; labeljust=l; fontsize=19; fontname="Arial"; color="#FDA4AF"; fillcolor="#FFF1F2"; style="rounded,filled";
+    notify [label="Handler 异常兜底\n去重 Forward Bobby 错误摘要\n显式 Reopen Conversation\n保存 failed_needs_review + 截断 Error", fillcolor="#FFE4E6", color="#FB7185"];
+    http503 [label="抛出 HTTP 503\n不写 webhook_events\n不把 Inbox 标成 processed", fillcolor="#FFE4E6", color="#FB7185"];
+    fail [label="fail_webhook() CAS Lease Owner\n保留原始 Payload\nlast_error 最多 500 字符\n清除当前 Lease", fillcolor="#FFE4E6", color="#FB7185"];
+    attempts [shape=diamond, label="attempts < 6？", fillcolor="#FEF3C7", color="#F59E0B"];
+    retry [label="status=retry\n退避 1 / 5 / 15 / 60 / 180 分钟\navailable_at 到期后可 Claim", fillcolor="#FEF3C7", color="#F59E0B"];
+    dead [label="status=dead_letter\n停止自动业务处理\n保留 Event、Conversation、Error 供人工排查", fillcolor="#FFE4E6", color="#FB7185"];
+    scheduler [label="Scheduler 每 1 分钟\nlist_due_event_ids(limit=20)\n处理到期 retry 和过期 Lease\n15 分钟 Lease 过期可重新 Claim\n第 6 次过期 Lease 直接 Dead Letter", fillcolor="#FEF9C3", color="#FACC15"];
+    reentry [label="重新进入阶段 ②\n原子 Claim → 业务处理", fillcolor="#DBEAFE", color="#60A5FA"];
+    notify -> http503 -> fail -> attempts;
+    attempts -> retry [label="是"];
+    attempts -> dead [label="否", color="#E11D48"];
+    retry -> scheduler -> reentry [label="到期", color="#D97706"];
+  }
+
+  tables [shape=cylinder, label="持久化结果总览\nwebhook_inbox：可靠接入与重试\nwebhook_events：成功 Event 去重\nconversation_states：流程状态与 Case Memory\nconversation_actions：成功副作用去重\nsybil_notifications：Digest Queue\ndraft_adoptions / ops_reports：运营观测", fillcolor="#EDE9FE", color="#A78BFA"];
+  jobs [label="其他后台闭环\n每 15m 补 Ops Metadata\n每 3h 刷 Draft Adoption + Ops Reports\n每天 10:00 Sybil Digest\n每 6h 关闭等待超过 10 天会话\nShutdown 最多等待在途 Job 60s", fillcolor="#FEF9C3", color="#FACC15"];
+
+  outcome -> skill_state [label="成功"];
+  outcome -> notify [label="异常", color="#E11D48"];
+  state_steps -> tables [style=dashed, label="写入"];
+  fail -> tables [style=dashed, label="写入"];
+  tables -> jobs [style=dashed, color="#64748B", label="读取/维护"];
+}

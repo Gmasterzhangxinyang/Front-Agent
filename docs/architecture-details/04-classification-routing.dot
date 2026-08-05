@@ -1,0 +1,36 @@
+digraph ClassificationRouting {
+  graph [label="④ 分类与决策 · LLM 结构化分类 + Python RouteDecision", labelloc=t, labeljust=l, fontsize=28, fontname="Arial", rankdir=TB, bgcolor="#F8FAFC", pad=0.35, nodesep=0.42, ranksep=0.62, splines=polyline, newrank=true];
+  node [shape=box, style="rounded,filled", fontname="Arial", fontsize=12, color="#A78BFA", fillcolor="#FFFFFF", penwidth=1.5, margin="0.15,0.10"];
+  edge [fontname="Arial", fontsize=9, color="#7C3AED", penwidth=1.7, arrowsize=0.75];
+
+  context [label="阶段 ③ Context Bundle", fillcolor="#EDE9FE"];
+  edu [shape=diamond, label="现有非 Education 会话\n最新回复明确切换到 Education？", fillcolor="#FEF3C7", color="#F59E0B"];
+  edu_result [label="确定性 Education 分类\nhow_to_apply / rejected / no_discount\nemail_expired_graduated / cancel_subscription\nconfidence=1.0", fillcolor="#DBEAFE", color="#60A5FA"];
+  llm [label="LLM Classification\nskills/classify.md\n完整会话 + 最新消息 + 图片\nCase Memory 作为检索证据\ntemperature=0", fillcolor="#EDE9FE"];
+  parse [label="健壮 JSON 解析\n1. 纯 JSON Object\n2. JSON Code Fence\n3. 文本中的 Balanced Object", fillcolor="#F3E8FF"];
+  normalize [label="normalize_classification()\nCategory 必须在 16 类白名单\nUrgency 仅 normal/high\nBool/List/字符串规范化\nConfidence Clamp 0..1\n解析失败/非法 Category → unclear", fillcolor="#F3E8FF"];
+  result [label="ClassificationResult\ncategory · sub_type · paid · premium\nurgency · sender · summary · confidence\nflags · secondary_intents · evidence", fillcolor="#E0E7FF", color="#60A5FA"];
+
+  conflict [shape=diamond, label="spam + marketplace/plugin\n冲突？", fillcolor="#FEF3C7", color="#F59E0B"];
+  explicit [shape=diamond, label="Evidence 明确申请/上架/下架？", fillcolor="#FEF3C7", color="#F59E0B"];
+  priority [shape=diamond, label="Python 优先路由顺序", fillcolor="#FEF3C7", color="#F59E0B"];
+  deterministic [label="handled_before_skill=true\nCreator Collaboration → Marketing\nClear Spam → Archive\nUnclear → Bobby\nLegal → Geyan\nSecurity / Marketing / Business → Move Inbox\nPartnership → marketing@dify.ai", fillcolor="#F3E8FF"];
+  skill [label="handled_before_skill=false\n生成对应 Category Skill Route\nCustomer Action 默认 Draft/None\n非 Spam 默认 Keep Open", fillcolor="#D1FAE5", color="#34D399"];
+  route [label="RouteDecision\nname · tool_name/args · state step\nwaiting · keep_open · close authorization\ncustomer action · internal/inbox target · reason", fillcolor="#D1FAE5", color="#34D399"];
+  confidence [label="Confidence 只用于观测\n绝不作为数字阈值控制路由", fillcolor="#F1F5F9", color="#94A3B8"];
+
+  context -> edu;
+  edu -> edu_result [label="是"];
+  edu -> llm [label="否 / 新会话"];
+  llm -> parse -> normalize -> result;
+  edu_result -> result;
+  result -> conflict;
+  conflict -> explicit [label="是"];
+  explicit -> priority [label="是→partnership\n否→unclear"];
+  conflict -> priority [label="否"];
+  priority -> deterministic [label="命中确定性策略"];
+  priority -> skill [label="其他 Category"];
+  deterministic -> route;
+  skill -> route;
+  confidence -> route [style=dashed, color="#64748B", label="仅记录"];
+}
