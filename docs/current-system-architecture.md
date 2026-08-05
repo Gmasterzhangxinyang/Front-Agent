@@ -1,15 +1,15 @@
-# Front-Agent 当前系统架构（清晰分层版）
+# Front-Agent 当前系统架构地图（单图泳道版）
 
-> 运行代码基线：`refactor/stable-agent-v2`，提交 `673049c`，梳理日期 `2026-08-05`。按照图中的 ① → ⑦ 自上而下阅读；主链路只在“确定性策略 / LLM Skill”处发生一次分流。
+> 运行代码基线：`refactor/stable-agent-v2`，提交 `673049c`，梳理日期 `2026-08-05`。先沿最上方 A 泳道从 ① → ⑧ 阅读实时主链，再按编号查看 B / C 的模块明细，最后查看 D / E 的横切能力和系统边界。
 
-[打开可无限缩放的高清 SVG](assets/front-agent-current-architecture.svg) · [查看 GraphViz 源图](current-system-architecture.dot)
+[打开可无限缩放的高清 SVG](assets/front-agent-current-architecture.svg) · [打开 4000px PNG](assets/front-agent-current-architecture-preview.png) · [查看 GraphViz 源图](current-system-architecture.dot)
 
-![Front-Agent 当前系统架构清晰预览](assets/front-agent-current-architecture-preview.png)
+![Front-Agent 当前系统架构单图泳道地图](assets/front-agent-current-architecture-preview.png)
 
 <details>
 <summary>展开完整 Mermaid 明细图（用于检索节点和维护）</summary>
 
-下面保留原始的全量关系图；它的信息密度较高，日常阅读请以上方清晰分层版为准。
+下面保留原始的全量关系图；它的信息密度较高，日常阅读请以上方单图泳道版为准。
 
 ```mermaid
 %%{init: {"theme":"base","flowchart":{"htmlLabels":true,"curve":"basis","nodeSpacing":22,"rankSpacing":34},"themeVariables":{"fontFamily":"Inter, PingFang SC, Microsoft YaHei, sans-serif","fontSize":"13px"}}}%%
