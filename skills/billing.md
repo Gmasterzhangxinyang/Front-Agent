@@ -7,7 +7,7 @@ Handle refund requests, duplicate charges, subscription changes, invoice issues,
 ## Draft Quality Bar
 - Start with a complete, authoritative English version; never create a local-language-only customer draft.
 - If the latest customer message is primarily non-English, finish the English version first, then write exactly `For reference, a <Language> translation is provided below.` and add a faithful matching-language version.
-- End every language version with `Best regards,` and the English team name `Dify Support Team`; never translate the team name or invent a personal signatory.
+- Front automatically appends the configured default signature. Do not put `Best regards,`, `Dify Support Team`, `Cheers`, a personal name, or any other manual sign-off in the draft body; keep every language block unsigned.
 - If the customer wrote in English, do not add a second language version.
 - For approved deterministic templates marked verbatim, preserve the English body exactly; for a non-English customer, append only the required reference notice and a faithful matching-language translation.
 - Answer only what the email supports. Do not invent product behavior, policy exceptions, timelines, refunds, eligibility, or engineering commitments.
@@ -46,8 +46,6 @@ In the Stripe billing portal, select your active Dify subscription, click "Cance
 
 You can also reach the same portal from Dify Cloud: click your current workspace name in the upper-left corner, then go to Settings -> Billing -> Billing and Subscriptions -> Manage.
 
-Best regards,
-Dify Support Team
 ```
 
 ### invoice
@@ -73,8 +71,6 @@ The invoice and receipt you have already received are the official commercial bi
 
 If your institution requires additional billing information or supporting documentation, please share the specific requirements and we can check what we're able to provide.
 
-Best regards,
-Dify Support Team
 ```
 
 Do not use the former wording `LangGenius is a non-PRC entity, therefore...`, `For reimbursement purposes, please use...`, or any equivalent tax-law inference or reimbursement instruction. Do not suggest that downloading an Invoice/receipt or updating the Billing Portal can produce a PRC tax invoice. If the request also concerns correction or reissuance of an already-issued commercial Invoice, continue with the existing-invoice guidance below.
@@ -97,8 +93,6 @@ For the existing invoice, our billing team may be able to provide a supplementar
 
 If you would like us to request a Credit Note for you, please let us know and we'll be happy to assist.
 
-Best regards,
-Dify Support Team
 ```
 
 2. Call `state_set` with step="awaiting_credit_note_confirmation", sub_type="invoice", waiting=true. Save the actual workspace, invoice number, organization name, Tax ID, and billing address found in the conversation in the payload. Do not invent missing values.

@@ -45,7 +45,7 @@ Handle education plan applications, rejections, discount issues, and account sus
 ## Draft Quality Bar
 - Start with a complete, authoritative English version; never create a local-language-only customer draft.
 - If the latest customer message is primarily non-English, finish the English version first, then write exactly `For reference, a <Language> translation is provided below.` and add a faithful matching-language version.
-- End every language version with `Best regards,` and the English team name `Dify Support Team`; never translate the team name or invent a personal signatory.
+- Front automatically appends the configured default signature. Do not put `Best regards,`, `Dify Support Team`, `Cheers`, a personal name, or any other manual sign-off in the draft body; keep every language block unsigned.
 - If the customer wrote in English, do not add a second language version.
 - For approved deterministic templates marked verbatim, preserve the English body exactly; for a non-English customer, append only the required reference notice and a faithful matching-language translation.
 - Answer only what the email supports. Do not invent product behavior, policy exceptions, timelines, refunds, eligibility, or engineering commitments.
@@ -175,8 +175,8 @@ Handle education plan applications, rejections, discount issues, and account sus
 This sub-type is only for an account-level enforcement suspension or ban. An Education Plan application or verification that was rejected, denied, declined, unsuccessful, or not approved remains sub_type=`rejected` and must follow the normal education review flow above.
 
 **Step: any**
-1. This template is only for a first-contact suspension with no linked same-sender history. Call `front_create_draft` with the **Account suspension** template below verbatim as the English body, followed by the standard English `Best regards,` / `Dify Support Team` sign-off.
-2. Do not personalize, paraphrase, shorten, or add any promise, timeline, or policy explanation. If the latest customer message is non-English, preserve the English body exactly and append only the required reference notice, a faithful matching-language translation, and the same English sign-off.
+1. This template is only for a first-contact suspension with no linked same-sender history. Call `front_create_draft` with the **Account suspension** template below verbatim as the unsigned English body; Front appends its configured default signature.
+2. Do not personalize, paraphrase, shorten, or add any promise, timeline, policy explanation, or manual sign-off. If the latest customer message is non-English, preserve the English body exactly and append only the required reference notice and a faithful matching-language translation.
 3. Do not create a Linear ticket, notify Sybil, forward the conversation, add an internal handoff, or send a direct customer reply.
 4. Call `state_set` with category=`education`, sub_type=`account_suspended`, step=`draft_created`, waiting=false.
 5. If the same normalized sender already has a suspension, appeal, supporting evidence, or existing review in another Front conversation, do not repeat the template or create another ticket. Cross-link the conversations internally, preserve the existing Linear URL and review context, and set the new thread to `manual_review`.
@@ -205,8 +205,6 @@ Please note:
 
 Official guide: https://docs.dify.ai/en/cloud/use-dify/workspace/subscription-management#dify-for-education
 
-Best regards,
-Dify Support Team
 ```
 
 ### Request school info
@@ -225,8 +223,6 @@ Please note that the education plan is available for higher education institutio
 
 We look forward to hearing from you!
 
-Best regards,
-Dify Support Team
 ```
 
 ### Must use school email
@@ -241,8 +237,6 @@ Could you please provide your school's official email domain instead?
 
 Thank you for your understanding.
 
-Best regards,
-Dify Support Team
 ```
 
 ### Not eligible (K-12 or unaccredited)
@@ -258,8 +252,6 @@ We understand this may be disappointing, and we appreciate your interest in Dify
 
 Thank you for your understanding.
 
-Best regards,
-Dify Support Team
 ```
 
 ### Received, forwarding to team
@@ -271,8 +263,6 @@ Thank you for providing your school information!
 We've received your application and have forwarded it to our team for review. We'll get back to you once the verification is complete.
 
 
-Best regards,
-Dify Support Team
 ```
 
 ### Billing guidance (edu badge visible but no discount)
@@ -293,8 +283,6 @@ Please note that the discount applies only to the yearly Professional plan. It w
 
 If you've followed these steps and still don't see the discount, please reply and let us know — we'll be happy to investigate further.
 
-Best regards,
-Dify Support Team
 ```
 
 ### Card binding cannot be bypassed
@@ -309,8 +297,6 @@ If you do not have a supported international credit card available, unfortunatel
 
 Thank you for your understanding.
 
-Best regards,
-Dify Support Team
 ```
 
 ### Identity verification request (for email expired / graduated)
@@ -328,8 +314,6 @@ Once we've verified your identity, we'll assist you in updating your account ema
 
 Thank you for your patience and understanding.
 
-Best regards,
-Dify Support Team
 ```
 
 ### No-auto-renew explanation (for education plan cancel request)
@@ -342,8 +326,6 @@ We'd like to confirm that your Dify education plan will NOT automatically renew 
 
 If you have any other questions, please don't hesitate to reach out.
 
-Best regards,
-Dify Support Team
 ```
 
 ### Account suspension

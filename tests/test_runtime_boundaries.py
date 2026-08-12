@@ -30,6 +30,7 @@ from tools.front import (
     get_attachment,
     markdown_to_safe_html,
     read_limited_attachment,
+    reply_to_conversation,
     validate_attachment_url,
 )
 from webhooks.front_webhook import (
@@ -146,6 +147,40 @@ def test_front_draft_payload_uses_rendered_markdown_html():
             "<p>Hello</p>\n<ul>\n<li><strong>First</strong></li>\n"
             "<li><strong>Second</strong></li>\n</ul>"
         )
+        assert payload["should_add_default_signature"] is True
+
+    asyncio.run(run_case())
+
+
+def test_front_direct_reply_payload_uses_default_signature():
+    async def run_case():
+        request = AsyncMock(
+            side_effect=[
+                _FrontResponse(
+                    payload={
+                        "_results": [
+                            {"send_as": "support@dify.ai"},
+                        ]
+                    }
+                ),
+                _FrontResponse(status_code=202),
+            ]
+        )
+        with (
+            patch(
+                "tools.front.get_conversation",
+                AsyncMock(
+                    return_value={
+                        "recipient": {"handle": "customer@example.com"}
+                    }
+                ),
+            ),
+            patch("tools.front.front_request", request),
+        ):
+            assert await reply_to_conversation("cnv_reply", "Hello")
+
+        payload = request.await_args_list[1].kwargs["json"]
+        assert payload["should_add_default_signature"] is True
 
     asyncio.run(run_case())
 
@@ -310,7 +345,7 @@ def test_llm_tool_context_overrides_conversation_id():
         "front_create_draft",
         {
             "conversation_id": "cnv_attacker",
-            "body": "Safe draft\n\nBest regards,\nDify Support Team",
+            "body": "Safe draft",
             "category": "technical/how_to",
             "reason_cn": "docs guidance",
         },
@@ -321,13 +356,13 @@ def test_llm_tool_context_overrides_conversation_id():
     assert prepared["to_email"] == "customer@example.com"
 
 
-def test_llm_customer_draft_requires_english_team_signoff():
+def test_llm_customer_draft_rejects_manual_body_signoff():
     try:
         prepare_llm_tool_call(
             "front_create_draft",
             {
                 "conversation_id": "cnv_trusted",
-                "body": "English answer without a sign-off.",
+                "body": "English answer.\n\nBest regards,\nDify Support Team",
                 "category": "technical/how_to",
                 "reason_cn": "docs guidance",
             },
@@ -338,9 +373,25 @@ def test_llm_customer_draft_requires_english_team_signoff():
             ),
         )
     except ToolCallValidationError as exc:
-        assert "English Dify Support Team sign-off" in str(exc)
+        assert "must not include a manual sign-off" in str(exc)
     else:
-        raise AssertionError("SaaS customer drafts must use the English team sign-off")
+        raise AssertionError("SaaS customer drafts must leave the body unsigned")
+
+    prepared = prepare_llm_tool_call(
+        "front_create_draft",
+        {
+            "conversation_id": "cnv_trusted",
+            "body": "English answer without a manual sign-off.",
+            "category": "technical/how_to",
+            "reason_cn": "docs guidance",
+        },
+        ToolExecutionContext(
+            conversation_id="cnv_trusted",
+            sender_email="customer@example.com",
+            original_message="How do I configure this?",
+        ),
+    )
+    assert prepared["body"] == "English answer without a manual sign-off."
 
 
 def test_llm_non_english_customer_draft_requires_english_first_bilingual_structure():
@@ -354,7 +405,7 @@ def test_llm_non_english_customer_draft_requires_english_first_bilingual_structu
             "front_create_draft",
             {
                 "conversation_id": "cnv_trusted",
-                "body": "English only.\n\nBest regards,\nDify Support Team",
+                "body": "English only.",
                 "category": "technical/how_to",
                 "reason_cn": "missing translation",
             },
@@ -368,10 +419,8 @@ def test_llm_non_english_customer_draft_requires_english_first_bilingual_structu
 
     body = (
         "Hello, here is the requested guidance.\n\n"
-        "Best regards,\nDify Support Team\n\n"
         "For reference, a Chinese translation is provided below.\n\n"
-        "您好，以下是您需要的操作说明。\n\n"
-        "Best regards,\nDify Support Team"
+        "您好，以下是您需要的操作说明。"
     )
     prepared = prepare_llm_tool_call(
         "front_create_draft",
@@ -412,8 +461,7 @@ def test_mainland_china_vat_invoice_draft_requires_capability_reimbursement_boun
         "Hi,\n\n"
         "Please note that LangGenius is a non-PRC entity. Therefore, we "
         "cannot issue a VAT invoice. For reimbursement purposes, please use "
-        "the commercial invoice.\n\n"
-        "Best regards,\nDify Support Team"
+        "the commercial invoice."
     )
     try:
         prepare_llm_tool_call(
@@ -440,8 +488,7 @@ def test_mainland_china_vat_invoice_draft_requires_capability_reimbursement_boun
         "policies.\n\n"
         "If your institution requires additional billing information or "
         "supporting documentation, please share the specific requirements "
-        "and we can check what we're able to provide.\n\n"
-        "Best regards,\nDify Support Team"
+        "and we can check what we're able to provide."
     )
     prepared = prepare_llm_tool_call(
         "front_create_draft",
@@ -456,7 +503,7 @@ def test_mainland_china_vat_invoice_guard_is_scoped_to_matching_invoice_requests
         "front_create_draft",
         {
             "conversation_id": "cnv_invoice",
-            "body": "Please use the Billing Portal.\n\nBest regards,\nDify Support Team",
+            "body": "Please use the Billing Portal.",
             "category": "billing/invoice",
             "reason_cn": "普通账单信息更新",
         },
@@ -472,7 +519,7 @@ def test_mainland_china_vat_invoice_guard_is_scoped_to_matching_invoice_requests
         "front_create_draft",
         {
             "conversation_id": "cnv_purchase",
-            "body": "Here is the plan information.\n\nBest regards,\nDify Support Team",
+            "body": "Here is the plan information.",
             "category": "purchase/pro",
             "reason_cn": "套餐说明",
         },
@@ -691,10 +738,7 @@ def test_only_failed_review_state_reenters_initial_flow():
 
 def test_account_suspension_draft_preserves_english_and_appends_translation():
     english_draft = orchestrator_module._format_account_suspension_draft()
-    assert english_draft == (
-        f"{EDUCATION_ACCOUNT_SUSPENSION_DRAFT}\n\n"
-        "Best regards,\nDify Support Team"
-    )
+    assert english_draft == EDUCATION_ACCOUNT_SUSPENSION_DRAFT
 
     translated_draft = orchestrator_module._format_account_suspension_draft(
         "Chinese",
@@ -705,7 +749,8 @@ def test_account_suspension_draft_preserves_english_and_appends_translation():
         "For reference, a Chinese translation is provided below.\n\n"
         "您好，这是对应的中文参考版本。"
     ) in translated_draft
-    assert translated_draft.count("Dify Support Team") == 2
+    assert "Dify Support Team" not in translated_draft
+    assert "Best regards" not in translated_draft
 
 
 def test_account_suspension_builder_uses_detected_customer_language():
@@ -735,7 +780,8 @@ def test_account_suspension_builder_uses_detected_customer_language():
         assert draft.startswith(EDUCATION_ACCOUNT_SUSPENSION_DRAFT)
         assert "For reference, a Spanish translation is provided below." in draft
         assert "Hola, esta es la traducción aprobada." in draft
-        assert draft.count("Dify Support Team") == 2
+        assert "Dify Support Team" not in draft
+        assert "Best regards" not in draft
         create.assert_awaited_once()
 
     asyncio.run(run_case())

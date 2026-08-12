@@ -2,8 +2,8 @@
 
 ## 基本规则
 - 回复语言：英文版本必须完整并放在最前；非英文来信在英文版后注明“下方附对应语言版本供参考”，再附对应语言译文；英文来信不重复第二语言
-- 署名：所有语言版本均使用英文署名 `Best regards, Dify Support Team`，不得翻译团队名或使用非英文署名（AI自动回复需标注 AI generated）
-- 固定模板：英文固定正文保持逐字不变；非英文来信仍须在英文版及英文署名后，追加对应语言参考译文，并统一使用英文署名
+- 署名：Front 自动附加已配置的默认签名；正文不得手写 `Best regards`、`Dify Support Team`、`Cheers`、个人姓名或其他落款，英文及翻译正文都保持无署名
+- 固定模板：英文固定正文保持逐字不变；非英文来信在英文版后追加对应语言参考译文，两个正文区块均不手写落款
 - 处理完成后：Front conversation 需要 resolve
 - 付费用户识别：检查邮件 footer 是否含 `Current Plan: professional` 或 `Current Plan: team`
 - 发件邮箱与账号邮箱不一致时：先让用户确认账号邮箱
@@ -34,7 +34,6 @@
   - 模板参考：
     > Dear Valued Customer,
     > Thank you for your inquiry. Priority technical support via "Contact Us" is available only for Dify Cloud Pro and Team subscribers. Please submit your request through Settings → Support → Contact Us in your dashboard. When submitting the ticket, please do not remove the subscription verification details, as they are required for us to confirm your account status.
-    > Best regards, Dify Support Team
 
 - **不是付费用户（Sandbox/Free）：**
   - 若用户在问如何操作 / 如何定制工作流：根据官方文档给出建议，告知优先技术支持仅对付费用户开放，引导升级

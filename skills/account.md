@@ -23,7 +23,7 @@ Handle account-related requests: login issues, account deletion, transfer, email
 ## Draft Quality Bar
 - Start with a complete, authoritative English version; never create a local-language-only customer draft.
 - If the latest customer message is primarily non-English, finish the English version first, then write exactly `For reference, a <Language> translation is provided below.` and add a faithful matching-language version.
-- End every language version with `Best regards,` and the English team name `Dify Support Team`; never translate the team name or invent a personal signatory.
+- Front automatically appends the configured default signature. Do not put `Best regards,`, `Dify Support Team`, `Cheers`, a personal name, or any other manual sign-off in the draft body; keep every language block unsigned.
 - If the customer wrote in English, do not add a second language version.
 - For approved deterministic templates marked verbatim, preserve the English body exactly; for a non-English customer, append only the required reference notice and a faithful matching-language translation.
 - Answer only what the email supports. Do not invent product behavior, policy exceptions, timelines, refunds, eligibility, or engineering commitments.
@@ -36,7 +36,7 @@ Handle account-related requests: login issues, account deletion, transfer, email
 
 ### account_suspended
 
-For a first account-level suspension, ban, block, or enforcement appeal with no linked same-sender history, use the one approved English response handled deterministically before this skill runs. Preserve the standardized English body exactly, add the English Dify Support Team sign-off, and for a non-English customer append only the required reference notice and faithful matching-language translation.
+For a first account-level suspension, ban, block, or enforcement appeal with no linked same-sender history, use the one approved English response handled deterministically before this skill runs. Preserve the standardized English body exactly, and for a non-English customer append only the required reference notice and faithful matching-language translation. Do not add a manual sign-off to either body block.
 
 If the same normalized sender already has a suspension or appeal in another Front conversation, treat the new thread as a continuation. Do not create the standardized draft again and do not create another Linear ticket. The runtime must cross-link the current and canonical conversations with internal comments, preserve any existing Linear URL, and save the new conversation as `manual_review`.
 
@@ -174,8 +174,6 @@ Please note that account deletion is permanent and cannot be undone.
 
 If you have any trouble finding this option, feel free to reply and we'll guide you through it.
 
-Best regards,
-Dify Support Team
 ```
 
 ### Transfer/Change email self-service (user can log in)
@@ -188,8 +186,6 @@ You can change your account email directly within Dify. Please click on your pro
 
 If you encounter any issues during the process, feel free to reply and we'll assist you.
 
-Best regards,
-Dify Support Team
 ```
 
 ### Identity verification request
@@ -207,8 +203,6 @@ Once we've verified your identity, we'll process your request as quickly as poss
 
 Thank you for your patience and understanding.
 
-Best regards,
-Dify Support Team
 ```
 
 ### Received, forwarded to team
@@ -221,8 +215,6 @@ We'll follow up with you once the action has been completed. This typically take
 
 Thank you for your patience.
 
-Best regards,
-Dify Support Team
 ```
 
 ### Merge accounts — not available
@@ -235,8 +227,6 @@ Unfortunately, account merging is not currently a supported feature on Dify. We'
 
 If there's anything else we can help you with, please don't hesitate to ask.
 
-Best regards,
-Dify Support Team
 ```
 
 ### Self-hosted can't help
@@ -247,8 +237,6 @@ Thank you for reaching out. For self-hosted deployments, account and login issue
 
 If you have any other questions, feel free to reach out.
 
-Best regards,
-Dify Support Team
 ```
 
 ### Ask deployment and plan
@@ -263,8 +251,6 @@ Thank you for reaching out. To check this login issue correctly, could you pleas
 
 Please note that Dify Support can investigate login issues for Dify Cloud/SaaS accounts. For self-hosted deployments, we cannot access your instance or account system, so login issues need to be handled by your own deployment administrator.
 
-Best regards,
-Dify Support Team
 ```
 
 ### Login troubleshooting (SaaS user - not verification code)
@@ -280,8 +266,6 @@ Thank you for reaching out. To help you with your login issue, please try the fo
 
 If the issue persists after trying these steps, please let us know and we'll assist you further.
 
-Best regards,
-Dify Support Team
 ```
 
 ### Processing, please wait (for SaaS users)
@@ -292,8 +276,6 @@ Thank you for contacting us. We're looking into your account issue and will get 
 
 Please note that our team may need to verify your account status. We appreciate your patience.
 
-Best regards,
-Dify Support Team
 ```
 
 ### Account hacked — urgent acknowledgment
@@ -306,6 +288,4 @@ We've escalated your case to our security team and will investigate this urgentl
 
 We'll be in touch as soon as possible.
 
-Best regards,
-Dify Support Team
 ```

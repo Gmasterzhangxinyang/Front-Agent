@@ -36,7 +36,7 @@ Handle questions about purchasing Dify plans, pricing, and reseller/agent inquir
 ## Draft Quality Bar
 - Start with a complete, authoritative English version; never create a local-language-only customer draft.
 - If the latest customer message is primarily non-English, finish the English version first, then write exactly `For reference, a <Language> translation is provided below.` and add a faithful matching-language version.
-- End every language version with `Best regards,` and the English team name `Dify Support Team`; never translate the team name or invent a personal signatory.
+- Front automatically appends the configured default signature. Do not put `Best regards,`, `Dify Support Team`, `Cheers`, a personal name, or any other manual sign-off in the draft body; keep every language block unsigned.
 - If the customer wrote in English, do not add a second language version.
 - For approved deterministic templates marked verbatim, preserve the English body exactly; for a non-English customer, append only the required reference notice and a faithful matching-language translation.
 - Answer only what the email supports. Do not invent product behavior, policy exceptions, timelines, refunds, eligibility, or engineering commitments.
@@ -84,8 +84,6 @@ If your use case involves a large-scale production environment, high-concurrency
 
 If you would like to learn more about Dify Enterprise, please let us know your country or region, and we can help connect you with the appropriate sales team.
 
-Best regards,
-Dify Support Team
 ```
 
 Chinese-language reference (place only after the complete English version and the required reference notice):
@@ -100,8 +98,6 @@ Dify Premium 是基于 Dify Community Edition 的商业化部署选项，主要�
 
 如果您希望进一步了解 Dify Enterprise 方案，请告知您所在的国家或地区，我们可以协助对接对应的销售团队。
 
-Best regards,
-Dify Support Team
 ```
 
 For a clearly Japanese customer, keep the English consent question in the English version and use its Japanese equivalent only in the Japanese reference version:
@@ -134,8 +130,6 @@ For verification purposes, we recommend using your corporate email address when 
 
 We look forward to hearing from you!
 
-Best regards,
-Dify Support Team
 ```
 
 ### Pro/Team pricing
@@ -149,8 +143,6 @@ You can find a full comparison of our plans on our pricing page:
 
 If you have specific questions about which plan might suit your needs best, feel free to reply and let us know a bit more about your use case — we'll be happy to advise.
 
-Best regards,
-Dify Support Team
 ```
 
 ### No promo code available
@@ -166,8 +158,6 @@ At this time, we don't have promotional codes available for Dify plans. However,
 
 For other discount programs or special offers, please feel free to reply and we'll see what we can do.
 
-Best regards,
-Dify Support Team
 ```
 
 ### Reseller / agent inquiry
@@ -180,6 +170,4 @@ We've received your inquiry and have forwarded it to the appropriate team for re
 
 If you have any immediate questions in the meantime, feel free to reply.
 
-Best regards,
-Dify Support Team
 ```

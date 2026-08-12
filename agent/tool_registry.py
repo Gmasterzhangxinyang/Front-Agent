@@ -109,7 +109,7 @@ TOOL_SCHEMAS = [
                 "type": "object",
                 "properties": {
                     "conversation_id": {"type": "string"},
-                    "body": {"type": "string", "description": "SaaS customer reply body: complete authoritative English version first, then—only for a primarily non-English customer message—the exact reference-translation notice and a faithful matching-language version. Use the English signatory Dify Support Team."},
+                    "body": {"type": "string", "description": "SaaS customer reply body: complete authoritative English version first, then—only for a primarily non-English customer message—the exact reference-translation notice and a faithful matching-language version. Do not include any manual sign-off or signature; Front appends its configured default signature."},
                     "category": {"type": "string", "description": "Email category/sub_type, e.g. technical/how_to or billing/refund"},
                     "reason_cn": {"type": "string", "description": "一句话说明为什么这样回复，中文，不超过30字，例如：用户询问工作流节点用法，引导至文档"},
                 },
@@ -507,9 +507,14 @@ def _validate_saas_customer_draft(
     original_message: str,
     category: str = "",
 ) -> None:
-    if "Best regards," not in body or "Dify Support Team" not in body:
+    manual_signoff_pattern = re.compile(
+        r"(?im)^\s*(?:best regards|kind regards|warm regards|regards|cheers|"
+        r"dify support team)\s*,?\s*$"
+    )
+    if manual_signoff_pattern.search(body):
         raise ToolCallValidationError(
-            "SaaS customer draft must use the English Dify Support Team sign-off"
+            "SaaS customer draft body must not include a manual sign-off; "
+            "Front appends the configured default signature"
         )
     if _is_mainland_china_tax_invoice_request(original_message, category):
         _validate_mainland_china_tax_invoice_draft(body)
@@ -522,10 +527,6 @@ def _validate_saas_customer_draft(
     if bridge_pattern.search(body) is None:
         raise ToolCallValidationError(
             "non-English customer draft must put English first and include the required reference-translation notice"
-        )
-    if body.count("Dify Support Team") < 2:
-        raise ToolCallValidationError(
-            "each bilingual version must keep the English Dify Support Team signatory"
         )
 
 

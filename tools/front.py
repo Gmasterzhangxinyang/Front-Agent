@@ -450,7 +450,11 @@ async def create_draft(conversation_id: str, body: str, author_id: str = None, t
         logging.error("create_draft: channel_id is None, draft will likely fail")
 
     html_body = markdown_to_safe_html(body)
-    payload = {"body": html_body, "mode": "shared"}
+    payload = {
+        "body": html_body,
+        "mode": "shared",
+        "should_add_default_signature": True,
+    }
     if channel_id:
         payload["channel_id"] = channel_id
     if sender_email:
@@ -503,7 +507,11 @@ async def reply_to_conversation(conversation_id: str, body: str, author_id: str 
         logging.error("reply_to_conversation: failed to get channel_id: %r", e)
 
     html_body = markdown_to_safe_html(body)
-    payload = {"body": html_body, "type": "email"}
+    payload = {
+        "body": html_body,
+        "type": "email",
+        "should_add_default_signature": True,
+    }
     if sender_email:
         payload["to"] = [sender_email]
     if channel_id:

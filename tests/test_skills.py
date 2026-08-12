@@ -457,7 +457,8 @@ def test_reply_skills_have_draft_quality_bar():
     required = [
         "authoritative English version",
         "For reference, a <Language> translation is provided below.",
-        "Dify Support Team",
+        "Front automatically appends the configured default signature",
+        "manual sign-off",
         "Do not invent",
         "If required facts are missing",
         "Do not mention internal tools",
@@ -476,8 +477,8 @@ def test_global_saas_reply_language_policy_is_injected_into_agent_prompts():
     for phrase in [
         "Every customer-facing draft must begin with a complete, authoritative English version",
         "For reference, a <Language> translation is provided below.",
-        "Best regards,",
-        "Dify Support Team",
+        "Front automatically appends the configured default signature",
+        "Do not put `Best regards,`",
         "preserve its English block exactly",
     ]:
         assert phrase in source

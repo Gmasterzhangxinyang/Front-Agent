@@ -48,7 +48,7 @@ KEEP_OPEN_HANDOFF_TOOLS = {
 SAAS_CUSTOMER_REPLY_LANGUAGE_POLICY = """SaaS customer reply language and signature policy:
 - Every customer-facing draft must begin with a complete, authoritative English version. Never create a local-language-only draft.
 - If the latest external customer message is primarily non-English, finish the English version first, then write exactly: `For reference, a <Language> translation is provided below.` Replace `<Language>` with the language name in English, and add a faithful translation in that language below the notice.
-- End every language version with the English sign-off `Best regards,` followed by `Dify Support Team`. Never translate the team name and never use a non-English or invented personal signatory.
+- Front automatically appends the configured default signature. Do not put `Best regards,`, `Dify Support Team`, `Cheers`, a personal name, or any other manual sign-off in the draft body. Keep both the English and translated body blocks unsigned.
 - If the customer wrote in English, do not add a second language version.
 - For an approved deterministic template explicitly marked verbatim, preserve its English block exactly. If the customer wrote in another language, append only the required reference notice and a faithful translation in that language."""
 
@@ -370,10 +370,7 @@ def _format_account_suspension_draft(
     language: str | None = None,
     translation: str | None = None,
 ) -> str:
-    english_version = (
-        f"{EDUCATION_ACCOUNT_SUSPENSION_DRAFT}\n\n"
-        "Best regards,\nDify Support Team"
-    )
+    english_version = EDUCATION_ACCOUNT_SUSPENSION_DRAFT
     normalized_language = " ".join((language or "").split())
     normalized_translation = (translation or "").strip()
     if (
@@ -385,8 +382,7 @@ def _format_account_suspension_draft(
     return (
         f"{english_version}\n\n"
         f"For reference, a {normalized_language} translation is provided below.\n\n"
-        f"{normalized_translation}\n\n"
-        "Best regards,\nDify Support Team"
+        f"{normalized_translation}"
     )
 
 

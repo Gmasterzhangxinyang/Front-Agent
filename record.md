@@ -192,3 +192,5 @@
 - [deploy] 将受 Ops 登录保护的账号封禁统一分析页发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-e378dff-ban-analysis-DeNKJT`；`/health` 返回正常，未登录访问分析页正确 303 跳转至 `/ops/login`
 - [fix] 按 Elsie 对 `cnv_1jb49t97` 的审核意见收紧中国大陆税务/VAT 发票回复：仅描述 LangGenius, Inc. 的实际开票能力，不从实体属性自行推导税法结论，不替客户机构判断报销可接受性，并主动请客户提供额外材料的具体要求；同时在 `front_create_draft` 执行前加入专用硬校验，阻止旧式绝对因果、直接报销指示或缺少有限下一步的草稿，真实会话回放验证旧文案被拦截，完整测试 185 项通过（skills/billing.md, agent/tool_registry.py, sop.md, tests/test_skills.py, tests/test_runtime_boundaries.py）
 - [deploy] 将 Elsie 审核后的中国大陆税务/VAT 发票回复规则与草稿硬校验发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-e378dff-vat-policy-yPt9gI`；启动导入、调度器日志与 `/health` 均验证正常
+- [fix] SaaS 客户邮件正文不再手写 `Best regards, Dify Support Team` 或其他落款，英文版及非英文参考译文均保持无署名；Front 草稿与备用直发接口统一启用已配置的默认签名，并在运行时拒绝模型生成的手写落款，完整测试 186 项通过（agent/orchestrator.py, agent/tool_registry.py, tools/front.py, skills/*.md, sop.md, tests/test_runtime_boundaries.py, tests/test_skills.py）
+- [deploy] 将 Front 默认签名与正文禁用手写落款规则发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-39bcfc8-default-signature-veqTkN`；发布前导入检查、进程切换及 `/health` 均验证正常
