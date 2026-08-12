@@ -155,7 +155,7 @@ def test_system_flow_page_animates_one_email_journey_with_live_telemetry():
         'id="neural"',
         "FRONT-AGENT / NEURAL FLOW",
         "ONE EMAIL · COMPLETE JOURNEY",
-        "STEP-BY-STEP DEMO",
+        "AGENT DEEP VIEW",
         "NODE_DEF",
         "EDGE_DEF",
         "SCENARIOS",
@@ -169,6 +169,13 @@ def test_system_flow_page_animates_one_email_journey_with_live_telemetry():
         "previousStep",
         "toggleAuto",
         "roundedRectPath",
+        "CATEGORY_DEF",
+        "SUBTYPES",
+        "TOOL_NAMES",
+        "renderInspection",
+        "16 CATEGORIES / 49 SUB-TYPES",
+        "19 TOOLS / RUNTIME REBINDING",
+        "300→4",
         "requestAnimationFrame(frame)",
         "pointermove",
         "showPanel",
@@ -189,6 +196,9 @@ def test_system_flow_page_animates_one_email_journey_with_live_telemetry():
     assert 'id="next"' in source
     assert 'id="autoplay"' in source
     assert "下一步 →" in source
+    assert source.count("class=\"memory-bank\"") == 3
+    assert "MAX_CANDIDATES" not in source
+    assert "GPT-5.5" in source
     assert 'href="/ops/system-flow"' in Path("routes/static/ops.html").read_text()
 
 
