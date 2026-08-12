@@ -203,3 +203,4 @@
 - [refactor] 将神经网络流向页改成单封邮件的具象旅程演示：发光信封沿带箭头的路径逐站移动、停留并同步说明系统动作，固定展示接收/理解/决策约束/输出记忆四个阶段与图形化节点；可切换普通回复到 Front 草稿、技术问题到 Linear、敏感事项内部转交、失败进入自动重试四条路径并重新播放，同时保留真实遥测与节点详情（routes/static/system_flow.html, tests/test_ops_auth.py）
 - [deploy] 将单封邮件具象旅程动画发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-a65ea1a-email-journey-Nj9b3s`；JavaScript 语法、完整 188 项回归、发布文件哈希、应用导入、进程切换与 `/health` 均验证正常，使用现有 Ops 凭据确认线上页面包含发光信封旅程并成功读取 48 条实时活动
 - [fix] 将单邮件旅程从自动循环改为默认暂停的逐步演示：每次点击醒目的“下一步”仅播放一段节点间动画，停稳后显示本步说明；支持上一步、从头播放、可选自动播放、左右方向键及四种分支场景，并为缺少 Canvas `roundRect` 的浏览器增加兼容绘制，避免整幅动画因单个 API 不可用而中断（routes/static/system_flow.html, tests/test_ops_auth.py）
+- [deploy] 将单邮件逐步演示页发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-75105c2-step-by-step-3YWUYO`；JavaScript 语法、完整 188 项回归、发布文件哈希、应用导入、进程切换、启动日志与 `/health` 均正常，使用现有 Ops 凭据确认线上逐步/上一步/自动播放控件及兼容绘制代码均已加载，并成功读取 48 条实时活动
