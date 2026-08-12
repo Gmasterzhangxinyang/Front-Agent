@@ -152,42 +152,41 @@ def test_account_ban_analysis_page_contains_audited_views():
 def test_system_flow_page_animates_one_email_journey_with_live_telemetry():
     source = Path("routes/static/system_flow.html").read_text()
     for expected in (
-        'id="neural"',
-        "FRONT-AGENT / NEURAL FLOW",
-        "ONE EMAIL · COMPLETE JOURNEY",
-        "AGENT DEEP VIEW",
-        "NODE_DEF",
-        "EDGE_DEF",
+        "Front Agent · Email journey",
+        "From message to safe action",
+        "一封邮件，如何被安全地处理",
+        'class="journey"',
+        'class="mail-token"',
+        'class="stage-card"',
+        'id="visual-scene"',
         "SCENARIOS",
-        "drawNeuralField",
-        "drawEdge",
-        "drawCore",
-        "drawJourneyPath",
-        "drawJourney",
-        "drawMailToken",
-        "nextStep",
-        "previousStep",
+        "STEPS",
+        "renderJourney",
+        "memoryScene",
+        "classifyScene",
+        "agentScene",
+        "toolsScene",
+        "outputScene",
+        "persistScene",
+        "moveTo",
+        "next",
+        "previous",
         "toggleAuto",
-        "roundedRectPath",
         "CATEGORY_DEF",
-        "SUBTYPES",
         "TOOL_NAMES",
-        "renderInspection",
-        "16 CATEGORIES / 49 SUB-TYPES",
-        "19 TOOLS / RUNTIME REBINDING",
-        "300→4",
-        "requestAnimationFrame(frame)",
-        "pointermove",
-        "showPanel",
+        "TOOL_LABELS",
+        "16 categories · 49 sub-types",
+        "19 approved tools",
+        "300 → 4",
+        "≤ 5",
+        "30 天",
+        "GPT‑5.5",
         "/ops/api/system-flow",
-        "setInterval(load,8000)",
+        "setInterval(loadTelemetry,8000)",
     ):
         assert expected in source
-    assert 'class="stage"' not in source
-    assert "createRadialGradient" in source
-    assert "RECOVERY" in source
-    assert "DRAFT" in source
-    assert "LINEAR" in source
+    assert 'id="neural"' not in source
+    assert "<canvas" not in source
     assert 'data-scenario="reply"' in source
     assert 'data-scenario="ticket"' in source
     assert 'data-scenario="handoff"' in source
@@ -195,10 +194,10 @@ def test_system_flow_page_animates_one_email_journey_with_live_telemetry():
     assert 'id="prev"' in source
     assert 'id="next"' in source
     assert 'id="autoplay"' in source
-    assert "下一步 →" in source
-    assert source.count("class=\"memory-bank\"") == 3
-    assert "MAX_CANDIDATES" not in source
-    assert "GPT-5.5" in source
+    assert "下一步" in source
+    assert source.count('class="memory-source"') == 3
+    assert source.count("['technical','技术问题',8]") == 1
+    assert source.count("front_create_draft") >= 2
     assert 'href="/ops/system-flow"' in Path("routes/static/ops.html").read_text()
 
 
