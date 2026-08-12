@@ -149,16 +149,22 @@ def test_account_ban_analysis_page_contains_audited_views():
     assert 'href="/ops/account-ban-analysis"' in Path("routes/static/ops.html").read_text()
 
 
-def test_system_flow_page_uses_neural_canvas_and_live_telemetry():
+def test_system_flow_page_animates_one_email_journey_with_live_telemetry():
     source = Path("routes/static/system_flow.html").read_text()
     for expected in (
         'id="neural"',
         "FRONT-AGENT / NEURAL FLOW",
+        "ONE EMAIL · COMPLETE JOURNEY",
+        "FLOW DEMO",
         "NODE_DEF",
         "EDGE_DEF",
+        "SCENARIOS",
         "drawNeuralField",
         "drawEdge",
         "drawCore",
+        "drawJourneyPath",
+        "drawJourney",
+        "drawMailToken",
         "requestAnimationFrame(frame)",
         "pointermove",
         "showPanel",
@@ -171,6 +177,10 @@ def test_system_flow_page_uses_neural_canvas_and_live_telemetry():
     assert "RECOVERY" in source
     assert "DRAFT" in source
     assert "LINEAR" in source
+    assert 'data-scenario="reply"' in source
+    assert 'data-scenario="ticket"' in source
+    assert 'data-scenario="handoff"' in source
+    assert 'data-scenario="retry"' in source
     assert 'href="/ops/system-flow"' in Path("routes/static/ops.html").read_text()
 
 

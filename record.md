@@ -200,3 +200,4 @@
 - [deploy] 将动态系统流向页发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-3a663cd-system-flow-HjKkzJ`；发布前导入和真实数据库遥测检查、进程切换、`/health`、未登录重定向/API 401、使用现有 Ops 凭据登录后的 HTML 与 48 条实时活动加载均验证正常
 - [refactor] 将动态系统流向页从文字卡片重构为全屏原生 Canvas 神经网络渲染：深色空间与扫描线背景、带鼠标视差的动态神经元场、发光核心与旋转轨道、沿主链/输出分支/失败回路传播的实时脉冲、事件驱动的核心点亮及高科技 HUD；主画面只保留极少节点名，说明与真实会话活动仅在点击核心后以浮动面板显示，不依赖外部渲染库（routes/static/system_flow.html, tests/test_ops_auth.py）
 - [deploy] 将神经网络 Canvas 动态流向页发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-4d8caf6-neural-flow-QUrfgx`；JavaScript 解析、完整 188 项回归、发布资源解析、进程切换、`/health`、Ops 认证后的 21 KB Canvas 页面与 48 条实时活动数据加载均验证正常
+- [refactor] 将神经网络流向页改成单封邮件的具象旅程演示：发光信封沿带箭头的路径逐站移动、停留并同步说明系统动作，固定展示接收/理解/决策约束/输出记忆四个阶段与图形化节点；可切换普通回复到 Front 草稿、技术问题到 Linear、敏感事项内部转交、失败进入自动重试四条路径并重新播放，同时保留真实遥测与节点详情（routes/static/system_flow.html, tests/test_ops_auth.py）
