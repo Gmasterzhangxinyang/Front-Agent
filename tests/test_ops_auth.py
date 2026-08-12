@@ -36,6 +36,10 @@ def test_ops_page_and_api_require_login_then_logout_revokes_session():
         assert page.status_code == 303
         assert page.headers["location"] == "/ops/login"
 
+        analysis_page = client.get("/ops/account-ban-analysis", follow_redirects=False)
+        assert analysis_page.status_code == 303
+        assert analysis_page.headers["location"] == "/ops/login"
+
         assert client.get("/ops/api/summary").status_code == 401
         assert client.delete("/ops/api/sybil/1").status_code == 401
 
@@ -57,6 +61,7 @@ def test_ops_page_and_api_require_login_then_logout_revokes_session():
         assert "Path=/ops" in cookie
 
         assert client.get("/ops").status_code == 200
+        assert client.get("/ops/account-ban-analysis").status_code == 200
         assert client.delete("/ops/api/sybil/1").status_code == 403
 
         logged_out = client.post(
@@ -116,6 +121,26 @@ def test_ops_ui_uses_session_logout_and_same_origin_write_header():
     assert "'X-Ops-Request':'1'" in source
     assert "X-Ops-Write-Secret" not in source
     assert "window.prompt" not in source
+
+
+def test_account_ban_analysis_page_contains_audited_views():
+    source = Path("routes/static/account_ban_analysis.html").read_text()
+    for expected in (
+        "账号封禁邮件统一分析",
+        'data-view="cases"',
+        'data-view="conversations"',
+        "导出当前表格 CSV",
+        '["C01"',
+        '["C30"',
+        '["cnv_1jber66z"',
+        '["cnv_1jb3qg63"',
+        "仅草稿未发送",
+        "模板后再次回复",
+    ):
+        assert expected in source
+    assert source.count('["C') == 30
+    assert source.count('["cnv_') == 35
+    assert 'href="/ops/account-ban-analysis"' in Path("routes/static/ops.html").read_text()
 
 
 def run_all():

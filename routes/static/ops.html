@@ -31,11 +31,12 @@
   .brand-title { font-size:14px; font-weight:700; }
   .brand-sub { color:var(--muted); font-size:11px; margin-top:1px; }
   .nav { display:grid; gap:2px; }
-  .nav button {
+  .nav button,.nav a {
     width:100%; min-height:38px; padding:9px 10px; border:0; border-left:2px solid transparent;
     border-radius:4px; background:transparent; color:#4c5360; cursor:pointer; text-align:left; font:inherit;
+    text-decoration:none;
   }
-  .nav button:hover { background:var(--soft); color:var(--text); }
+  .nav button:hover,.nav a:hover { background:var(--soft); color:var(--text); }
   .nav button.active { border-left-color:var(--blue); background:var(--blue-soft); color:#1749aa; font-weight:650; }
   .main { min-width:0; width:100%; max-width:1540px; padding:24px 30px 40px; }
   .topbar {
@@ -193,6 +194,7 @@
       <button class="active" data-view="overview"><span data-i18n="navOverview"></span></button>
       <button data-view="conversations"><span data-i18n="navConversations"></span></button>
       <button data-view="reports"><span data-i18n="navReports"></span></button>
+      <a href="/ops/account-ban-analysis">账号封禁分析</a>
       <button data-view="actions"><span data-i18n="navActions"></span></button>
       <button data-view="sybil"><span data-i18n="navSybil"></span></button>
     </nav>

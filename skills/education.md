@@ -1,7 +1,7 @@
 # Skill: Education Plan
 
 ## Purpose
-Handle education plan applications, rejections, and discount issues.
+Handle education plan applications, rejections, discount issues, and account suspensions.
 
 ## Key Facts
 - Education discount: 100% off, valid for 1 year
@@ -27,10 +27,10 @@ Handle education plan applications, rejections, and discount issues.
 
 ## Reply Continuation Policy
 - Treat the latest user reply as authoritative for the next step. Do not blindly repeat the previous draft.
-- A user may switch among education intents within the same conversation. When the latest reply clearly reports rejection, missing discount, expired school email/graduation, or cancellation, follow that sub-type and save the new `sub_type`.
+- A user may switch among education intents within the same conversation. When the latest reply clearly reports rejection, missing discount, expired school email/graduation, cancellation, or an Education account suspension, follow that sub-type and save the new `sub_type`.
 - For `awaiting_school_info` and `awaiting_identity_verification`, use the newest reply together with the saved payload. Preserve previously collected facts when calling `state_set`.
 - For `draft_created`:
-  - Answer a new education question with a new concise draft in the user's language.
+  - Answer a new education question with a concise draft that follows the English-first and reference-translation policy in the Draft Quality Bar.
   - If the user reports that verification or activation succeeded, create a brief acknowledgment draft; do not create a Linear ticket or notify Sybil.
   - Save the resulting education sub-type and keep step=`draft_created` unless another defined step applies.
 - For `forwarded_keep_open`, or whenever saved data contains `linear_url`:
@@ -43,7 +43,11 @@ Handle education plan applications, rejections, and discount issues.
 
 
 ## Draft Quality Bar
-- Write concise, professional English unless the user wrote primarily in another language.
+- Start with a complete, authoritative English version; never create a local-language-only customer draft.
+- If the latest customer message is primarily non-English, finish the English version first, then write exactly `For reference, a <Language> translation is provided below.` and add a faithful matching-language version.
+- End every language version with `Best regards,` and the English team name `Dify Support Team`; never translate the team name or invent a personal signatory.
+- If the customer wrote in English, do not add a second language version.
+- For approved deterministic templates marked verbatim, preserve the English body exactly; for a non-English customer, append only the required reference notice and a faithful matching-language translation.
 - Answer only what the email supports. Do not invent product behavior, policy exceptions, timelines, refunds, eligibility, or engineering commitments.
 - If required facts are missing, ask for the minimum specific information needed instead of guessing.
 - Do not mention internal tools, Linear, Sybil, Bobby, action logs, routing, or internal handoffs in customer-facing drafts.
@@ -55,7 +59,7 @@ Handle education plan applications, rejections, and discount issues.
 ### how_to_apply (asks how to get or use the Education Plan)
 
 **Step: initial or draft_created**
-1. Call `front_create_draft` with the self-service application template in the user's language.
+1. Call `front_create_draft` with the self-service application template, following the English-first and reference-translation policy in the Draft Quality Bar.
 2. Do not create a Linear ticket or notify Sybil for a general how-to-apply question.
 3. Call `state_set` with category=`education`, sub_type=`how_to_apply`, step=`draft_created`, waiting=false.
 4. If the user later reports a rejection, missing discount, expired school email, or cancellation, follow the matching sub-type under the Reply Continuation Policy.
@@ -165,6 +169,17 @@ Handle education plan applications, rejections, and discount issues.
 1. User mentions they want to cancel their education plan / subscription
 2. Call `front_create_draft` with no-auto-renew explanation template
 3. Call `state_set` with step="draft_created", sub_type="cancel_subscription"
+
+### account_suspended (Education Plan/Education Verified account suspended or banned)
+
+This sub-type is only for an account-level enforcement suspension or ban. An Education Plan application or verification that was rejected, denied, declined, unsuccessful, or not approved remains sub_type=`rejected` and must follow the normal education review flow above.
+
+**Step: any**
+1. This template is only for a first-contact suspension with no linked same-sender history. Call `front_create_draft` with the **Account suspension** template below verbatim as the English body, followed by the standard English `Best regards,` / `Dify Support Team` sign-off.
+2. Do not personalize, paraphrase, shorten, or add any promise, timeline, or policy explanation. If the latest customer message is non-English, preserve the English body exactly and append only the required reference notice, a faithful matching-language translation, and the same English sign-off.
+3. Do not create a Linear ticket, notify Sybil, forward the conversation, add an internal handoff, or send a direct customer reply.
+4. Call `state_set` with category=`education`, sub_type=`account_suspended`, step=`draft_created`, waiting=false.
+5. If the same normalized sender already has a suspension, appeal, supporting evidence, or existing review in another Front conversation, do not repeat the template or create another ticket. Cross-link the conversations internally, preserve the existing Linear URL and review context, and set the new thread to `manual_review`.
 
 ## Reply Templates
 
@@ -329,4 +344,19 @@ If you have any other questions, please don't hesitate to reach out.
 
 Best regards,
 Dify Support Team
+```
+
+### Account suspension
+```
+Hello,
+
+Following a review of the registration and usage activity associated with your account, we determined that the activity involved coordinated account abuse, circumvention of usage restrictions, or the unauthorized resale or redistribution of Dify services, credits, or access.
+
+Such activity violates the Dify Terms of Service, which require accounts to be used only for authorized purposes, prohibit the transfer or resale of credits and usage entitlements, and allow Dify to suspend accounts whose activity may harm the platform, its services, or other users.
+
+Your account will therefore remain suspended. Attempts to create or use additional accounts to circumvent this suspension may result in those accounts being suspended as well.
+
+If you believe this decision was made in error, you may submit one appeal through our designated support channel using the email address registered to the account. Duplicate or mass appeal requests will not receive separate reviews.
+
+If the account received Education Verified benefits, please also provide valid proof that you are currently enrolled or employed at the institution stated in your application. Providing documentation does not guarantee reinstatement, as we will also review the account’s usage for compliance with the Dify Terms of Service.
 ```

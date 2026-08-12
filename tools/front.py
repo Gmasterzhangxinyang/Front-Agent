@@ -2,7 +2,7 @@ import asyncio
 import html
 import logging
 import re
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 import httpx
 import markdown
@@ -128,6 +128,27 @@ async def front_request(method: str, url: str, *, retries: int = 5, headers: dic
 
 async def get_conversation_messages(conversation_id: str) -> list[dict]:
     r = await front_request("GET", f"{BASE_URL}/conversations/{conversation_id}/messages")
+    r.raise_for_status()
+    return r.json().get("_results", [])
+
+
+async def get_contact_conversations(
+    sender_email: str,
+    *,
+    limit: int = 10,
+) -> list[dict]:
+    """Return a contact's latest Front conversations using their email alias."""
+    normalized_email = (sender_email or "").strip().lower()
+    if not normalized_email:
+        return []
+    contact_alias = quote(f"alt:email:{normalized_email}", safe=":@")
+    r = await front_request(
+        "GET",
+        f"{BASE_URL}/contacts/{contact_alias}/conversations",
+        params={"limit": max(1, min(limit, 100))},
+    )
+    if r.status_code == 404:
+        return []
     r.raise_for_status()
     return r.json().get("_results", [])
 

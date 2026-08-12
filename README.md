@@ -179,6 +179,8 @@ a materially different draft or handoff.
 
 `conversation_states.sender_email` stores the original customer sender once known and is not overwritten by later internal forwards. `front_create_draft` receives this sender from Python so internal Bobby handoff messages cannot make drafts target `bobby@dify.ai`.
 
+Every external customer email, whether it starts a new Front conversation or continues an existing one, loads up to five other recent conversations for the same normalized email address. The runtime combines Front contact conversation discovery with local state, excludes unsent drafts from transcripts, and supplies subjects, sent exchanges, workflow state, and existing Linear metadata to classification and skill handling so related threads are reconciled before taking another action.
+
 ## Skills
 
 Business rules live in `skills/`. Update a skill when changing classification examples, draft wording, or category policy. Update Python only for deterministic routes, new tools, or safety boundaries.

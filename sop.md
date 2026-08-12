@@ -1,12 +1,14 @@
 # Front 邮件自动化 SOP
 
 ## 基本规则
-- 回复语言：英文
-- 署名：Dify Support Team（AI自动回复需标注 AI generated）
+- 回复语言：英文版本必须完整并放在最前；非英文来信在英文版后注明“下方附对应语言版本供参考”，再附对应语言译文；英文来信不重复第二语言
+- 署名：所有语言版本均使用英文署名 `Best regards, Dify Support Team`，不得翻译团队名或使用非英文署名（AI自动回复需标注 AI generated）
+- 固定模板：英文固定正文保持逐字不变；非英文来信仍须在英文版及英文署名后，追加对应语言参考译文，并统一使用英文署名
 - 处理完成后：Front conversation 需要 resolve
 - 付费用户识别：检查邮件 footer 是否含 `Current Plan: professional` 或 `Current Plan: team`
 - 发件邮箱与账号邮箱不一致时：先让用户确认账号邮箱
 - 附件/截图（含非英文）：AI 需要查看并处理所有附件内容
+- 跨会话上下文：每次收到外部客户邮件（包括已有会话回复和新 Front 会话），必须按同一标准化发件邮箱读取其他近期 Front 会话的已发送往来、状态和已有 Linear 链接；即使旧会话没有本地自动化状态也要读取。换主题或新 conversation ID 不视为全新案例，必须先理清多会话上下文，不得重复草稿、重复建单或作出矛盾回复
 - 分类不确定时：发通用回复给用户，同时飞书通知 Bobby 人工判断
 - 飞书通知方式：Webhook 私信 Bobby（后续自动化稳定后改为直接通知对应人）
 - 用户 10 天未回复：自动 resolve conversation
@@ -148,6 +150,9 @@
 
 #### 5c. Invoice 相关
 - 告知用户可在 Bill → Manage Bill 中自行修改地址
+- 中国大陆税务发票 / 增值税发票请求：只描述实际开票能力——`LangGenius, Inc. is not a PRC-registered invoicing entity and does not issue invoices through the PRC tax administration system.` 不要用“非中国实体，因此……”自行概括税法因果
+- 明确现有 invoice 与 receipt 是我们可提供的正式商业账单文件，但是否可报销由客户所在机构的报销政策决定；不得直接要求客户“拿现有文件去报销”或暗示一定会被接受
+- 主动提供有限下一步：请客户提供机构要求的其他 billing information 或 supporting documentation 的具体清单，我们再核实能够提供什么；不得承诺一定能出具额外文件
 
 #### 5d. 其他账单问题
 1. 总结问题，建立 Linear 工单（CUS 项目）

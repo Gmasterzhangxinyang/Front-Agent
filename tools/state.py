@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from agent.message_identity import is_internal_email
@@ -11,25 +11,44 @@ async def get_state(db: AsyncSession, conversation_id: str) -> ConversationState
     return result.scalar_one_or_none()
 
 
-async def get_user_history(db: AsyncSession, sender_email: str, days: int = 30) -> list[dict]:
-    """Get user's conversation history from the last N days."""
+async def get_user_history(
+    db: AsyncSession,
+    sender_email: str,
+    days: int = 30,
+    *,
+    exclude_conversation_id: str = "",
+    limit: int = 5,
+) -> list[dict]:
+    """Get the same external sender's recent states for cross-thread context."""
     cutoff = datetime.utcnow() - timedelta(days=days)
-    result = await db.execute(
+    normalized_sender = (sender_email or "").strip().lower()
+    if not normalized_sender:
+        return []
+
+    statement = (
         select(ConversationState)
-        .where(ConversationState.sender_email == sender_email)
+        .where(func.lower(func.trim(ConversationState.sender_email)) == normalized_sender)
         .where(ConversationState.created_at >= cutoff)
         .order_by(ConversationState.created_at.desc())
+        .limit(max(1, min(limit, 10)))
     )
+    if exclude_conversation_id:
+        statement = statement.where(
+            ConversationState.conversation_id != exclude_conversation_id
+        )
+
+    result = await db.execute(statement)
     states = result.scalars().all()
     return [
         {
-            "conversation_id": s.conversation_id,
-            "category": s.category,
-            "sub_type": s.sub_type,
-            "step": s.step,
-            "created_at": s.created_at.isoformat() if s.created_at else None,
+            "conversation_id": state.conversation_id,
+            "category": state.category,
+            "sub_type": state.sub_type,
+            "step": state.step,
+            "payload": dict(state.payload or {}),
+            "created_at": state.created_at.isoformat() if state.created_at else None,
         }
-        for s in states
+        for state in states
     ]
 
 

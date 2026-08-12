@@ -34,7 +34,11 @@ Handle questions about purchasing Dify plans, pricing, and reseller/agent inquir
 
 
 ## Draft Quality Bar
-- Write concise, professional English unless the user wrote primarily in another language.
+- Start with a complete, authoritative English version; never create a local-language-only customer draft.
+- If the latest customer message is primarily non-English, finish the English version first, then write exactly `For reference, a <Language> translation is provided below.` and add a faithful matching-language version.
+- End every language version with `Best regards,` and the English team name `Dify Support Team`; never translate the team name or invent a personal signatory.
+- If the customer wrote in English, do not add a second language version.
+- For approved deterministic templates marked verbatim, preserve the English body exactly; for a non-English customer, append only the required reference notice and a faithful matching-language translation.
 - Answer only what the email supports. Do not invent product behavior, policy exceptions, timelines, refunds, eligibility, or engineering commitments.
 - If required facts are missing, ask for the minimum specific information needed instead of guessing.
 - Do not mention internal tools, Linear, Sybil, Bobby, action logs, routing, or internal handoffs in customer-facing drafts.
@@ -49,7 +53,7 @@ Handle questions about purchasing Dify plans, pricing, and reseller/agent inquir
 ### premium
 1. Call `front_create_draft` with the Premium introduction template.
 2. After the draft is created, call `state_set` with category="purchase", sub_type="premium", step="draft_created", and waiting=false.
-3. Match the customer's primary language and faithfully preserve the distinction between Premium for AWS POC use and Enterprise for demanding production use.
+3. Follow the English-first and reference-translation policy, and faithfully preserve in both versions the distinction between Premium for AWS POC use and Enterprise for demanding production use.
 4. If the customer wants to learn more about Enterprise:
    - For a clearly Japanese customer, ask whether they consent to having their inquiry shared with and being connected to the Japan sales team. Do not say that it has already been forwarded.
    - Otherwise, ask for their country or region so the appropriate sales team can be identified.
@@ -84,7 +88,7 @@ Best regards,
 Dify Support Team
 ```
 
-Chinese-language reference:
+Chinese-language reference (place only after the complete English version and the required reference notice):
 ```
 您好，
 
@@ -96,10 +100,11 @@ Dify Premium 是基于 Dify Community Edition 的商业化部署选项，主要�
 
 如果您希望进一步了解 Dify Enterprise 方案，请告知您所在的国家或地区，我们可以协助对接对应的销售团队。
 
-谢谢。
+Best regards,
+Dify Support Team
 ```
 
-For a clearly Japanese customer, replace the final country/region paragraph with a consent question in the customer's language equivalent to:
+For a clearly Japanese customer, keep the English consent question in the English version and use its Japanese equivalent only in the Japanese reference version:
 
 ```
 If you would like to learn more about Dify Enterprise, would you be comfortable with us sharing your inquiry with and connecting you to our Japan sales team?
@@ -108,7 +113,7 @@ If you would like to learn more about Dify Enterprise, would you be comfortable 
 Do not infer that someone is a Japanese customer from a personal name alone. Treat the customer as clearly Japanese only when the message or account context provides a strong signal, such as an explicit Japan location, a Japanese company/address, a Japanese-language inquiry, or a `.jp` organization domain.
 
 ### Premium custom multi-AZ / Active-Active architecture
-If the customer explicitly proposes a dual-AZ or multi-AZ Active-Active Premium deployment, typically behind a load balancer and with shared services such as S3, RDS/PostgreSQL, or ElastiCache/Redis, add the approved architecture paragraph from `technical.md` in the customer's language before recommending Enterprise. Explain that the custom topology differs from the standard one-click Premium deployment on AWS Marketplace, its engineering complexity and possible implementation issues cannot be predicted, and the approach is therefore not recommended. Do not provide configuration steps or make additional licensing/support promises.
+If the customer explicitly proposes a dual-AZ or multi-AZ Active-Active Premium deployment, typically behind a load balancer and with shared services such as S3, RDS/PostgreSQL, or ElastiCache/Redis, add the approved architecture paragraph from `technical.md` in English to the English version and its faithful translation to the matching reference version before recommending Enterprise. Explain that the custom topology differs from the standard one-click Premium deployment on AWS Marketplace, its engineering complexity and possible implementation issues cannot be predicted, and the approach is therefore not recommended. Do not provide configuration steps or make additional licensing/support promises.
 
 ### Enterprise inquiry
 ```

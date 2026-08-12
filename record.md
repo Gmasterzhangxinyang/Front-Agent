@@ -170,3 +170,25 @@
 ## 2026-08-05
 - [docs] 在不修改总览 SVG 的前提下，新增 ①–⑧ 八张独立架构拆解图及索引文档，逐阶段展开事件入口、可信落盘、上下文、分类路由、两层策略、安全执行、外部副作用、结果持久化与恢复，并保留每张图的 GraphViz 源文件（README.md, docs/current-system-architecture.md, docs/current-system-architecture-details.md, docs/architecture-details/*.dot, docs/assets/architecture-details/*.svg）
 - [docs] 将当前系统架构重绘为 A–E 五条横向泳道：顶部固定 ①–⑧ 实时主链，模块明细按阶段编号对照，安全执行、失败恢复、数据运营和系统边界分别成行；提供 4000px PNG、可无限缩放的 SVG、GraphViz 源文件，默认折叠高密度 Mermaid 明细图，并从 README 提供直达入口（README.md, docs/current-system-architecture.md, docs/current-system-architecture.dot, docs/assets/front-agent-current-architecture.svg, docs/assets/front-agent-current-architecture-preview.png）
+
+## 2026-08-10
+- [feat] 教育版账号封禁或停用来信统一创建指定英文 Front 草稿，新增确定性识别、固定路由、分类规则与回归测试，且不自动发送或转交（agent/classification.py, agent/orchestrator.py, agent/routing.py, skills/classify.md, skills/education.md, tests/test_routing.py, tests/test_skills.py）
+- [fix] 明确教育版申请被拒绝仍走原有正常审核流程，仅账号级封禁或停用使用统一草稿，并增加防混淆回归测试（skills/education.md, tests/test_routing.py, tests/test_skills.py）
+- [fix] 将统一封禁草稿规则扩展到所有明确的账号封禁/停用来信（不限于教育版），保持教育版申请被拒绝走正常审核流程，并增加通用封禁与功能 disabled 误判保护测试（agent/classification.py, agent/orchestrator.py, agent/routing.py, skills/account.md, skills/classify.md, skills/education.md, tests/test_routing.py, tests/test_skills.py）
+- [ops] 复核并规范化 30 个账号封禁会话：14 个旧草稿原位替换为指定模板；2 个重复会话因 Front Token 缺少 drafts:delete 权限无法删除多余草稿，已将两份内容均统一为指定模板；未发送客户邮件
+
+## 2026-08-11
+- [ops] 将本轮发现的 2 个未发送错误草稿原位更新为指定统一模板；重新草拟产生的重复项因 Front Token 缺少 `drafts:delete` 权限无法删除，已确保每个会话的两份草稿内容均与模板完全一致，未发送客户邮件
+- [deploy] 将账号封禁主题+正文确定性识别修复部署至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-e378dff-FxLelz`，健康检查通过
+- [ops] 补处理主题为普通营销邮件、仅正文写明 `account is banned` 的历史会话 `cnv_1jay8gm3`，创建统一模板草稿并保存 `account/account_suspended/draft_created` 状态；随后按主题+正文扫描近期 100 个会话，33 个明确封禁候选均已有完全一致的模板草稿或已发送模板，无其他缺口
+- [fix] 封禁确定性识别同时读取 Front 邮件主题与正文，修正英文 `suspension` 名词词形并补充“误封/被误封”措辞，覆盖正文仅提供证明材料但主题明确写明账号封禁的来信（agent/classification.py, agent/orchestrator.py, webhooks/front_webhook.py, tasks/scheduler.py, tests/test_routing.py, tests/test_runtime_boundaries.py）
+- [feat] 统一 SaaS 客户邮件语言与署名：始终先提供完整英文版并使用 `Best regards, Dify Support Team`；非英文来信在英文版后追加对应语言参考译文；账号封禁固定英文正文保持不变，并按相同规则添加英文署名及对应译文（agent/orchestrator.py, agent/tool_registry.py, sop.md, skills/*.md, tests/test_runtime_boundaries.py, tests/test_skills.py）
+
+## 2026-08-12
+- [fix] 每次外部客户来信（新会话或已有会话回复）都按标准化发件人直接从 Front 联系人会话列表与本地状态合并加载最多 5 个其他会话的主题、已发送正文、处理状态和既有 Linear 信息；无本地状态的旧会话也会纳入、草稿不计入上下文。同一用户跨会话继续封禁申诉时，在路由前阻止重复模板和重复工单，互加内部链接并转为人工复核（tools/front.py, agent/orchestrator.py, tools/state.py, skills/classify.md, skills/account.md, skills/education.md, sop.md, tests/test_runtime_boundaries.py, tests/test_skills.py）
+- [ops] 将同一学生邮箱的 `cnv_1jb3qg63`、`cnv_1jbeqntn`、`cnv_1jber66z` 三个封禁申诉会话内部互链，以 `cnv_1jb3qg63` 和既有 `CUS-1513` 为主记录，并将最新会话设为 `manual_review`；未发送客户邮件或新建工单
+- [deploy] 将全局同发件人多会话上下文、封禁跨会话去重及 SaaS 英文优先署名规则部署至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-e378dff-multicontext-KOHaeU`；实际 Front 联系人会话发现、启动日志、8080 监听与 `/health` 均验证通过，旧发布目录保留用于回滚
+- [feat] 新增受 Ops 登录保护的账号封禁统一分析页：复核 2026-08-07 至 08-11 的 35 个 Front 会话并合并为 30 个独立事件，逐项展示用户所述情况、类型、可观察关联线索、分析判断、模板实际发送/仅草稿状态及模板后同线程或跨线程回复；支持事件/会话双视图、筛选、Front 直达和 CSV 导出，并通过 183 项完整测试（routes/ops.py, routes/static/ops.html, routes/static/account_ban_analysis.html, tests/test_ops_auth.py）
+- [deploy] 将受 Ops 登录保护的账号封禁统一分析页发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-e378dff-ban-analysis-DeNKJT`；`/health` 返回正常，未登录访问分析页正确 303 跳转至 `/ops/login`
+- [fix] 按 Elsie 对 `cnv_1jb49t97` 的审核意见收紧中国大陆税务/VAT 发票回复：仅描述 LangGenius, Inc. 的实际开票能力，不从实体属性自行推导税法结论，不替客户机构判断报销可接受性，并主动请客户提供额外材料的具体要求；同时在 `front_create_draft` 执行前加入专用硬校验，阻止旧式绝对因果、直接报销指示或缺少有限下一步的草稿，真实会话回放验证旧文案被拦截，完整测试 185 项通过（skills/billing.md, agent/tool_registry.py, sop.md, tests/test_skills.py, tests/test_runtime_boundaries.py）
+- [deploy] 将 Elsie 审核后的中国大陆税务/VAT 发票回复规则与草稿硬校验发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-e378dff-vat-policy-yPt9gI`；启动导入、调度器日志与 `/health` 均验证正常

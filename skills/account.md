@@ -21,7 +21,11 @@ Handle account-related requests: login issues, account deletion, transfer, email
 
 
 ## Draft Quality Bar
-- Write concise, professional English unless the user wrote primarily in another language.
+- Start with a complete, authoritative English version; never create a local-language-only customer draft.
+- If the latest customer message is primarily non-English, finish the English version first, then write exactly `For reference, a <Language> translation is provided below.` and add a faithful matching-language version.
+- End every language version with `Best regards,` and the English team name `Dify Support Team`; never translate the team name or invent a personal signatory.
+- If the customer wrote in English, do not add a second language version.
+- For approved deterministic templates marked verbatim, preserve the English body exactly; for a non-English customer, append only the required reference notice and a faithful matching-language translation.
 - Answer only what the email supports. Do not invent product behavior, policy exceptions, timelines, refunds, eligibility, or engineering commitments.
 - If required facts are missing, ask for the minimum specific information needed instead of guessing.
 - Do not mention internal tools, Linear, Sybil, Bobby, action logs, routing, or internal handoffs in customer-facing drafts.
@@ -29,6 +33,12 @@ Handle account-related requests: login issues, account deletion, transfer, email
 - End with a clear next step for the user or a clear expectation that the team will review.
 
 ## Steps by Sub-type
+
+### account_suspended
+
+For a first account-level suspension, ban, block, or enforcement appeal with no linked same-sender history, use the one approved English response handled deterministically before this skill runs. Preserve the standardized English body exactly, add the English Dify Support Team sign-off, and for a non-English customer append only the required reference notice and faithful matching-language translation.
+
+If the same normalized sender already has a suspension or appeal in another Front conversation, treat the new thread as a continuation. Do not create the standardized draft again and do not create another Linear ticket. The runtime must cross-link the current and canonical conversations with internal comments, preserve any existing Linear URL, and save the new conversation as `manual_review`.
 
 ### cant_login (can't log in)
 

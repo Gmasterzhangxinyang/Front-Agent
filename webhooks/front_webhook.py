@@ -253,6 +253,10 @@ async def _process_front_webhook_event(payload: dict, event_id: str | None, conv
             return {"status": "ignored", "reason": "not inbound user message"}
 
         message_body = message.get("text") or message.get("body") or ""
+        headers = message.get("headers") or {}
+        message_subject = message.get("subject") or (
+            headers.get("subject") if isinstance(headers, dict) else ""
+        ) or ""
         sender_email = external_sender_email(message)
         attachments = message.get("attachments") or []
 
@@ -286,6 +290,7 @@ async def _process_front_webhook_event(payload: dict, event_id: str | None, conv
                 sender_email=sender_email,
                 attachments=attachments,
                 db=db,
+                message_subject=message_subject,
             )
         except Exception as e:
             logger.error(f"Error handling email {conversation_id}: {e}", exc_info=True)

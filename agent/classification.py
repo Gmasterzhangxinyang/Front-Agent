@@ -30,8 +30,8 @@ PARTNERSHIP_SUB_TYPES = {"marketplace", "plugin", "plugin_takedown"}
 _EXPLICIT_EDUCATION_TOPIC_PATTERNS = (
     re.compile(
         r"\b(?:(?:education(?:al)?|academic)\s+"
-        r"(?:plan|discount|pricing|coupon|verification|programme|program)"
-        r"|student\s+(?:plan|discount|pricing|coupon|programme|program))\b",
+        r"(?:plan|discount|pricing|coupon|verification|verified|benefits?|account|programme|program)"
+        r"|student\s+(?:plan|account|discount|pricing|coupon|programme|program))\b",
         re.IGNORECASE,
     ),
     re.compile(
@@ -40,8 +40,33 @@ _EXPLICIT_EDUCATION_TOPIC_PATTERNS = (
         re.IGNORECASE,
     ),
     re.compile(
+        r"\bedu\s+(?:account|plan|benefits?|verified)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
         r"(?:教育|學生|学生)"
         r"(?:版|方案|計畫|计划|優惠|优惠|折扣|認證|认证)"
+    ),
+)
+
+_ACCOUNT_SUSPENSION_PATTERNS = (
+    re.compile(
+        r"\b(?:account|access|workspace)\b.{0,50}"
+        r"\b(?:suspend(?:ed|ing)?|suspensions?|banned?|blocked|disabled|deactivated|terminated|locked)\b",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    re.compile(
+        r"\b(?:suspend(?:ed|ing)?|suspensions?|banned?|blocked|deactivated|terminated|locked)\b.{0,50}"
+        r"\b(?:account|access|workspace|education plan|education benefits?)\b",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    re.compile(
+        r"(?:教育|學生|学生)(?:版|方案|計畫|计划).{0,25}"
+        r"(?:封禁|封號|封号|被封|被誤封|被误封|誤封|误封|停權|停权|停用|凍結|冻结)"
+    ),
+    re.compile(
+        r"(?:帳號|账号|帳戶|账户).{0,25}"
+        r"(?:封禁|封號|封号|被封|被誤封|被误封|誤封|误封|停權|停权|停用|凍結|冻结)"
     ),
 )
 
@@ -135,6 +160,44 @@ class ClassificationResult:
         }
 
 
+def classify_explicit_account_suspension(
+    message: str | None,
+    sender_email: str = "",
+) -> ClassificationResult | None:
+    """Recognize an explicit account-level suspension or ban appeal."""
+    text = (message or "").strip()
+    if not text or not any(
+        pattern.search(text) for pattern in _ACCOUNT_SUSPENSION_PATTERNS
+    ):
+        return None
+
+    is_education = any(
+        pattern.search(text) for pattern in _EXPLICIT_EDUCATION_TOPIC_PATTERNS
+    )
+    return ClassificationResult(
+        category="education" if is_education else "account",
+        sub_type="account_suspended",
+        sender_email=sender_email,
+        summary=(
+            "User is contacting support about a suspended Education account"
+            if is_education
+            else "User is contacting support about a suspended account"
+        ),
+        confidence=1.0,
+        evidence=[text[:240]],
+        raw={"source": "deterministic_account_suspension"},
+    )
+
+
+def classify_explicit_education_account_suspension(
+    message: str | None,
+    sender_email: str = "",
+) -> ClassificationResult | None:
+    """Recognize an explicit Education account suspension or ban appeal."""
+    result = classify_explicit_account_suspension(message, sender_email)
+    return result if result is not None and result.category == "education" else None
+
+
 def classify_explicit_education_topic(
     message: str | None,
     sender_email: str = "",
@@ -148,6 +211,10 @@ def classify_explicit_education_topic(
     text = (message or "").strip()
     if not text or not any(pattern.search(text) for pattern in _EXPLICIT_EDUCATION_TOPIC_PATTERNS):
         return None
+
+    suspended = classify_explicit_education_account_suspension(text, sender_email)
+    if suspended is not None:
+        return suspended
 
     if any(pattern.search(text) for pattern in _EDUCATION_CANCEL_PATTERNS):
         sub_type = "cancel_subscription"

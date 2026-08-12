@@ -8,6 +8,19 @@ from agent.classification import (
 )
 
 
+EDUCATION_ACCOUNT_SUSPENSION_DRAFT = """Hello,
+
+Following a review of the registration and usage activity associated with your account, we determined that the activity involved coordinated account abuse, circumvention of usage restrictions, or the unauthorized resale or redistribution of Dify services, credits, or access.
+
+Such activity violates the Dify Terms of Service, which require accounts to be used only for authorized purposes, prohibit the transfer or resale of credits and usage entitlements, and allow Dify to suspend accounts whose activity may harm the platform, its services, or other users.
+
+Your account will therefore remain suspended. Attempts to create or use additional accounts to circumvent this suspension may result in those accounts being suspended as well.
+
+If you believe this decision was made in error, you may submit one appeal through our designated support channel using the email address registered to the account. Duplicate or mass appeal requests will not receive separate reviews.
+
+If the account received Education Verified benefits, please also provide valid proof that you are currently enrolled or employed at the institution stated in your application. Providing documentation does not guarantee reinstatement, as we will also review the account’s usage for compliance with the Dify Terms of Service."""
+
+
 @dataclass(frozen=True)
 class RouteDecision:
     name: str
@@ -104,6 +117,35 @@ def decide_initial_route(
             reason="Classifier returned unclear or route cannot be safely determined by rules.",
         )
 
+    if category in {"account", "education"} and sub_type == "account_suspended":
+        return RouteDecision(
+            name=(
+                "education_account_suspension_draft"
+                if category == "education"
+                else "account_suspension_draft"
+            ),
+            handled_before_skill=True,
+            tool_name="front_create_draft",
+            tool_args={
+                "conversation_id": conversation_id,
+                "to_email": sender_email,
+                "body": EDUCATION_ACCOUNT_SUSPENSION_DRAFT,
+                "category": f"{category}/account_suspended",
+                "reason_cn": "账号封禁，使用统一草稿",
+            },
+            state_category=category,
+            state_sub_type="account_suspended",
+            state_step="draft_created",
+            waiting=False,
+            keep_open=True,
+            customer_action="draft",
+            internal_target=None,
+            reason=(
+                "Account suspension emails always receive the approved standardized "
+                "Front draft and are never sent automatically."
+            ),
+        )
+
     if category == "legal" or "legal_threat" in classification.flags:
         return RouteDecision(
             name="legal_forwarded_keep_open",
@@ -122,6 +164,7 @@ def decide_initial_route(
             internal_target="geyan@dify.ai",
             reason="Legal threats, lawyer letters, or lawsuit mentions are sent to Geyan as a Front forward with the original thread and summary, while the conversation stays open.",
         )
+
 
     if category == "security":
         return RouteDecision(

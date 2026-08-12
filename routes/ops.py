@@ -531,6 +531,13 @@ async def ops_page(request: Request):
     return FileResponse(STATIC_DIR / "ops.html")
 
 
+@router.get("/ops/account-ban-analysis")
+async def ops_account_ban_analysis_page(request: Request):
+    if not ops_auth.session_valid(_session_token(request)):
+        return RedirectResponse("/ops/login", status_code=303)
+    return FileResponse(STATIC_DIR / "account_ban_analysis.html")
+
+
 @protected_router.get("/ops/api/summary")
 async def ops_summary():
     now = datetime.utcnow()

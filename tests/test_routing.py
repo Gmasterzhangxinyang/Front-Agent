@@ -4,12 +4,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agent.classification import (
+    classify_explicit_account_suspension,
+    classify_explicit_education_account_suspension,
     classify_explicit_education_topic,
     normalize_classification,
     parse_classification_json,
     should_auto_close_spam,
 )
-from agent.routing import decide_initial_route
+from agent.routing import EDUCATION_ACCOUNT_SUSPENSION_DRAFT, decide_initial_route
 
 
 def test_parse_fenced_json_with_extra_text():
@@ -48,6 +50,9 @@ def test_explicit_education_reply_detects_followup_subtypes():
         "My Education Plan is verified, but the discount is not showing.": "no_discount",
         "I want to cancel my student plan.": "cancel_subscription",
         "I graduated and my student plan school email is no longer accessible.": "email_expired_graduated",
+        "My Education Verified account was suspended and I want to appeal the ban.": "account_suspended",
+        "My edu account is banned. Please review the suspension.": "account_suspended",
+        "我的教育版账号被封了，希望申诉。": "account_suspended",
     }
 
     for message, expected_sub_type in cases.items():
@@ -55,6 +60,111 @@ def test_explicit_education_reply_detects_followup_subtypes():
         assert result is not None, message
         assert result.category == "education"
         assert result.sub_type == expected_sub_type
+
+
+def test_education_suspension_classifier_does_not_capture_generic_account_or_school_email():
+    assert classify_explicit_education_account_suspension(
+        "My ordinary Dify account was suspended."
+    ) is None
+    assert classify_explicit_education_account_suspension(
+        "My Education Plan school email was disabled after graduation."
+    ) is None
+
+
+def test_education_application_rejection_keeps_normal_review_flow():
+    classification = classify_explicit_education_topic(
+        "My Education Plan verification was rejected. Can you review it?"
+    )
+
+    assert classification is not None
+    assert classification.sub_type == "rejected"
+
+    route = decide_initial_route(
+        classification,
+        "cnv_education_rejected",
+        "student@university.edu",
+    )
+    assert route.name == "education_skill_flow"
+    assert route.handled_before_skill is False
+    assert route.customer_action == "draft"
+
+
+def test_education_account_suspension_uses_exact_standard_draft():
+    classification = normalize_classification({
+        "category": "education",
+        "sub_type": "account_suspended",
+        "summary": "Education Verified account suspension appeal",
+        "confidence": 0.99,
+        "flags": ["legal_threat"],
+    })
+
+    route = decide_initial_route(
+        classification,
+        "cnv_education_ban",
+        "student@university.edu",
+    )
+
+    assert route.name == "education_account_suspension_draft"
+    assert route.handled_before_skill is True
+    assert route.tool_name == "front_create_draft"
+    assert route.tool_args["to_email"] == "student@university.edu"
+    assert route.tool_args["body"] == EDUCATION_ACCOUNT_SUSPENSION_DRAFT
+    assert route.state_category == "education"
+    assert route.state_sub_type == "account_suspended"
+    assert route.state_step == "draft_created"
+    assert route.customer_action == "draft"
+    assert route.keep_open is True
+
+
+def test_generic_account_suspension_uses_exact_standard_draft():
+    noun_classification = classify_explicit_account_suspension(
+        "Appeal against Account Suspension",
+        "user@example.com",
+    )
+
+    assert noun_classification is not None
+    assert noun_classification.category == "account"
+    assert noun_classification.sub_type == "account_suspended"
+
+    classification = classify_explicit_account_suspension(
+        "My Dify Cloud account was banned and I want to appeal.",
+        "user@example.com",
+    )
+
+    assert classification is not None
+    assert classification.category == "account"
+    assert classification.sub_type == "account_suspended"
+
+    route = decide_initial_route(
+        classification,
+        "cnv_account_ban",
+        "user@example.com",
+    )
+
+    assert route.name == "account_suspension_draft"
+    assert route.handled_before_skill is True
+    assert route.tool_name == "front_create_draft"
+    assert route.tool_args["body"] == EDUCATION_ACCOUNT_SUSPENSION_DRAFT
+    assert route.state_category == "account"
+    assert route.state_sub_type == "account_suspended"
+    assert route.state_step == "draft_created"
+
+
+def test_chinese_mistaken_ban_wording_is_account_suspension():
+    classification = classify_explicit_account_suspension(
+        "主题：我的个人学生账号被误封了\n\n邮箱和学生证信息见正文。",
+        "student@example.edu",
+    )
+
+    assert classification is not None
+    assert classification.sub_type == "account_suspended"
+
+
+def test_disabled_feature_is_not_misclassified_as_account_suspension():
+    assert classify_explicit_account_suspension(
+        "I disabled Citation and Attribution, but citations still appear."
+    ) is None
+
 
 
 def test_student_identity_alone_does_not_switch_unrelated_topic_to_education():
@@ -68,6 +178,7 @@ def test_student_identity_alone_does_not_switch_unrelated_topic_to_education():
 
 def test_education_topic_switch_is_wired_before_existing_state_reply_skip():
     source = Path("agent/orchestrator.py").read_text(encoding="utf-8")
+    assert 'f"Subject: {message_subject}\\n\\n{message_body}"' in source
     assert "education_topic_switch = education_topic_classification is not None" in source
     assert "and not education_topic_switch" in source
     assert "or education_topic_switch" in source

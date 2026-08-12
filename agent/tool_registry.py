@@ -4,6 +4,7 @@ import json
 import logging
 import sys
 import os
+import re
 from dataclasses import dataclass
 from weakref import WeakValueDictionary
 
@@ -108,7 +109,7 @@ TOOL_SCHEMAS = [
                 "type": "object",
                 "properties": {
                     "conversation_id": {"type": "string"},
-                    "body": {"type": "string", "description": "The reply body in English, polite and professional"},
+                    "body": {"type": "string", "description": "SaaS customer reply body: complete authoritative English version first, then—only for a primarily non-English customer message—the exact reference-translation notice and a faithful matching-language version. Use the English signatory Dify Support Team."},
                     "category": {"type": "string", "description": "Email category/sub_type, e.g. technical/how_to or billing/refund"},
                     "reason_cn": {"type": "string", "description": "一句话说明为什么这样回复，中文，不超过30字，例如：用户询问工作流节点用法，引导至文档"},
                 },
@@ -431,6 +432,103 @@ def _matches_json_type(value, expected_type: str) -> bool:
     return True if validator is None else validator(value)
 
 
+def _message_is_primarily_non_english(text: str) -> bool:
+    script_characters = re.findall(
+        r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af\u0400-\u04ff\u0600-\u06ff\u0900-\u097f\u0e00-\u0e7f]",
+        text or "",
+    )
+    ascii_letters = re.findall(r"[A-Za-z]", text or "")
+    return (
+        len(script_characters) >= 8
+        and len(script_characters) >= len(ascii_letters) * 0.25
+    )
+
+
+def _is_mainland_china_tax_invoice_request(
+    original_message: str,
+    category: str,
+) -> bool:
+    if category.strip().lower() != "billing/invoice":
+        return False
+    lowered = (original_message or "").lower()
+    tax_invoice_signal = any(
+        signal in lowered
+        for signal in (
+            "vat invoice",
+            "tax invoice",
+            "value-added tax invoice",
+            "fapiao",
+            "增值税发票",
+            "增值税专用发票",
+            "增值税普通发票",
+            "中国发票",
+        )
+    )
+    mainland_signal = any(
+        signal in lowered
+        for signal in ("china", "chinese", "prc", "中国", "国内")
+    )
+    return tax_invoice_signal and mainland_signal
+
+
+def _validate_mainland_china_tax_invoice_draft(body: str) -> None:
+    required = (
+        "LangGenius, Inc. is not a PRC-registered invoicing entity and does not issue invoices through the PRC tax administration system.",
+        "we're unable to provide a Chinese VAT invoice, including either a special VAT invoice or a general VAT invoice.",
+        "official commercial billing documents issued by LangGenius, Inc. for this transaction.",
+        "Whether these documents can be accepted for reimbursement is subject to your institution's reimbursement policies.",
+        "If your institution requires additional billing information or supporting documentation, please share the specific requirements and we can check what we're able to provide.",
+    )
+    missing = [text for text in required if text not in body]
+    if missing:
+        raise ToolCallValidationError(
+            "Mainland China VAT invoice draft must describe actual invoicing "
+            "capability, avoid deciding reimbursement acceptance, and offer "
+            "the approved bounded next step"
+        )
+
+    lowered = " ".join(body.lower().split())
+    forbidden = (
+        "langgenius is a non-prc entity",
+        "langgenius, is a non-prc entity",
+        "for reimbursement purposes, please use",
+        "please use the commercial invoice",
+    )
+    if any(text in lowered for text in forbidden):
+        raise ToolCallValidationError(
+            "Mainland China VAT invoice draft must not infer tax law from "
+            "entity status or instruct the customer that documents can be "
+            "used for reimbursement"
+        )
+
+
+def _validate_saas_customer_draft(
+    body: str,
+    original_message: str,
+    category: str = "",
+) -> None:
+    if "Best regards," not in body or "Dify Support Team" not in body:
+        raise ToolCallValidationError(
+            "SaaS customer draft must use the English Dify Support Team sign-off"
+        )
+    if _is_mainland_china_tax_invoice_request(original_message, category):
+        _validate_mainland_china_tax_invoice_draft(body)
+    if not _message_is_primarily_non_english(original_message):
+        return
+
+    bridge_pattern = re.compile(
+        r"For reference, a [A-Za-z][A-Za-z -]* translation is provided below\."
+    )
+    if bridge_pattern.search(body) is None:
+        raise ToolCallValidationError(
+            "non-English customer draft must put English first and include the required reference-translation notice"
+        )
+    if body.count("Dify Support Team") < 2:
+        raise ToolCallValidationError(
+            "each bilingual version must keep the English Dify Support Team signatory"
+        )
+
+
 def prepare_llm_tool_call(
     tool_name: str,
     args: dict,
@@ -470,6 +568,12 @@ def prepare_llm_tool_call(
                 f"invalid enum value for {name}: {value}"
             )
 
+    if tool_name == "front_create_draft":
+        _validate_saas_customer_draft(
+            args["body"],
+            context.original_message,
+            args.get("category", ""),
+        )
     prepared = dict(args)
     if "conversation_id" in properties:
         prepared["conversation_id"] = context.conversation_id

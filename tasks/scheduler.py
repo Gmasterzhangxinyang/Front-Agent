@@ -120,6 +120,10 @@ async def sync_missing_conversations():
                 sender = latest.get("sender", {})
                 sender_email = sender.get("handle", "")
                 message_body = latest.get("text") or latest.get("body") or ""
+                headers = latest.get("headers") or {}
+                message_subject = latest.get("subject") or (
+                    headers.get("subject") if isinstance(headers, dict) else ""
+                ) or ""
                 attachments = latest.get("attachments") or []
 
                 logger.info(f"sync_missing_conversations: processing {cid}")
@@ -132,6 +136,7 @@ async def sync_missing_conversations():
                         sender_email=sender_email,
                         attachments=attachments,
                         db=db,
+                        message_subject=message_subject,
                     )
                     await db.commit()
                     processed += 1

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>账号封禁邮件统一分析 · Front-Agent Ops</title>
+<style>
+:root{--bg:#f3f5f8;--paper:#fff;--ink:#16202a;--muted:#687382;--line:#dfe4ea;--blue:#225bd6;--blue-soft:#edf3ff;--green:#147a54;--green-soft:#e9f7f0;--amber:#95620b;--amber-soft:#fff6df;--slate:#536172;--slate-soft:#f0f2f5}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}button,input,select{font:inherit}.shell{max-width:1700px;margin:auto;padding:24px 28px 48px}.top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:18px}.eyebrow{color:var(--blue);font-size:12px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}h1{margin:4px 0 5px;font-size:25px;line-height:1.25}.sub{color:var(--muted);font-size:13px}.actions,.filters,.toggle{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.button{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:6px 11px;border:1px solid #cbd2db;border-radius:6px;background:#fff;color:#35404d;cursor:pointer;font-weight:620}.button.primary{background:#1e56ce;border-color:#1e56ce;color:#fff}.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:var(--paper);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:14px}.kpi{padding:16px 17px;min-height:104px;border-right:1px solid var(--line)}.kpi:last-child{border:0}.kpi small{color:var(--muted);font-weight:650}.num{font-size:29px;font-weight:760;line-height:1.1;margin-top:8px}.note{color:var(--muted);font-size:11px;margin-top:7px}.warning{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:13px 15px;margin-bottom:14px;border:1px solid #d9c991;border-radius:7px;background:#fffaf0}.warning i{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--amber-soft);color:var(--amber);font-style:normal;font-weight:800}.breakdown{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}.break{background:#fff;border:1px solid var(--line);border-radius:7px;padding:13px 14px}.break b{font-size:18px}.break div{color:var(--muted);font-size:12px;margin-top:3px}.panel{background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden}.toolbar{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:13px 14px;border-bottom:1px solid var(--line)}.input,.select{height:34px;border:1px solid #cbd2db;border-radius:6px;background:#fff;padding:6px 10px}.input{width:280px}.toggle{gap:2px;padding:3px;background:#f2f4f7;border:1px solid var(--line);border-radius:7px}.toggle button{height:28px;padding:3px 10px;border:0;border-radius:5px;background:transparent;color:var(--muted);cursor:pointer}.toggle button.active{background:#fff;color:var(--blue);box-shadow:0 0 0 1px #d7dce3;font-weight:700}.meta{padding:9px 14px;color:var(--muted);font-size:12px;border-bottom:1px solid var(--line)}.wrap{overflow:auto}.hidden{display:none!important}table{width:100%;border-collapse:collapse;min-width:1320px}th,td{padding:11px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{position:sticky;top:0;background:#f8fafc;color:var(--muted);font-size:11px;text-transform:uppercase;white-space:nowrap}tbody tr:hover{background:#fafcff}.id{font-weight:720;white-space:nowrap}.email,.detail{margin-top:3px;color:var(--muted);font-size:12px}.email{word-break:break-all}.text{max-width:350px}.badge{display:inline-flex;min-height:22px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:680;white-space:nowrap}.green{background:var(--green-soft);color:var(--green)}.amber{background:var(--amber-soft);color:var(--amber)}.blue{background:var(--blue-soft);color:#2454aa}.slate{background:var(--slate-soft);color:var(--slate)}.links{display:flex;gap:5px;flex-wrap:wrap}.front{display:inline-flex;padding:2px 6px;border:1px solid #cdd9ef;border-radius:4px;background:#f7faff;font-size:11px;font-weight:650}.empty{padding:42px;text-align:center;color:var(--muted)}.foot{display:flex;justify-content:space-
+@media(max-width:1050px){.kpis{grid-template-columns:repeat(3,1fr)}.breakdown{grid-template-columns:repeat(2,1fr)}}@media(max-width:700px){.shell{padding:16px 10px 32px}.top{display:block}.actions{margin-top:12px}.kpis{grid-template-columns:1fr 1fr}.breakdown{grid-template-columns:1fr}.filters,.input,.select{width:100%}}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="top"><div><div class="eyebrow">Front-Agent Ops / Risk Review</div><h1>账号封禁邮件统一分析</h1><div class="sub">统计区间：2026-08-07 至 2026-08-11 · 审计时间：2026-08-12 · Front 实际消息时间线 + 本地状态</div></div><div class="actions"><a class="button" href="/ops">返回 Ops</a><button class="button primary" id="export">导出当前表格 CSV</button></div></header>
+<section class="kpis">
+<div class="kpi"><small>Front 会话</small><div class="num">35</div><div class="note">含重复与跨线程会话</div></div>
+<div class="kpi"><small>独立用户事件</small><div class="num">30</div><div class="note">合并同一用户多会话</div></div>
+<div class="kpi"><small>模板实际已发送</small><div class="num">32</div><div class="note">会话级，不含草稿</div></div>
+<div class="kpi"><small>仅草稿未发送</small><div class="num">3</div><div class="note">QUT 1、GDOU 2</div></div>
+<div class="kpi"><small>模板后再次回复</small><div class="num">2</div><div class="note">独立用户：同线程 1、跨线程 1</div></div>
+</section>
+<section class="warning"><i>!</i><div><strong>“原因”按证据分层，不代表已取得风控后台的精确命中规则。</strong><br>表内区分用户自述、邮件中可观察的关联线索与统一模板结论。模板结论是 coordinated account abuse、规避用量限制或未经授权的转售/再分发，但现有邮件看不到每个账号具体命中了哪一项。</div></section>
+<section class="breakdown"><div class="break"><b>11</b> 个 HCCC 同域事件<div>短期集中出现，单列聚集模式</div></div><div class="break"><b>10</b> 个中国大陆高校事件<div>含 GDOU 多账号/跨会话事件</div></div><div class="break"><b>7</b> 个其他院校事件<div>香港、美国、泰国等机构身份</div></div><div class="break"><b>2</b> 个普通 SaaS 事件<div>工作流测试或企业原型</div></div></section>
+<section class="panel">
+<div class="toolbar"><div class="filters"><input class="input" id="search" type="search" placeholder="搜索邮箱、会话、主题或线索"><select class="select" id="type"><option value="">全部类型</option></select><select class="select" id="template"><option value="">全部模板状态</option><option value="sent">已发送</option><option value="draft_only">仅草稿未发送</option></select><select class="select" id="reply"><option value="">全部回复状态</option><option value="yes">模板后有回复</option><option value="no">模板后无回复</option></select></div><div class="toggle"><button class="active" data-view="cases">独立事件（30）</button><button data-view="conversations">Front 会话（35）</button></div></div>
+<div class="meta" id="meta"></div>
+<div class="wrap" id="case-view"><table><thead><tr><th>事件 / 账号</th><th>类型</th><th>用户所述情况</th><th>原因 / 关联线索</th><th>分析判断</th><th>模板回复</th><th>回复后再回答</th><th>相关会话</th></tr></thead><tbody id="case-body"></tbody></table></div>
+<div class="wrap hidden" id="conversation-view"><table><thead><tr><th>会话 / 事件</th><th>发件人</th><th>主题</th><th>类型</th><th>模板状态</th><th>模板后用户回答</th><th>跨会话说明</th></tr></thead><tbody id="conversation-body"></tbody></table></div>
+</section>
+<div class="foot"><span>模板口径：已发送、外部收件人、正文命中统一封禁模板；内部转发和草稿不计。</span><span>同一人的多个 Front 会话先合并上下文，再统计事件。</span></div>
+</main>
+<script>
+const caseRows=[
+["C01","s2070336@sfu.edu.hk","教育邮箱—个人申诉","称账号突然被封，自认未违规，要求说明原因。","香港院校邮箱；单一事件，无进一步触发细节。","只能确认账号被封，邮件无法确定具体风控项。","sent","no","无。","cnv_1jadpe57"],
+["C02","badgere943@gmail.com / 11911108mm@stu.gdou.edu.cn","多账号 / 跨会话申诉","GDOU 学生称误封；承认 Gmail 与教育邮箱创建过两个账号，后只用教育邮箱；提交学生证，称 VPN 导致 IP 变化且月请求少于 10。","两个账号、VPN/IP 变化、5 个关联会话和重复申诉，是本批次关联证据最完整的多会话事件。","必须按一个事件人工复核，不能把 5 个线程分别机械回复；模板没有说明具体命中项。","sent","yes","有；用户在两个新线程质疑重复模板，强调个人使用并要求说明具体违规。","cnv_1jadrzbv cnv_1jawzwpn cnv_1jb3qg63 cnv_1jbeqntn cnv_1jber66z"],
+["C03","thill7074@live.hccc.edu","教育邮箱—同域聚集","称教育邮箱合规且未违反条例，询问为何封禁。","本周 11 个 live.hccc.edu 事件之一；无个体触发细节。","需结合账号、设备、支付、IP 数据判断，不能仅凭教育域名下结论。","sent","no","无。","cnv_1jadzdsr"],
+["C04","rwhite0314@live.hccc.edu","教育邮箱—同域聚集","称无预警被封，一直遵守规则并要求解封。","HCCC 同域集中出现；无具体使用行为说明。","集群样本，邮件不足以解释个体命中原因。","sent","no","无。","cnv_1jae6x0b"],
+["C05","badams5375@live.hccc.edu","教育邮箱—身份邮箱不一致","Gmail 发件人为 HCCC 账号申诉，称只测试个人 LLM chatbot，未转售、代理或共享，并询问是否自动风控误判。","来信邮箱 blueforgoole@gmail.com 与被封账号不同；目标账号属于 HCCC 聚集域。","需核验账号所有权；本批次唯一在原线程模板后再次回复的用户。","sent","yes","有；同线程重申个人开发测试、从未转售/共享/开放 API，愿意提供材料。","cnv_1jaecf17"],
+["C06","ljppyke666@stu.zzu.edu.cn","教育邮箱—个人申诉","郑州大学学生称封禁不合理，请求恢复。","单一教育邮箱事件；未说明具体操作或异常环境。","邮件无法确定具体风控原因。","sent","no","无。","cnv_1jaekumz"],
+["C07","9213011310@stu.njau.edu.cn","教育邮箱—个人申诉","南京农业大学学生称账号受限，怀疑自动验证或风控误判，申请人工复核。","单一院校账号；强调在读身份，没有更多关联线索。","教育身份复核型申诉，具体命中项不可见。","sent","no","无。","cnv_1jaemtqz"],
+["C08","202505490316@smail.xtu.edu.cn","重复会话 / Professional","Professional 用户连续发两个相似会话；第一封保留“填写具体提示”占位，第二封明确显示 banned。","同邮箱同主题连续创建 2 个会话，内容高度相似。","应合并为一个事件；第二封才明确确认封禁提示。","sent","no","两条会话模板后均无回复。","cnv_1jaepbtn cnv_1jaer2jf"],
+["C09","202221630018@mail.bnu.edu.cn / huang.6327@osu.edu","多账号关联陈述","称自己和朋友各自独立使用账号，但两人账号同时被封。","同一申诉主动提到两个账号及朋友推荐关系。","存在关联线索但不能仅凭邮件证明协调滥用，适合核验后台关系数据。","sent","no","无。","cnv_1jaeshaz"],
+["C10","mburdick@my365.bellevue.edu","教育邮箱—个人申诉","称用于学习、研究和个人 AI 开发，不知道具体原因。","Bellevue 院校域单一申诉，无其他关联。","邮件无法确定风控项。","sent","no","无。","cnv_1jaey13v"],
+["C11","202310304102@cdu.edu.cn","教育优惠—个人申诉","成都大学邮箱，为教育优惠与学习注册，突然被封。","单一教育优惠账号，无具体异常行为描述。","教育优惠相关申诉，具体原因不可见。","sent","no","无。","cnv_1jaf01nf"],
+["C12","btorres5220@live.hccc.edu","教育邮箱—同域聚集","称真实学生，为教育福利注册并用于学习 AI。","HCCC 同域聚集；措辞与多个教育申诉相似。","需后台信号判定个体关联。","sent","no","无。","cnv_1jaf3x5n"],
+["C13","jmartin5416@live.hccc.edu","教育邮箱—同域聚集","简短称突然被封，项目运行中，需立即恢复。","HCCC 同域聚集；未提供教育身份或使用细节。","高紧急度、低信息量申诉。","sent","no","无。","cnv_1jaf46zf"],
+["C14","zwright5344@live.hccc.edu","教育邮箱—同域聚集","自称 Honolulu Community College 学生，提供姓名、学号、生日，称用于学术项目。","HCCC 同域聚集；主动提供较多身份信息。","身份材料不等于使用行为合规，仍需核验关联风控证据。","sent","no","无。","cnv_1jag0imz"],
+["C15","jgutierrez5347@live.hccc.edu","教育邮箱—同域聚集","称美国大学生，善意用于学术和个人项目。","HCCC 同域聚集；标准化正式申诉措辞。","具体命中项不可见。","sent","no","无。","cnv_1jag2umz"],
+["C16","cwright5407@live.hccc.edu","教育邮箱—同域聚集","称 HCCC 学生，通过教育计划使用 Pro，个人搭建 apps/workflows，从未共享。","HCCC 同域聚集；明确教育计划/Pro 与个人使用主张。","教育权益与行为合规需分别核验。","sent","no","无。","cnv_1jag49y3"],
+["C17","judysmith@my365.bellevue.edu","教育邮箱—个人申诉","Bellevue 学生，提供身份信息，称用于大学项目且未收到通知。","单一院校账号；无使用关联证据。","身份核验型申诉，邮件不足以解释风控结论。","sent","no","无。","cnv_1jag6zdn"],
+["C18","202422601057@stu.hebut.edu.cn","教育邮箱—个人申诉","河北工业大学研究生，称用于论文、作业和编程，非商业用途。","单一教育账号、中文长文申诉。","普通学术用途申诉，具体命中项不可见。","sent","no","无。","cnv_1jagnoyj"],
+["C19","isanchez5351@live.hccc.edu","教育邮箱—同域聚集","自称 Honolulu Community College 学生，提供姓名、学号与生日。","HCCC 同域聚集；身份字段格式与 C14 相近。","存在同域及内容模式信号，个体结论仍需后台证据。","sent","no","无。","cnv_1jaip9gb"],
+["C20","chude.med@dartmouth.edu","教育身份—发件邮箱不一致","Gmail 发件人为 Dartmouth 医学院账号申诉，称用于生物医学数据与 NLP 研究。","发件邮箱 xtieu566@gmail.com 与账号不同，需确认所有权。","先核验身份与账号归属，再评估使用行为。","sent","no","无。","cnv_1jajmuhn"],
+["C21","ngarcia5242@live.hccc.edu","教育邮箱—同域聚集","称用学校邮箱为学习目的注册，不知道为何被封。","HCCC 同域聚集；无具体使用细节。","HCCC 集群样本。","sent","no","无。","cnv_1janv0t7"],
+["C22","zhoward5304@live.hccc.edu","教育邮箱—同域聚集","称学生，主要学习和探索 AI 工具。","HCCC 同域聚集；与常见教育申诉结构相似。","邮件不足以判断个体原因。","sent","no","无。","cnv_1janvjx7"],
+["C23","20220440605@stu.usc.edu.cn","教育邮箱—个人申诉","南华大学邮箱，称机构邮箱和项目使用真实。","单一教育账号，主要举证邮箱与背景真实性。","身份真实不直接等同于使用未触发风控。","sent","no","无。","cnv_1janxnq3"],
+["C24","tiwmckenmc@student.umgc.edu","教育邮箱—个人申诉","称就读 UMGC、很少使用且剩余额度很多，要求说明原因。","低频使用是用户自述，未由后台验证。","普通教育账号申诉。","sent","no","无。","cnv_1jao81y3"],
+["C25","doewkhem55@gmail.com","普通 SaaS—工作流技术行为","称测试未发布的职位分类工作流；排障时将 Python 校验节点临时存为单行压缩 loader。","给出 app ID、时间及压缩代码行为，是少数有明确技术上下文的申诉。","需安全/风控区分恶意载荷与合法调试；邮件不能证明实际触发规则。","sent","no","无。","cnv_1jaoyvvf"],
+["C26","66210363@krirk.ac.th","教育邮箱—个人申诉","称只测试几次 AI workflow 对话，询问是否违规。","泰国院校域；自述低频测试。","低信息量但使用场景明确。","sent","no","无。","cnv_1jas8djv"],
+["C27","liaonailong@stu.qut.edu.cn","教育邮箱—身份邮箱不一致","发件人与被封账号均为 QUT 教育域但地址不同；附截图并愿意验证所有权。","发件邮箱 202301070084@stu.qut.edu.cn 与账号不同；有 2 个相同模板草稿，均未发送。","唯一尚未实际发送模板的事件；发送前应确认邮箱关系并清理重复草稿。","draft_only","no","模板尚未发送，不存在模板后回复。","cnv_1jawg7q3"],
+["C28","3220102473@zju.edu.cn","教育邮箱—个人申诉","询问教育账号为何被封，且未收到封禁通知。","单一教育账号；强调未收到通知。","同时暴露封禁通知体验问题。","sent","no","无。","cnv_1jax49az"],
+["C29","wuqiyan1230@gmail.com","普通 SaaS—企业原型","用于企业绿植租赁 AI 顾问原型；提供 app ID，要求恢复、保留数据或开放导出。","业务用途与数据保全诉求明确。","除复核外还涉及客户数据访问/导出风险，应单独跟踪。","sent","no","无。","cnv_1jaxdpsr"],
+["C30","yingtaicheng@cuhk.edu.hk","营销邮件回信—上下文不足","回复营销邮件，仅写 account is banned, any solution。","原主题 Fewer Errors, More Confidence；正文确认 banned，但缺少账号和场景。","应识别为封禁而非营销会话；信息不足，但模板已发送。","sent","no","无。","cnv_1jay8gm3"]
+];
+const conversationRows=[
+["cnv_1jadpe57","C01","s2070336@mail.sfu.edu.hk","Why was my account banned？","sent","no",""],
+["cnv_1jadrzbv","C02","badgere943@gmail.com","Appeal Regarding Unexpected Account Suspension","sent","no","最早申诉"],
+["cnv_1jadzdsr","C03","thill7074@live.hccc.edu","Why was my account banned?","sent","no",""],
+["cnv_1jae6x0b","C04","rwhite0314@live.hccc.edu","My account is currently banned","sent","no",""],
+["cnv_1jaecf17","C05","blueforgoole@gmail.com","why my account was banned","sent","yes","同线程模板后再次回复"],
+["cnv_1jaekumz","C06","ljppyke666@stu.zzu.edu.cn","My account has been banned unjustified","sent","no",""],
+["cnv_1jaemtqz","C07","9213011310@stu.njau.edu.cn","Appeal for Educational Email Account Review","sent","no","模板前曾有其他外发回复"],
+["cnv_1jaepbtn","C08","202505490316@smail.xtu.edu.cn","Account Access Blocked Without Notice","sent","no","首封含未替换的提示占位"],
+["cnv_1jaer2jf","C08","202505490316@smail.xtu.edu.cn","Account Access Blocked Without Notice","sent","no","第二封明确 account was banned"],
+["cnv_1jaeshaz","C09","202221630018@mail.bnu.edu.cn","Appeal for Account Suspension and Manual Review","sent","no",""],
+["cnv_1jaey13v","C10","mburdick@my365.bellevue.edu","Request for Account Review and Reinstatement","sent","no",""],
+["cnv_1jaf01nf","C11","202310304102@cdu.edu.cn","Account Suspension Appeal","sent","no",""],
+["cnv_1jaf3x5n","C12","btorres5220@live.hccc.edu","Request for Account Review and Reinstatement","sent","no",""],
+["cnv_1jaf46zf","C13","jmartin5416@live.hccc.edu","my account got banned","sent","no",""],
+["cnv_1jag0imz","C14","zwright5344@live.hccc.edu","Account Appeal – Suspension of Account","sent","no",""],
+["cnv_1jag2umz","C15","jgutierrez5347@live.hccc.edu","Account Appeal – Jaimee Gutierrez","sent","no",""],
+["cnv_1jag49y3","C16","cwright5407@live.hccc.edu","Appeal for Banned Account – HCCC Student","sent","no",""],
+["cnv_1jag6zdn","C17","judysmith@my365.bellevue.edu","Account Suspension Appeal – Judy Smith","sent","no",""],
+["cnv_1jagnoyj","C18","202422601057@stu.hebut.edu.cn","账号申诉申请","sent","no",""],
+["cnv_1jaip9gb","C19","isanchez5351@live.hccc.edu","Account suspended for no reason","sent","no",""],
+["cnv_1jajmuhn","C20","xtieu566@gmail.com","Urgent Account Appeal – chude.med@dartmouth.edu","sent","no","发件人与账号邮箱不同"],
+["cnv_1janv0t7","C21","ngarcia5242@live.hccc.edu","Request for Account Review and Reinstatement","sent","no",""],
+["cnv_1janvjx7","C22","zhoward5304@live.hccc.edu","Restore My Suspended Dify Account","sent","no",""],
+["cnv_1janxnq3","C23","20220440605@stu.usc.edu.cn","Appeal for Account Review","sent","no",""],
+["cnv_1jao81y3","C24","tiwmckenmc@student.umgc.edu","请，解封我的账号","sent","no",""],
+["cnv_1jaoyvvf","C25","doewkhem55@gmail.com","Account suspension appeal – workflow test","sent","no","已建 CUS-1510"],
+["cnv_1jas8djv","C26","66210363@krirk.ac.th","Why has my account been banned?","sent","no",""],
+["cnv_1jawg7q3","C27","202301070084@stu.qut.edu.cn","Dify Cloud 账号封禁申诉及人工复核","draft_only","no","2 个相同草稿，均未发送"],
+["cnv_1jawzwpn","C02","badgere943@gmail.com","Appeal Regarding Unexpected Account Suspension","sent_draft","no","已发送，另遗留 1 个草稿"],
+["cnv_1jax49az","C28","3220102473@zju.edu.cn","账号被封反馈","sent","no",""],
+["cnv_1jaxdpsr","C29","wuqiyan1230@gmail.com","Urgent Account Ban Appeal - Data Preservation","sent","no","已建 CUS-1512"],
+["cnv_1jay8gm3","C30","yingtaicheng@cuhk.edu.hk","回覆: Fewer Errors, More Confidence.","sent","no","正文而非主题识别为封禁"],
+["cnv_1jbeqntn","C02","11911108mm@stu.gdou.edu.cn","我要求审查你们没看到吗？","draft_only","cross","模板后跨线程追问；草稿未发送"],
+["cnv_1jber66z","C02","11911108mm@stu.gdou.edu.cn","我要求审查你们没看到吗？","draft_only","cross","重复/并行线程；已关联主会话"],
+["cnv_1jb3qg63","C02","11911108mm@stu.gdou.edu.cn","我的个人学生账号被误封了","sent_draft","no","主上下文：学生证与 VPN/IP 说明；另遗留草稿"]
+];
+const map=Object.fromEntries(caseRows.map(function(x){return[x[0],x]}));
+const statusText={sent:"模板已发送",sent_draft:"已发送（有遗留草稿）",draft_only:"仅草稿未发送"};
+const replyText={yes:"有：同线程回复",cross:"有：跨线程追问",no:"无"};
+const esc=function(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})};
+const front=function(id){return"https://app.frontapp.com/open/"+id};
+let view="cases";
+function badge(text,kind){return'<span class="badge '+kind+'">'+esc(text)+'</span>'}
+function templateBadge(s){return badge(statusText[s],s==="draft_only"?"amber":"green")}
+function replyBadge(s){return badge(replyText[s],s==="yes"||s==="cross"?"blue":"slate")}
+function currentFilters(){return{q:document.getElementById("search").value.trim().toLowerCase(),type:document.getElementById("type").value,template:document.getElementById("template").value,reply:document.getElementById("reply").value}}
+function contains(row,q){return!q||row.join(" ").toLowerCase().includes(q)}
+function casesFiltered(){const f=currentFilters();return caseRows.filter(function(x){return(!f.type||x[2]===f.type)&&(!f.template||x[6]===f.template)&&(!f.reply||x[7]===f.reply)&&contains(x,f.q)})}
+function conversationsFiltered(){const f=currentFilters();return conversationRows.filter(function(x){const c=map[x[1]];return(!f.type||c[2]===f.type)&&(!f.template||(f.template==="sent"?x[4]!=="draft_only":x[4]==="draft_only"))&&(!f.reply||(f.reply==="yes"?x[5]==="yes"||x[5]==="cross":x[5]==="no"))&&contains(x.concat(c),f.q)})}
+function links(ids){return'<div class="links">'+ids.split(" ").map(function(id){return'<a class="front" target="_blank" rel="noreferrer" href="'+front(id)+'">'+esc(id)+'</a>'}).join("")+'</div>'}
+function renderCases(){const rows=casesFiltered();document.getElementById("meta").textContent="显示 "+rows.length+" / 30 个独立事件；事件级先合并相关会话。";document.getElementById("case-body").innerHTML=rows.length?rows.map(function(x){const ids=x[9].split(" ");const sent=ids.filter(function(id){const r=conversationRows.find(function(y){return y[0]===id});return r&&r[4]!=="draft_only"}).length;return"<tr><td><div class=id>"+x[0]+"</div><div class=email>"+esc(x[1])+"</div></td><td>"+badge(x[2],"blue")+"</td><td><div class=text>"+esc(x[3])+"</div></td><td><div class=text>"+esc(x[4])+"</div></td><td><div class=text>"+esc(x[5])+"</div></td><td>"+templateBadge(x[6])+"<div class=detail>"+sent+" 个会话已发 / "+(ids.length-sent)+" 个仅草稿</div></td><td>"+replyBadge(x[7])+"<div class=detail>"+esc(x[8])+"</div></td><td>"+links(x[9])+"</td></tr>"}).join(""):'<tr><td colspan=8><div class=empty>没有符合筛选条件的事件</div></td></tr>'}
+function renderConversations(){const rows=conversationsFiltered();document.getElementById("meta").textContent="显示 "+rows.length+" / 35 个 Front 会话；严格区分已发送模板与未发送草稿。";document.getElementById("conversation-body").innerHTML=rows.length?rows.map(function(x){const c=map[x[1]];return'<tr><td><a class=id target=_blank rel=noreferrer href="'+front(x[0])+'">'+x[0]+"</a><div class=detail>"+x[1]+"</div></td><td><div class=email>"+esc(x[2])+"</div></td><td><div class=text>"+esc(x[3])+"</div></td><td>"+badge(c[2],"blue")+"</td><td>"+templateBadge(x[4])+"</td><td>"+replyBadge(x[5])+"</td><td><div class=text>"+esc(x[6]||"—")+"</div></td></tr>"}).join(""):'<tr><td colspan=7><div class=empty>没有符合筛选条件的会话</div></td></tr>'}
+function render(){view==="cases"?renderCases():renderConversations()}
+function csv(v){return'"'+String(v==null?"":v).replace(/"/g,'""')+'"'}
+function exportCsv(){let headers,rows;if(view==="cases"){headers=["事件","账号","类型","用户所述情况","原因/线索","分析判断","模板状态","模板后回复","相关会话"];rows=casesFiltered().map(function(x){return[x[0],x[1],x[2],x[3],x[4],x[5],statusText[x[6]],x[8],x[9]]})}else{headers=["会话","事件","发件人","主题","类型","模板状态","模板后回答","说明"];rows=conversationsFiltered().map(function(x){return[x[0],x[1],x[2],x[3],map[x[1]][2],statusText[x[4]],replyText[x[5]],x[6]]})}const content="\ufeff"+[headers].concat(rows).map(function(r){return r.map(csv).join(",")}).join("\r\n");const blob=new Blob([content],{type:"text/csv;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="account-ban-analysis-"+view+"-2026-08-12.csv";a.click();URL.revokeObjectURL(a.href)}
+const type=document.getElementById("type");Array.from(new Set(caseRows.map(function(x){return x[2]}))).sort().forEach(function(v){const o=document.createElement("option");o.value=v;o.textContent=v;type.appendChild(o)});
+["search","type","template","reply"].forEach(function(id){document.getElementById(id).addEventListener(id==="search"?"input":"change",render)});
+document.querySelectorAll("[data-view]").forEach(function(button){button.addEventListener("click",function(){view=button.dataset.view;document.querySelectorAll("[data-view]").forEach(function(x){x.classList.toggle("active",x===button)});document.getElementById("case-view").classList.toggle("hidden",view!=="cases");document.getElementById("conversation-view").classList.toggle("hidden",view!=="conversations");render()})});
+document.getElementById("export").addEventListener("click",exportCsv);render();
+</script>
+</body>
+</html>
