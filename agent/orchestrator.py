@@ -285,28 +285,23 @@ async def _handle_linked_account_suspension_followup(
     )
     linear_urls = _history_linear_urls(linked_history)
     base_url = settings.front_app_base_url.rstrip("/")
-    prior_lines = []
-    for item in linked_history:
-        prior_id = str(item.get("conversation_id") or "")
-        payload = dict(item.get("payload") or {})
-        prior_lines.append(
-            f"- {base_url}/{prior_id} | "
-            f"{item.get('category')}/{item.get('sub_type')}/{item.get('step')} | "
-            f"customer reply already sent: {'yes' if item.get('has_sent_customer_reply') else 'no'}"
-            + (f" | Linear: {payload.get('linear_url')}" if payload.get("linear_url") else "")
+    additional_related_urls = [
+        f"{base_url}/{linked_id}"
+        for linked_id in linked_ids
+        if linked_id not in {conversation_id, canonical_id}
+    ]
+    current_comment_lines = [
+        "[AI] Related account-suspension follow-up.",
+        f"Main: {base_url}/{canonical_id}",
+    ]
+    if additional_related_urls:
+        current_comment_lines.append(
+            f"Also related: {', '.join(additional_related_urls)}"
         )
-
-    current_comment = (
-        "[AI] Same-sender cross-conversation follow-up detected.\n"
-        f"Sender: {sender_email}\n"
-        f"Canonical conversation: {base_url}/{canonical_id}\n"
-        "The customer already has related account-suspension/appeal context in this or another Front conversation. "
-        "Do not send the standardized suspension template again; review the current message together with the linked history.\n\n"
-        "Linked conversations:\n"
-        + "\n".join(prior_lines)
-        + "\n\nCurrent message excerpt:\n"
-        + latest_message_context[:1800]
-    )
+    if linear_urls:
+        current_comment_lines.append(f"Linear: {', '.join(linear_urls)}")
+    current_comment_lines.append("No duplicate draft created.")
+    current_comment = "\n".join(current_comment_lines)
     current_result = await execute_tool_call(
         "front_add_comment",
         {
@@ -327,11 +322,9 @@ async def _handle_linked_account_suspension_followup(
             {
                 "conversation_id": prior_id,
                 "body": (
-                    "[AI] A new message from the same sender arrived in another Front conversation.\n"
-                    f"New conversation: {base_url}/{conversation_id}\n"
-                    f"Canonical conversation: {base_url}/{canonical_id}\n"
-                    "Review all linked messages together with the existing account-suspension/appeal context. "
-                    "The automation suppressed a duplicate standardized suspension draft."
+                    "[AI] Related conversation: "
+                    f"{base_url}/{conversation_id}\n"
+                    "No duplicate draft created."
                 ),
             },
             db,

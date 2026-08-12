@@ -503,15 +503,17 @@ def test_same_sender_cross_conversation_context_prevents_duplicate_handling():
     assert "same normalized sender" in account
     assert "save the new conversation as `manual_review`" in account
     assert "supporting evidence, or existing review in another Front conversation" in education
+    assert "do not repeat history or message excerpts" in account
+    assert "do not repeat history or message excerpts" in education
 
     orchestrator_source = Path("agent/orchestrator.py").read_text(encoding="utf-8")
     for phrase in [
         "_load_linked_conversation_history",
-        "get_contact_conversations",
-        "_linked_suspension_cases",
-        "linked_account_suspension_followup",
-        "The automation suppressed a duplicate standardized suspension draft.",
-    ]:
+            "get_contact_conversations",
+            "_linked_suspension_cases",
+            "linked_account_suspension_followup",
+            "No duplicate draft created.",
+        ]:
         assert phrase in orchestrator_source
 
     state_source = Path("tools/state.py").read_text(encoding="utf-8")

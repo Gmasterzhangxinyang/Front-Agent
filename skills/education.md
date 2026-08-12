@@ -179,7 +179,7 @@ This sub-type is only for an account-level enforcement suspension or ban. An Edu
 2. Do not personalize, paraphrase, shorten, or add any promise, timeline, policy explanation, or manual sign-off. If the latest customer message is non-English, preserve the English body exactly and append only the required reference notice and a faithful matching-language translation.
 3. Do not create a Linear ticket, notify Sybil, forward the conversation, add an internal handoff, or send a direct customer reply.
 4. Call `state_set` with category=`education`, sub_type=`account_suspended`, step=`draft_created`, waiting=false.
-5. If the same normalized sender already has a suspension, appeal, supporting evidence, or existing review in another Front conversation, do not repeat the template or create another ticket. Cross-link the conversations internally, preserve the existing Linear URL and review context, and set the new thread to `manual_review`.
+5. If the same normalized sender already has a suspension, appeal, supporting evidence, or existing review in another Front conversation, do not repeat the template or create another ticket. Cross-link the conversations with brief internal comments containing only the main/related Front links, existing Linear URL, and duplicate-draft status; do not repeat history or message excerpts. Preserve the existing Linear URL and review context, and set the new thread to `manual_review`.
 
 ## Reply Templates
 

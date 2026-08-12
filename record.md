@@ -194,3 +194,5 @@
 - [deploy] 将 Elsie 审核后的中国大陆税务/VAT 发票回复规则与草稿硬校验发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-e378dff-vat-policy-yPt9gI`；启动导入、调度器日志与 `/health` 均验证正常
 - [fix] SaaS 客户邮件正文不再手写 `Best regards, Dify Support Team` 或其他落款，英文版及非英文参考译文均保持无署名；Front 草稿与备用直发接口统一启用已配置的默认签名，并在运行时拒绝模型生成的手写落款，完整测试 186 项通过（agent/orchestrator.py, agent/tool_registry.py, tools/front.py, skills/*.md, sop.md, tests/test_runtime_boundaries.py, tests/test_skills.py）
 - [deploy] 将 Front 默认签名与正文禁用手写落款规则发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-39bcfc8-default-signature-veqTkN`；发布前导入检查、进程切换及 `/health` 均验证正常
+- [fix] 精简同发件人跨会话关联评论：当前会话仅保留主记录、额外关联会话（如有）、已有 Linear 链接及未重复建草稿状态；历史会话仅保留新会话链接和去重状态，不再复制发件人、处理状态、历史列表、说明段落或邮件正文（agent/orchestrator.py, skills/account.md, skills/education.md, sop.md, tests/test_runtime_boundaries.py, tests/test_skills.py）
+- [deploy] 将跨会话关联短评论规则发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-5a2899e-concise-links-WzUS3O`；完整测试 186 项、发布前导入检查、进程切换及 `/health` 均验证正常

@@ -996,6 +996,18 @@ def test_cross_conversation_suspension_followup_suppresses_duplicate_draft():
         ]
         assert execute_tool.await_args_list[0].args[1]["conversation_id"] == "cnv_followup"
         assert execute_tool.await_args_list[1].args[1]["conversation_id"] == "cnv_prior"
+        current_comment = execute_tool.await_args_list[0].args[1]["body"]
+        prior_comment = execute_tool.await_args_list[1].args[1]["body"]
+        assert "Main:" in current_comment
+        assert "Also related:" not in current_comment
+        assert "https://linear.app/dify/issue/CUS-1513" in current_comment
+        assert "No duplicate draft created." in current_comment
+        assert "Current message excerpt" not in current_comment
+        assert "student@example.edu" not in current_comment
+        assert len(current_comment) < 500
+        assert "cnv_followup" in prior_comment
+        assert "No duplicate draft created." in prior_comment
+        assert len(prior_comment) < 300
         state_args = set_state.await_args.args
         assert state_args[1:5] == (
             "cnv_followup",

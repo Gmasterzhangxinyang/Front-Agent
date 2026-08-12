@@ -38,7 +38,7 @@ Handle account-related requests: login issues, account deletion, transfer, email
 
 For a first account-level suspension, ban, block, or enforcement appeal with no linked same-sender history, use the one approved English response handled deterministically before this skill runs. Preserve the standardized English body exactly, and for a non-English customer append only the required reference notice and faithful matching-language translation. Do not add a manual sign-off to either body block.
 
-If the same normalized sender already has a suspension or appeal in another Front conversation, treat the new thread as a continuation. Do not create the standardized draft again and do not create another Linear ticket. The runtime must cross-link the current and canonical conversations with internal comments, preserve any existing Linear URL, and save the new conversation as `manual_review`.
+If the same normalized sender already has a suspension or appeal in another Front conversation, treat the new thread as a continuation. Do not create the standardized draft again and do not create another Linear ticket. The runtime must cross-link the current and canonical conversations with brief internal comments containing only the main/related Front links, existing Linear URL, and duplicate-draft status; do not repeat history or message excerpts. Preserve any existing Linear URL and save the new conversation as `manual_review`.
 
 ### cant_login (can't log in)
 
