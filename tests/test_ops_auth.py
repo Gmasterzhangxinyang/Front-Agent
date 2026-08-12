@@ -149,24 +149,28 @@ def test_account_ban_analysis_page_contains_audited_views():
     assert 'href="/ops/account-ban-analysis"' in Path("routes/static/ops.html").read_text()
 
 
-def test_system_flow_page_is_simple_dynamic_and_linked_from_ops():
+def test_system_flow_page_uses_neural_canvas_and_live_telemetry():
     source = Path("routes/static/system_flow.html").read_text()
     for expected in (
-        "客户邮件从进入到处理完成的整个流转",
-        "Front 接收邮件",
-        "读取完整历史",
-        "分类与选择路径",
-        "技能与安全校验",
-        "生成 Front 草稿",
-        "创建 Linear 工单",
-        "内部处理或通知",
-        "保存最终状态",
-        "失败恢复回路",
+        'id="neural"',
+        "FRONT-AGENT / NEURAL FLOW",
+        "NODE_DEF",
+        "EDGE_DEF",
+        "drawNeuralField",
+        "drawEdge",
+        "drawCore",
+        "requestAnimationFrame(frame)",
+        "pointermove",
+        "showPanel",
         "/ops/api/system-flow",
         "setInterval(load,8000)",
     ):
         assert expected in source
-    assert source.count('class="stage" data-node=') == 6
+    assert 'class="stage"' not in source
+    assert "createRadialGradient" in source
+    assert "RECOVERY" in source
+    assert "DRAFT" in source
+    assert "LINEAR" in source
     assert 'href="/ops/system-flow"' in Path("routes/static/ops.html").read_text()
 
 

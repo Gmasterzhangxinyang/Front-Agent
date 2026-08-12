@@ -198,3 +198,5 @@
 - [deploy] 将跨会话关联短评论规则发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-5a2899e-concise-links-WzUS3O`；完整测试 186 项、发布前导入检查、进程切换及 `/health` 均验证正常
 - [feat] 新增受 Ops 登录保护的动态系统流向页 `/ops/system-flow`：用 6 步主线直观展示 Front 来信、安全落盘、完整上下文、分类、规则校验和安全执行，再分流至 Front 草稿、Linear 工单或内部处理并保存状态；失败重试独立成回路。页面每 8 秒读取真实 SQLite 遥测、动态闪动最近活动并提供 Front 会话直达，点击节点只展开三条关键说明，避免复杂技术拓扑；完整测试 188 项通过（routes/ops.py, routes/static/system_flow.html, routes/static/ops.html, tests/test_ops_auth.py, tests/test_ops_data_quality.py, README.md）
 - [deploy] 将动态系统流向页发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-3a663cd-system-flow-HjKkzJ`；发布前导入和真实数据库遥测检查、进程切换、`/health`、未登录重定向/API 401、使用现有 Ops 凭据登录后的 HTML 与 48 条实时活动加载均验证正常
+- [refactor] 将动态系统流向页从文字卡片重构为全屏原生 Canvas 神经网络渲染：深色空间与扫描线背景、带鼠标视差的动态神经元场、发光核心与旋转轨道、沿主链/输出分支/失败回路传播的实时脉冲、事件驱动的核心点亮及高科技 HUD；主画面只保留极少节点名，说明与真实会话活动仅在点击核心后以浮动面板显示，不依赖外部渲染库（routes/static/system_flow.html, tests/test_ops_auth.py）
+- [deploy] 将神经网络 Canvas 动态流向页发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-4d8caf6-neural-flow-QUrfgx`；JavaScript 解析、完整 188 项回归、发布资源解析、进程切换、`/health`、Ops 认证后的 21 KB Canvas 页面与 48 条实时活动数据加载均验证正常
