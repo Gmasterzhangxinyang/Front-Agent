@@ -12,7 +12,13 @@ from sqlalchemy.orm import sessionmaker
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from database import Base
-from models import ConversationState, SybilNotification, WebhookInbox
+from models import (
+    ConversationAction,
+    ConversationState,
+    SybilNotification,
+    WebhookEvent,
+    WebhookInbox,
+)
 import routes.ops as ops_routes
 import services.ops_metadata as ops_metadata
 
@@ -243,6 +249,69 @@ def test_ops_summary_exposes_actionable_health_and_coverage():
         assert summary["data_health"]["recent_30d_coverage_rate"] == 66.7
         assert summary["data_health"]["attention_missing_count"] == 1
         assert summary["priority_items"][0]["conversation_id"] == "cnv_failed"
+
+    asyncio.run(run_case())
+
+
+def test_system_flow_api_maps_live_records_to_clear_stages():
+    async def run_case():
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        async with _isolated_sessions() as session_factory:
+            async with session_factory() as db:
+                db.add_all(
+                    [
+                        WebhookEvent(event_id="evt_flow", processed_at=now),
+                        WebhookInbox(
+                            event_id="evt_flow",
+                            conversation_id="cnv_flow",
+                            payload={},
+                            status="processed",
+                            attempts=1,
+                            available_at=now,
+                            created_at=now,
+                            updated_at=now,
+                            processed_at=now,
+                        ),
+                        ConversationState(
+                            conversation_id="cnv_flow",
+                            sender_email="flow@example.com",
+                            category="technical",
+                            sub_type="how_to",
+                            step="draft_created",
+                            payload={"summary": "Flow test"},
+                            updated_at=now,
+                        ),
+                        ConversationAction(
+                            conversation_id="cnv_flow",
+                            action_type="front_create_draft",
+                            action_key="flow-draft",
+                            result="draft_created",
+                            created_at=now,
+                        ),
+                    ]
+                )
+                await db.commit()
+
+            with patch.object(ops_routes, "AsyncSessionLocal", session_factory):
+                flow = await ops_routes.ops_system_flow()
+
+        assert flow["window_hours"] == 24
+        assert flow["nodes"]["ingress"]["count"] == 1
+        assert flow["nodes"]["context"]["count"] == 1
+        assert flow["nodes"]["front_draft"]["count"] == 1
+        assert flow["nodes"]["classify"]["breakdown"] == {"technical": 1}
+        assert {item["kind"] for item in flow["recent_activity"]} == {
+            "action",
+            "state",
+            "webhook",
+        }
+        draft_activity = next(
+            item
+            for item in flow["recent_activity"]
+            if item["kind"] == "action"
+        )
+        assert draft_activity["node"] == "front_draft"
+        assert draft_activity["conversation_id"] == "cnv_flow"
 
     asyncio.run(run_case())
 

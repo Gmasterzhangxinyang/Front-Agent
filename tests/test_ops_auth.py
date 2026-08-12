@@ -40,7 +40,12 @@ def test_ops_page_and_api_require_login_then_logout_revokes_session():
         assert analysis_page.status_code == 303
         assert analysis_page.headers["location"] == "/ops/login"
 
+        flow_page = client.get("/ops/system-flow", follow_redirects=False)
+        assert flow_page.status_code == 303
+        assert flow_page.headers["location"] == "/ops/login"
+
         assert client.get("/ops/api/summary").status_code == 401
+        assert client.get("/ops/api/system-flow").status_code == 401
         assert client.delete("/ops/api/sybil/1").status_code == 401
 
         wrong = client.post(
@@ -62,6 +67,7 @@ def test_ops_page_and_api_require_login_then_logout_revokes_session():
 
         assert client.get("/ops").status_code == 200
         assert client.get("/ops/account-ban-analysis").status_code == 200
+        assert client.get("/ops/system-flow").status_code == 200
         assert client.delete("/ops/api/sybil/1").status_code == 403
 
         logged_out = client.post(
@@ -141,6 +147,27 @@ def test_account_ban_analysis_page_contains_audited_views():
     assert source.count('["C') == 30
     assert source.count('["cnv_') == 35
     assert 'href="/ops/account-ban-analysis"' in Path("routes/static/ops.html").read_text()
+
+
+def test_system_flow_page_is_simple_dynamic_and_linked_from_ops():
+    source = Path("routes/static/system_flow.html").read_text()
+    for expected in (
+        "客户邮件从进入到处理完成的整个流转",
+        "Front 接收邮件",
+        "读取完整历史",
+        "分类与选择路径",
+        "技能与安全校验",
+        "生成 Front 草稿",
+        "创建 Linear 工单",
+        "内部处理或通知",
+        "保存最终状态",
+        "失败恢复回路",
+        "/ops/api/system-flow",
+        "setInterval(load,8000)",
+    ):
+        assert expected in source
+    assert source.count('class="stage" data-node=') == 6
+    assert 'href="/ops/system-flow"' in Path("routes/static/ops.html").read_text()
 
 
 def run_all():

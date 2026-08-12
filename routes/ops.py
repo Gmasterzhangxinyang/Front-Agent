@@ -198,6 +198,31 @@ def _rows_to_dict(rows) -> dict[str, int]:
     return {str(key or "unknown"): int(count or 0) for key, count in rows}
 
 
+def _flow_action_node(action_type: str) -> str:
+    action = (action_type or "").lower()
+    if action == "front_create_draft":
+        return "front_draft"
+    if action.startswith("linear_"):
+        return "linear"
+    if action.startswith("feishu_") or action.startswith("sybil_"):
+        return "notify"
+    if action.startswith("front_"):
+        return "front_other"
+    return "execute"
+
+
+def _flow_event_status(value: str) -> str:
+    lowered = (value or "").lower()
+    if lowered in {"dead_letter", "failed_needs_review", "failed"}:
+        return "error"
+    if (
+        lowered in {"pending", "retry", "processing", "manual_review"}
+        or lowered.startswith("awaiting")
+    ):
+        return "warning"
+    return "ok"
+
+
 def _rate(numerator: int, denominator: int) -> float:
     if not denominator:
         return 0.0
@@ -536,6 +561,13 @@ async def ops_account_ban_analysis_page(request: Request):
     if not ops_auth.session_valid(_session_token(request)):
         return RedirectResponse("/ops/login", status_code=303)
     return FileResponse(STATIC_DIR / "account_ban_analysis.html")
+
+
+@router.get("/ops/system-flow")
+async def ops_system_flow_page(request: Request):
+    if not ops_auth.session_valid(_session_token(request)):
+        return RedirectResponse("/ops/login", status_code=303)
+    return FileResponse(STATIC_DIR / "system_flow.html")
 
 
 @protected_router.get("/ops/api/summary")
@@ -927,6 +959,222 @@ async def ops_summary():
                 _action_to_dict(item)
                 for item in recent_actions.scalars().all()
             ],
+        }
+
+
+@protected_router.get("/ops/api/system-flow")
+async def ops_system_flow():
+    """Return lightweight live telemetry for the animated system map."""
+    now = datetime.utcnow()
+    cutoff = now - timedelta(hours=24)
+
+    async with AsyncSessionLocal() as db:
+        webhook_status_rows = await db.execute(
+            select(WebhookInbox.status, func.count())
+            .group_by(WebhookInbox.status)
+            .order_by(func.count().desc())
+        )
+        action_type_rows = await db.execute(
+            select(ConversationAction.action_type, func.count())
+            .where(ConversationAction.created_at >= cutoff)
+            .group_by(ConversationAction.action_type)
+            .order_by(func.count().desc())
+        )
+        step_rows = await db.execute(
+            select(ConversationState.step, func.count())
+            .where(ConversationState.updated_at >= cutoff)
+            .group_by(ConversationState.step)
+            .order_by(func.count().desc())
+        )
+        category_rows = await db.execute(
+            select(ConversationState.category, func.count())
+            .where(ConversationState.updated_at >= cutoff)
+            .group_by(ConversationState.category)
+            .order_by(func.count().desc())
+        )
+
+        webhook_status = _rows_to_dict(webhook_status_rows.all())
+        actions_by_type = _rows_to_dict(action_type_rows.all())
+        states_by_step = _rows_to_dict(step_rows.all())
+        categories = _rows_to_dict(category_rows.all())
+
+        webhook_count_24h = await _scalar_count(
+            db,
+            select(func.count())
+            .select_from(WebhookEvent)
+            .where(WebhookEvent.processed_at >= cutoff),
+        )
+        conversation_count_24h = await _scalar_count(
+            db,
+            select(func.count())
+            .select_from(ConversationState)
+            .where(ConversationState.updated_at >= cutoff),
+        )
+        linked_context_count_24h = await _scalar_count(
+            db,
+            select(func.count())
+            .select_from(ConversationState)
+            .where(
+                ConversationState.updated_at >= cutoff,
+                func.json_extract(
+                    ConversationState.payload,
+                    "$.route",
+                ) == "linked_account_suspension_followup",
+            ),
+        )
+
+        recent_webhooks_result = await db.execute(
+            select(WebhookInbox)
+            .order_by(WebhookInbox.updated_at.desc())
+            .limit(18)
+        )
+        recent_actions_result = await db.execute(
+            select(ConversationAction)
+            .order_by(ConversationAction.created_at.desc())
+            .limit(24)
+        )
+        recent_states_result = await db.execute(
+            select(ConversationState)
+            .order_by(ConversationState.updated_at.desc())
+            .limit(18)
+        )
+
+        recent_activity = []
+        for item in recent_webhooks_result.scalars().all():
+            is_recovery = item.status in {"retry", "dead_letter"}
+            recent_activity.append(
+                {
+                    "id": f"webhook:{item.event_id}",
+                    "kind": "webhook",
+                    "node": "recovery" if is_recovery else "durable",
+                    "conversation_id": item.conversation_id,
+                    "front_url": _front_url(item.conversation_id),
+                    "title": f"Webhook {item.status}",
+                    "detail": (
+                        _clip(item.last_error, 120)
+                        if item.last_error
+                        else f"attempt {item.attempts}"
+                    ),
+                    "status": _flow_event_status(item.status),
+                    "occurred_at": _iso(item.updated_at),
+                }
+            )
+
+        for item in recent_actions_result.scalars().all():
+            action_status = _action_status(item.result)
+            recent_activity.append(
+                {
+                    "id": f"action:{item.id}",
+                    "kind": "action",
+                    "node": _flow_action_node(item.action_type),
+                    "conversation_id": item.conversation_id,
+                    "front_url": _front_url(item.conversation_id),
+                    "title": item.action_type,
+                    "detail": _clip(item.result, 120),
+                    "status": _flow_event_status(action_status),
+                    "occurred_at": _iso(item.created_at),
+                }
+            )
+
+        for item in recent_states_result.scalars().all():
+            step = item.step or "initial"
+            recent_activity.append(
+                {
+                    "id": f"state:{item.conversation_id}:{_iso(item.updated_at)}",
+                    "kind": "state",
+                    "node": "recovery" if step == "failed_needs_review" else "persist",
+                    "conversation_id": item.conversation_id,
+                    "front_url": _front_url(item.conversation_id),
+                    "title": f"State → {step}",
+                    "detail": _clip(_payload_summary(item.payload), 120),
+                    "status": _flow_event_status(step),
+                    "occurred_at": _iso(item.updated_at),
+                }
+            )
+
+        recent_activity.sort(
+            key=lambda event: event.get("occurred_at") or "",
+            reverse=True,
+        )
+
+        total_actions = sum(actions_by_type.values())
+        front_drafts = actions_by_type.get("front_create_draft", 0)
+        front_other = sum(
+            count
+            for action, count in actions_by_type.items()
+            if action.startswith("front_") and action != "front_create_draft"
+        )
+        linear_actions = sum(
+            count
+            for action, count in actions_by_type.items()
+            if action.startswith("linear_")
+        )
+        notify_actions = sum(
+            count
+            for action, count in actions_by_type.items()
+            if action.startswith("feishu_") or action.startswith("sybil_")
+        )
+        queue_count = sum(
+            count
+            for status, count in webhook_status.items()
+            if status != "processed"
+        )
+        dead_letters = webhook_status.get("dead_letter", 0)
+
+        scheduler_running = False
+        try:
+            from tasks.scheduler import scheduler
+
+            scheduler_running = bool(scheduler.running)
+        except Exception as exc:
+            logger.debug("Unable to inspect scheduler state: %s", exc)
+
+        return {
+            "generated_at": _iso(now),
+            "window_hours": 24,
+            "service": {
+                "status": (
+                    "degraded"
+                    if dead_letters
+                    or (settings.enable_scheduler and not scheduler_running)
+                    else "ok"
+                ),
+                "scheduler_running": scheduler_running,
+            },
+            "nodes": {
+                "ingress": {"count": webhook_count_24h},
+                "durable": {
+                    "count": webhook_status.get("processed", 0),
+                    "queue": queue_count,
+                    "breakdown": webhook_status,
+                },
+                "context": {
+                    "count": conversation_count_24h,
+                    "linked": linked_context_count_24h,
+                },
+                "classify": {
+                    "count": conversation_count_24h,
+                    "breakdown": categories,
+                },
+                "policy": {"count": total_actions},
+                "execute": {
+                    "count": total_actions,
+                    "breakdown": actions_by_type,
+                },
+                "front_draft": {"count": front_drafts},
+                "front_other": {"count": front_other},
+                "linear": {"count": linear_actions},
+                "notify": {"count": notify_actions},
+                "persist": {
+                    "count": conversation_count_24h,
+                    "breakdown": states_by_step,
+                },
+                "recovery": {
+                    "count": queue_count,
+                    "dead_letters": dead_letters,
+                },
+            },
+            "recent_activity": recent_activity[:48],
         }
 
 

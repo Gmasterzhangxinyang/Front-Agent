@@ -22,7 +22,7 @@ Current production screen runs this branch from release directories under `/tmp/
 - Spam: deterministic route may archive only clear spam/ads
 - Non-spam: keep conversations open for review
 - Sybil handoffs: queued for the daily Feishu digest, not emailed directly to Sybil
-- Ops dashboard: `GET /ops` prioritizes actionable conversations, webhook recovery health, the education account exception queue, draft adoption, and metadata coverage; authenticated operators can soft-dismiss pending Sybil records
+- Ops dashboard: `GET /ops` prioritizes actionable conversations, webhook recovery health, the education account exception queue, draft adoption, and metadata coverage; `GET /ops/system-flow` provides a login-protected animated end-to-end flow with live local telemetry; authenticated operators can soft-dismiss pending Sybil records
 - Case memory: similar historical conversations are distilled into hindsight signals with retrieval evidence; they do not change deterministic routes or replace docs/GitHub grounding
 
 ## Processing Flow

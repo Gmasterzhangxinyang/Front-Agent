@@ -196,3 +196,5 @@
 - [deploy] 将 Front 默认签名与正文禁用手写落款规则发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-39bcfc8-default-signature-veqTkN`；发布前导入检查、进程切换及 `/health` 均验证正常
 - [fix] 精简同发件人跨会话关联评论：当前会话仅保留主记录、额外关联会话（如有）、已有 Linear 链接及未重复建草稿状态；历史会话仅保留新会话链接和去重状态，不再复制发件人、处理状态、历史列表、说明段落或邮件正文（agent/orchestrator.py, skills/account.md, skills/education.md, sop.md, tests/test_runtime_boundaries.py, tests/test_skills.py）
 - [deploy] 将跨会话关联短评论规则发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-5a2899e-concise-links-WzUS3O`；完整测试 186 项、发布前导入检查、进程切换及 `/health` 均验证正常
+- [feat] 新增受 Ops 登录保护的动态系统流向页 `/ops/system-flow`：用 6 步主线直观展示 Front 来信、安全落盘、完整上下文、分类、规则校验和安全执行，再分流至 Front 草稿、Linear 工单或内部处理并保存状态；失败重试独立成回路。页面每 8 秒读取真实 SQLite 遥测、动态闪动最近活动并提供 Front 会话直达，点击节点只展开三条关键说明，避免复杂技术拓扑；完整测试 188 项通过（routes/ops.py, routes/static/system_flow.html, routes/static/ops.html, tests/test_ops_auth.py, tests/test_ops_data_quality.py, README.md）
+- [deploy] 将动态系统流向页发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-3a663cd-system-flow-HjKkzJ`；发布前导入和真实数据库遥测检查、进程切换、`/health`、未登录重定向/API 401、使用现有 Ops 凭据登录后的 HTML 与 48 条实时活动加载均验证正常
