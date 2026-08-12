@@ -155,7 +155,7 @@ def test_system_flow_page_animates_one_email_journey_with_live_telemetry():
         'id="neural"',
         "FRONT-AGENT / NEURAL FLOW",
         "ONE EMAIL · COMPLETE JOURNEY",
-        "FLOW DEMO",
+        "STEP-BY-STEP DEMO",
         "NODE_DEF",
         "EDGE_DEF",
         "SCENARIOS",
@@ -165,6 +165,10 @@ def test_system_flow_page_animates_one_email_journey_with_live_telemetry():
         "drawJourneyPath",
         "drawJourney",
         "drawMailToken",
+        "nextStep",
+        "previousStep",
+        "toggleAuto",
+        "roundedRectPath",
         "requestAnimationFrame(frame)",
         "pointermove",
         "showPanel",
@@ -181,6 +185,10 @@ def test_system_flow_page_animates_one_email_journey_with_live_telemetry():
     assert 'data-scenario="ticket"' in source
     assert 'data-scenario="handoff"' in source
     assert 'data-scenario="retry"' in source
+    assert 'id="prev"' in source
+    assert 'id="next"' in source
+    assert 'id="autoplay"' in source
+    assert "下一步 →" in source
     assert 'href="/ops/system-flow"' in Path("routes/static/ops.html").read_text()
 
 
