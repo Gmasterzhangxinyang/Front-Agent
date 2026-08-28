@@ -1,7 +1,7 @@
 # Skill: Education Plan
 
 ## Purpose
-Handle education plan applications, rejections, discount issues, and account suspensions.
+Handle education plan applications, rejections, discount and credit-allowance issues, and account suspensions.
 
 ## Key Facts
 - Education discount: 100% off, valid for 1 year
@@ -11,11 +11,19 @@ Handle education plan applications, rejections, discount issues, and account sus
 - Only higher education institutions (universities, colleges, government-accredited) qualify
 - K-12 schools and unaccredited institutions do NOT qualify
 - The user must register Dify Cloud with a school-issued educational email, not a personal address such as Gmail or Yahoo
+- For an active Education Plan application, rejection, verification, or discount review, the actual `From` address of the inbound message must be the applicant's school-issued email and must match the school email claimed or registered for the application. A school address written only in the body, signature, CC, screenshot, or forwarded text does not verify ownership.
 - Official self-service application path: register at `https://cloud.dify.ai` with the school email -> **Settings** -> **Billing** -> **Get Education Verified** -> enter the full school name and role -> after approval select the workspace -> **Use education discount** -> choose yearly Professional and complete activation
+- The included Education Plan message-credit allowance is now 200 message credits in total, with no monthly reset; it was previously 5,000 message credits per month
+- This allowance change applies only to included message credits; all other Professional plan features and resource entitlements remain available at no cost
+- After the included credits are used, users can continue using models by configuring their own API key from a supported model provider
+- A workspace shown as Sandbox or Free, rather than Professional with the 200-message-credit allowance, is a separate issue that should be investigated
 - Official documentation: `https://docs.dify.ai/en/cloud/use-dify/workspace/subscription-management#dify-for-education`
 
 
 ## Tool Sequencing and Hard Stops
+- Before creating or continuing an Education review, compare the actual sender email supplied by the runtime with the claimed or registered school email. This identity gate applies to active applications, rejections, verification failures, and discount reviews; the expired-school-email/graduation recovery flow uses its separate proof policy.
+- If the actual sender is a personal address or does not exactly match the claimed or registered school email, do not call `linear_create_ticket`, do not notify Sybil, and do not say the application was received or forwarded for review. Create only the **Send from school email** draft and call `state_set` with step=`awaiting_school_email_sender_verification`, waiting=true, preserving the claimed school email and actual sender in the payload.
+- If a review ticket already exists before the mismatch is noticed, preserve its `linear_url`, add a concise internal Front comment that identity verification is pending, and do not create a duplicate ticket or continue the review until a new request arrives directly from the school-issued address.
 - Never call `feishu_notify_sybil_group` before `linear_create_ticket` has returned a real Linear URL.
 - Never leave placeholder URL text in tool arguments. Use the exact URL returned by `linear_create_ticket`.
 - For successful education reviews, call tools in this order: `linear_create_ticket` -> `feishu_notify_sybil_group` -> `front_create_draft` -> `state_set`.
@@ -27,7 +35,8 @@ Handle education plan applications, rejections, discount issues, and account sus
 
 ## Reply Continuation Policy
 - Treat the latest user reply as authoritative for the next step. Do not blindly repeat the previous draft.
-- A user may switch among education intents within the same conversation. When the latest reply clearly reports rejection, missing discount, expired school email/graduation, cancellation, or an Education account suspension, follow that sub-type and save the new `sub_type`.
+- For `awaiting_school_email_sender_verification`, do not treat an address repeated in the body or signature as proof. Continue to wait for a new inbound request whose actual `From` address is the claimed school-issued email. Do not create or continue an internal review from the personal-email thread.
+- A user may switch among education intents within the same conversation. When the latest reply clearly reports rejection, missing discount, a 200-message-credit Education allowance question, expired school email/graduation, cancellation, or an Education account suspension, follow that sub-type and save the new `sub_type`.
 - For `awaiting_school_info` and `awaiting_identity_verification`, use the newest reply together with the saved payload. Preserve previously collected facts when calling `state_set`.
 - For `draft_created`:
   - Answer a new education question with a concise draft that follows the English-first and reference-translation policy in the Draft Quality Bar.
@@ -67,11 +76,12 @@ Handle education plan applications, rejections, discount issues, and account sus
 ### rejected (education plan application rejected)
 
 **Step: initial**
-1. **First, check if the user has already provided school information in their email** (school name and email domain)
-2. If school info is provided:
+1. **First, enforce the school-email sender identity gate.** Compare the actual runtime sender address with the school email claimed or registered for the application. If the sender is personal or mismatched, use the **Send from school email** template, set step=`awaiting_school_email_sender_verification` with waiting=true, and stop. Do not create or continue a review.
+2. Check if the user has already provided school information in their email (school name and email domain).
+3. If school info is provided:
    - Extract: school full name (English) and school email domain
    - If user provided personal email (Gmail, Yahoo, etc.) instead of school domain:
-     - Call `front_create_draft` with "must use school email" template
+     - Call `front_create_draft` with the **Send from school email** template
      - Call `state_set` with step="awaiting_school_info", waiting=true
    - Determine school type:
      - **Higher education (university/college, government-accredited):**
@@ -90,16 +100,17 @@ Handle education plan applications, rejections, discount issues, and account sus
      - **K-12 or unaccredited:**
        - Call `front_create_draft` with "not eligible" template
        - Call `state_set` with step="draft_created"
-3. If school info is NOT provided:
+4. If school info is NOT provided:
    - Call `front_create_draft` with "please provide school info" template
    - Call `state_set` with step="awaiting_school_info", waiting=true
 
 **Step: awaiting_school_info** (user has replied with school info)
-1. Extract: school full name (English) and school email domain from user's reply
-2. If user provided personal email (Gmail, Yahoo, etc.) instead of school domain:
-   - Call `front_create_draft` with "must use school email" template
+1. First enforce the same school-email sender identity gate. A school email shown only in the reply body or signature is not sufficient. If the actual sender is personal or mismatched, use the **Send from school email** template, set step=`awaiting_school_email_sender_verification` with waiting=true, and stop.
+2. Extract: school full name (English) and school email domain from user's reply
+3. If user provided personal email (Gmail, Yahoo, etc.) instead of school domain:
+   - Call `front_create_draft` with the **Send from school email** template
    - Call `state_set` with step="awaiting_school_info", waiting=true
-3. Determine school type:
+4. Determine school type:
    - **Higher education (university/college, government-accredited):**
      - Call `linear_create_ticket` with conversation_id, title "教育版 - [school name]", sender_email (the user's email address), original_message (the user's original email text), and description — fill in actual values, never use placeholder text:
        ```
@@ -116,6 +127,15 @@ Handle education plan applications, rejections, discount issues, and account sus
    - **K-12 or unaccredited:**
      - Call `front_create_draft` with "not eligible" template
      - Call `state_set` with step="draft_created"
+
+### credit_allowance_200 (Education Plan shows only 200 message credits)
+
+**Step: initial or draft_created**
+1. Use this branch when a user asks why an activated or subscribed Education Plan has only 200 message credits, whether those credits reset monthly, or why the former 5,000-per-month allowance is no longer present.
+2. Call `front_create_draft` with the **Education 200-message-credit allowance** template below as the authoritative unsigned English body. If the latest customer message is primarily non-English, append the required reference notice and faithful translation.
+3. Do not create a Linear ticket or notify Sybil for the normal 200-credit allowance.
+4. Call `state_set` with category=`education`, sub_type=`credit_allowance_200`, step=`draft_created`, waiting=false.
+5. Do not mention any workspace refresh date or August 10. If the workspace itself is displayed as Sandbox or Free rather than Professional with 200 message credits, treat that as a separate issue for investigation.
 
 ### no_discount (edu verified but discount not showing)
 
@@ -140,9 +160,11 @@ Handle education plan applications, rejections, discount issues, and account sus
 ### email_expired_graduated (graduated, school email no longer works)
 
 **Step: initial**
-1. User mentions they graduated or their school email is no longer accessible
-2. Call `front_create_draft` with identity verification request template (need proof the original email was theirs)
-3. Call `state_set` with step="awaiting_identity_verification", sub_type="email_expired_graduated", waiting=true
+1. Use this account-recovery flow only when the user wants to regain access, change the account email, or recover an account tied to the unavailable school email.
+2. If the user instead asks to cancel a trial/subscription or avoid being billed, do not assume they need account recovery. Follow `cancel_subscription` below, including its Education Plan confirmation gate.
+3. User mentions they graduated or their school email is no longer accessible.
+4. Call `front_create_draft` with identity verification request template (need proof the original email was theirs).
+5. Call `state_set` with step="awaiting_identity_verification", sub_type="email_expired_graduated", waiting=true.
 
 **Step: awaiting_identity_verification** (user replied with proof)
 1. Check if user's reply provides sufficient proof (sent from original email, or provided other proof of identity)
@@ -166,9 +188,21 @@ Handle education plan applications, rejections, discount issues, and account sus
 ### cancel_subscription (education plan user wants to cancel)
 
 **Step: initial**
-1. User mentions they want to cancel their education plan / subscription
-2. Call `front_create_draft` with no-auto-renew explanation template
-3. Call `state_set` with step="draft_created", sub_type="cancel_subscription"
+1. First determine whether the user explicitly confirms that the affected trial/subscription is the Dify Education Plan (for example, they say Education Plan, student plan, education discount, or Education Verified).
+2. If the user explicitly confirms it is the Education Plan:
+   - Call `front_create_draft` with the no-auto-renew explanation template.
+   - Call `state_set` with step="draft_created", sub_type="cancel_subscription", waiting=false.
+3. If the user only mentions a school/university email, graduation, or a generic Dify trial/subscription and has not confirmed the plan type:
+   - Do not infer that the subscription is an Education Plan merely from the email domain or graduation context.
+   - Do not request identity proof or account-ownership evidence.
+   - Do not give paid-plan cancellation steps and do not yet state that the subscription will not renew.
+   - Call `front_create_draft` with the **Confirm Education Plan** template below.
+   - Call `state_set` with category="education", sub_type="cancel_subscription", step="awaiting_plan_type_confirmation", waiting=true, and payload containing `plan_type="unconfirmed"`.
+
+**Step: awaiting_plan_type_confirmation**
+1. If the user confirms it was the Education Plan, call `front_create_draft` with the no-auto-renew explanation template, then call `state_set` with step="draft_created", sub_type="cancel_subscription", waiting=false, and payload containing `plan_type="education"`.
+2. If the user confirms it was a standard paid trial/subscription rather than the Education Plan, call `front_create_draft` with the exact Dify Cloud cancellation path: current workspace name in the upper-left corner -> **Settings** -> **Billing** -> **Billing and Subscriptions** -> **Manage** -> select the active subscription -> **Cancel plan** -> confirm. Then call `state_set` with category="billing", sub_type="downgrade", step="draft_created", waiting=false, and payload containing `plan_type="standard_paid"`.
+3. If the reply still does not identify the plan type, ask the same minimum confirmation question and keep step="awaiting_plan_type_confirmation", waiting=true.
 
 ### account_suspended (Education Plan/Education Verified account suspended or banned)
 
@@ -225,17 +259,17 @@ We look forward to hearing from you!
 
 ```
 
-### Must use school email
+### Send from school email
 ```
 Dear [User's Name / Valued Customer],
 
-Thank you for your reply!
+Thank you for providing the information.
 
-Unfortunately, we're unable to process education plan applications using personal email addresses (such as Gmail or Yahoo). A school-issued email address with your institution's official domain is required for verification.
+To verify ownership of the educational email and protect Education Plan benefits, we can only review this request when it is sent directly from the school-issued email address associated with the application.
 
-Could you please provide your school's official email domain instead?
+This message was sent from [actual sender email]. Please send a new email to support@dify.ai from [claimed school email] and include the same details and attachments. A school email address shown only in the message body, signature, CC, screenshot, or forwarded text is not sufficient for verification.
 
-Thank you for your understanding.
+Once we receive the request directly from the school-issued email address, we can review the next step.
 
 ```
 
@@ -316,6 +350,29 @@ Thank you for your patience and understanding.
 
 ```
 
+### Education 200-message-credit allowance
+```
+Hi,
+
+Thank you for reaching out.
+
+We recently updated the message credit allowance included with Dify for Education:
+
+Previously: 5,000 message credits per month
+Now: 200 message credits in total, with no monthly reset
+
+Please note that this change applies only to the included message credits. Your workspace will continue to have access to all other Professional plan features and resource entitlements at no cost.
+
+This adjustment became necessary due to a significant increase in misuse of education benefits, which made the previous monthly allowance unsustainable. We understand that this change also affects users who have used the program as intended, and we sincerely apologize for any inconvenience it may cause.
+
+Once the included credits have been used, you can continue using models in Dify by configuring your own API key from a supported model provider.
+
+You can find the latest program details in our Dify for Education FAQ.
+
+If your workspace is displayed as Sandbox or Free, rather than Professional with the 200-message-credit allowance, please let us know so we can investigate it separately.
+
+```
+
 ### No-auto-renew explanation (for education plan cancel request)
 ```
 Dear [User's Name / Valued Customer],
@@ -325,6 +382,16 @@ Thank you for reaching out regarding your education plan subscription.
 We'd like to confirm that your Dify education plan will NOT automatically renew after its current term ends. There is no need to take any action to cancel — your subscription will simply expire at the end of the billing period without any further charges.
 
 If you have any other questions, please don't hesitate to reach out.
+
+```
+
+### Confirm Education Plan (when plan type is not stated)
+```
+Dear [User's Name / Valued Customer],
+
+Thank you for reaching out. Before we provide the correct cancellation and billing guidance, could you please confirm whether the trial or subscription associated with your university email was activated through Dify's Education Plan?
+
+Once you confirm the plan type, we can advise you on the correct next step.
 
 ```
 

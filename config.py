@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     feishu_webhook_bobby: str = ""
     feishu_app_id: str = ""
     feishu_app_secret: str = ""
+    feishu_bobby_email: str = "bobby@dify.ai"
     feishu_sybil_open_id: str = ""
     feishu_education_group_chat_id: str = ""
 
@@ -45,6 +46,7 @@ class Settings(BaseSettings):
 
     # Front teammate IDs
     # ⚠️ 需填写: 在 Front Settings → Teammates 查找各人的 ID
+    front_teammate_bobby: str = "tea_hg6jf"  # Bobby / bobby@dify.ai
     front_teammate_xiaxi: str = ""      # 徐小茜
     front_teammate_zhaohq: str = ""     # 赵晗青
     front_teammate_zhaoyawen: str = ""  # 赵雅雯 (cc)
@@ -79,6 +81,12 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "sqlite+aiosqlite:////tmp/email_automation.db"
+
+    # Read-only Dify production data gateway. Keep the bearer token in the
+    # runtime environment; never commit it to source or a generated config.
+    dify_db_mcp_url: str = "https://zendesk.smlershou.top/db-gateway/mcp"
+    dify_db_mcp_token: str = ""
+    dify_db_mcp_timeout_seconds: float = 20.0
 
     # Scheduler runs production background jobs. Disable only for local UI previews.
     enable_scheduler: bool = True

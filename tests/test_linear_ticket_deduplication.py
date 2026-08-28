@@ -249,6 +249,431 @@ def test_same_email_can_create_a_new_ticket_after_24_hours():
     asyncio.run(run_case())
 
 
+def _saved_ticket_action(args: dict, identifier: str = "CUS-100") -> ConversationAction:
+    identity = tool_registry._action_identity("linear_create_ticket", args)
+    assert identity is not None
+    return ConversationAction(
+        conversation_id=identity[0],
+        action_type=identity[1],
+        action_key=identity[2],
+        result=json.dumps(
+            {
+                "status": "ticket_created",
+                "url": f"https://linear.app/acme/issue/{identifier}",
+                "identifier": identifier,
+            }
+        ),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+
+
+def _education_issue() -> dict:
+    return {
+        "identifier": "CUS-100",
+        "url": "https://linear.app/acme/issue/CUS-100",
+        "title": (
+            "教育版 - Tianfu College of Southwestern University "
+            "of Finance and Economics"
+        ),
+        "description": (
+            "**学校全名：** Tianfu College of Southwestern University "
+            "of Finance and Economics\n\n"
+            "**邮箱域名：** tfswufe.edu.cn\n\n"
+            "I am a current student/teacher at Tianfu College of SWUFE."
+        ),
+    }
+
+
+def test_near_duplicate_request_reuses_existing_ticket_after_llm_confirmation():
+    async def run_case():
+        first_args = _ticket_args(
+            "cnv_first",
+            original_message=(
+                "I am a current student/teacher at Tianfu College of SWUFE."
+            ),
+            title=(
+                "教育版 - Tianfu College of Southwestern University "
+                "of Finance and Economics"
+            ),
+        )
+        second_args = _ticket_args(
+            "cnv_second",
+            original_message="I am a current teacher at Tianfu College of SWUFE.",
+            title="教育版 - Tianfu College of SWUFE",
+        )
+
+        async with _isolated_sessions() as session_factory:
+            async with session_factory() as db:
+                db.add(_saved_ticket_action(first_args))
+                await db.commit()
+
+                with (
+                    patch.object(
+                        tool_registry.linear,
+                        "get_ticket",
+                        AsyncMock(return_value=_education_issue()),
+                    ) as get_ticket,
+                    patch.object(
+                        tool_registry,
+                        "_llm_confirms_linear_duplicate",
+                        AsyncMock(return_value=True),
+                    ) as judge,
+                    patch.object(
+                        tool_registry.linear,
+                        "create_ticket",
+                        AsyncMock(),
+                    ) as create,
+                    patch.object(
+                        tool_registry,
+                        "_safe_add_comment",
+                        AsyncMock(return_value=True),
+                    ) as add_comment,
+                    patch.object(
+                        tool_registry,
+                        "_safe_reopen_conversation",
+                        AsyncMock(return_value=True),
+                    ),
+                ):
+                    result = await execute_tool_call(
+                        "linear_create_ticket",
+                        second_args,
+                        db,
+                    )
+
+                get_ticket.assert_awaited_once_with("CUS-100")
+                judge.assert_awaited_once()
+                create.assert_not_awaited()
+                assert json.loads(result)["identifier"] == "CUS-100"
+                assert any(
+                    call.args[0] == "cnv_second" and "CUS-100" in call.args[1]
+                    for call in add_comment.await_args_list
+                )
+
+                rows = (
+                    await db.execute(
+                        select(ConversationAction).where(
+                            ConversationAction.action_type
+                            == "linear_create_ticket"
+                        )
+                    )
+                ).scalars().all()
+                assert len(rows) == 1
+
+    asyncio.run(run_case())
+
+
+def test_suspected_duplicate_creates_new_ticket_when_llm_rejects():
+    async def run_case():
+        first_args = _ticket_args(
+            "cnv_first",
+            original_message="Please review my first education application.",
+            title="Education review - Example University",
+        )
+        second_args = _ticket_args(
+            "cnv_second",
+            original_message="Please review a different application.",
+            title="Education review - Example University",
+        )
+
+        async with _isolated_sessions() as session_factory:
+            async with session_factory() as db:
+                db.add(_saved_ticket_action(first_args))
+                await db.commit()
+
+                with (
+                    patch.object(
+                        tool_registry.linear,
+                        "get_ticket",
+                        AsyncMock(
+                            return_value={
+                                "identifier": "CUS-100",
+                                "title": first_args["title"],
+                                "description": first_args["body"],
+                            }
+                        ),
+                    ),
+                    patch.object(
+                        tool_registry,
+                        "_llm_confirms_linear_duplicate",
+                        AsyncMock(return_value=False),
+                    ) as judge,
+                    patch.object(
+                        tool_registry.linear,
+                        "create_ticket",
+                        AsyncMock(
+                            return_value=(
+                                "https://linear.app/acme/issue/CUS-NEW",
+                                "CUS-NEW",
+                            )
+                        ),
+                    ) as create,
+                    patch.object(
+                        tool_registry,
+                        "_safe_add_comment",
+                        AsyncMock(return_value=True),
+                    ),
+                    patch.object(
+                        tool_registry,
+                        "_safe_reopen_conversation",
+                        AsyncMock(return_value=True),
+                    ),
+                ):
+                    result = await execute_tool_call(
+                        "linear_create_ticket",
+                        second_args,
+                        db,
+                    )
+
+                judge.assert_awaited_once()
+                create.assert_awaited_once()
+                assert json.loads(result)["identifier"] == "CUS-NEW"
+
+                rows = (
+                    await db.execute(
+                        select(ConversationAction).where(
+                            ConversationAction.action_type
+                            == "linear_create_ticket"
+                        )
+                    )
+                ).scalars().all()
+                assert len(rows) == 2
+
+    asyncio.run(run_case())
+
+
+def test_dissimilar_same_sender_skips_llm_duplicate_review():
+    async def run_case():
+        first_args = _ticket_args(
+            "cnv_first",
+            original_message="Please review my education application.",
+            title="Education review - Example University",
+        )
+        second_args = _ticket_args(
+            "cnv_second",
+            original_message="Production API returns HTTP 504 during file upload.",
+            title="API upload timeout in production",
+        )
+
+        async with _isolated_sessions() as session_factory:
+            async with session_factory() as db:
+                db.add(_saved_ticket_action(first_args))
+                await db.commit()
+
+                with (
+                    patch.object(
+                        tool_registry.linear,
+                        "get_ticket",
+                        AsyncMock(
+                            return_value={
+                                "identifier": "CUS-100",
+                                "title": first_args["title"],
+                                "description": "Education application eligibility.",
+                            }
+                        ),
+                    ) as get_ticket,
+                    patch.object(
+                        tool_registry,
+                        "_llm_confirms_linear_duplicate",
+                        AsyncMock(),
+                    ) as judge,
+                    patch.object(
+                        tool_registry.linear,
+                        "create_ticket",
+                        AsyncMock(
+                            return_value=(
+                                "https://linear.app/acme/issue/CUS-NEW",
+                                "CUS-NEW",
+                            )
+                        ),
+                    ) as create,
+                    patch.object(
+                        tool_registry,
+                        "_safe_add_comment",
+                        AsyncMock(return_value=True),
+                    ),
+                    patch.object(
+                        tool_registry,
+                        "_safe_reopen_conversation",
+                        AsyncMock(return_value=True),
+                    ),
+                ):
+                    result = await execute_tool_call(
+                        "linear_create_ticket",
+                        second_args,
+                        db,
+                    )
+
+                get_ticket.assert_awaited_once_with("CUS-100")
+                judge.assert_not_awaited()
+                create.assert_awaited_once()
+                assert json.loads(result)["identifier"] == "CUS-NEW"
+
+    asyncio.run(run_case())
+
+
+def test_duplicate_classifier_failure_fails_open_to_new_ticket():
+    async def run_case():
+        first_args = _ticket_args(
+            "cnv_first",
+            original_message="Please review my first education application.",
+            title="Education review - Example University",
+        )
+        second_args = _ticket_args(
+            "cnv_second",
+            original_message="Please review my updated education application.",
+            title="Education review - Example University",
+        )
+
+        async with _isolated_sessions() as session_factory:
+            async with session_factory() as db:
+                db.add(_saved_ticket_action(first_args))
+                await db.commit()
+
+                with (
+                    patch.object(
+                        tool_registry.linear,
+                        "get_ticket",
+                        AsyncMock(
+                            return_value={
+                                "identifier": "CUS-100",
+                                "title": first_args["title"],
+                                "description": first_args["body"],
+                            }
+                        ),
+                    ),
+                    patch.object(
+                        tool_registry,
+                        "_llm_confirms_linear_duplicate",
+                        AsyncMock(side_effect=RuntimeError("classifier unavailable")),
+                    ),
+                    patch.object(
+                        tool_registry.linear,
+                        "create_ticket",
+                        AsyncMock(
+                            return_value=(
+                                "https://linear.app/acme/issue/CUS-NEW",
+                                "CUS-NEW",
+                            )
+                        ),
+                    ) as create,
+                    patch.object(
+                        tool_registry,
+                        "_safe_add_comment",
+                        AsyncMock(return_value=True),
+                    ),
+                    patch.object(
+                        tool_registry,
+                        "_safe_reopen_conversation",
+                        AsyncMock(return_value=True),
+                    ),
+                ):
+                    result = await execute_tool_call(
+                        "linear_create_ticket",
+                        second_args,
+                        db,
+                    )
+
+                create.assert_awaited_once()
+                assert json.loads(result)["identifier"] == "CUS-NEW"
+
+    asyncio.run(run_case())
+
+
+def test_simultaneous_near_duplicates_share_sender_lock_and_create_one_ticket():
+    async def run_case():
+        async with _isolated_sessions() as session_factory:
+            release = asyncio.Event()
+            create_calls = 0
+
+            async def create_ticket(_title, _body):
+                nonlocal create_calls
+                create_calls += 1
+                await release.wait()
+                return "https://linear.app/acme/issue/CUS-42", "CUS-42"
+
+            first_args = _ticket_args(
+                "cnv_first",
+                original_message=(
+                    "I am a current student/teacher at Tianfu College of SWUFE."
+                ),
+                title=_education_issue()["title"],
+            )
+            second_args = _ticket_args(
+                "cnv_second",
+                original_message="I am a current teacher at Tianfu College of SWUFE.",
+                title="教育版 - Tianfu College of SWUFE",
+            )
+
+            async with (
+                session_factory() as first_db,
+                session_factory() as second_db,
+            ):
+                with (
+                    patch.object(
+                        tool_registry.linear,
+                        "create_ticket",
+                        AsyncMock(side_effect=create_ticket),
+                    ),
+                    patch.object(
+                        tool_registry.linear,
+                        "get_ticket",
+                        AsyncMock(return_value=_education_issue()),
+                    ),
+                    patch.object(
+                        tool_registry,
+                        "_llm_confirms_linear_duplicate",
+                        AsyncMock(return_value=True),
+                    ),
+                    patch.object(
+                        tool_registry,
+                        "_safe_add_comment",
+                        AsyncMock(return_value=True),
+                    ),
+                    patch.object(
+                        tool_registry,
+                        "_safe_reopen_conversation",
+                        AsyncMock(return_value=True),
+                    ),
+                ):
+                    first = asyncio.create_task(
+                        execute_tool_call(
+                            "linear_create_ticket",
+                            first_args,
+                            first_db,
+                        )
+                    )
+                    await asyncio.sleep(0.05)
+                    second = asyncio.create_task(
+                        execute_tool_call(
+                            "linear_create_ticket",
+                            second_args,
+                            second_db,
+                        )
+                    )
+                    await asyncio.sleep(0.05)
+                    calls_while_overlapping = create_calls
+                    release.set()
+                    results = await asyncio.gather(first, second)
+
+            async with session_factory() as db:
+                rows = (
+                    await db.execute(
+                        select(ConversationAction).where(
+                            ConversationAction.action_type
+                            == "linear_create_ticket"
+                        )
+                    )
+                ).scalars().all()
+
+        assert calls_while_overlapping == 1
+        assert create_calls == 1
+        assert len(rows) == 1
+        assert results[0] == results[1]
+        assert json.loads(results[0])["identifier"] == "CUS-42"
+
+    asyncio.run(run_case())
+
+
 def run_all():
     for name, fn in sorted(globals().items()):
         if name.startswith("test_"):

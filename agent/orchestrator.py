@@ -20,8 +20,10 @@ from agent.classification import (
     ClassificationResult,
     classify_explicit_account_suspension,
     classify_explicit_education_topic,
+    classify_school_email_cancellation_needing_plan_confirmation,
     normalize_classification,
     parse_classification_json,
+    protect_explicit_technology_partnership,
 )
 from agent.llm_client import chat_completion_kwargs, make_async_openai_client
 from agent.routing import EDUCATION_ACCOUNT_SUSPENSION_DRAFT, RouteDecision, decide_initial_route
@@ -459,10 +461,23 @@ async def handle_email(
         if education_suspension_classification is not None:
             education_topic_classification = education_suspension_classification
         elif existing_state.category != "education":
-            education_topic_classification = classify_explicit_education_topic(
+            education_topic_classification = (
+                classify_explicit_education_topic(
+                    latest_message_context,
+                    sender_email,
+                )
+                or classify_school_email_cancellation_needing_plan_confirmation(
+                    latest_message_context,
+                    sender_email,
+                )
+            )
+    else:
+        education_topic_classification = (
+            classify_school_email_cancellation_needing_plan_confirmation(
                 latest_message_context,
                 sender_email,
             )
+        )
     education_topic_switch = education_topic_classification is not None
     initial_flow = (
         not existing_state
@@ -812,7 +827,14 @@ async def _classify(
     if parsed is None:
         logger.warning("Classification parse failed for sender=%s raw=%r", sender_email, raw)
         return normalize_classification(None, fallback_sender_email=sender_email)
-    return normalize_classification(parsed, fallback_sender_email=sender_email)
+    classification = normalize_classification(
+        parsed,
+        fallback_sender_email=sender_email,
+    )
+    return protect_explicit_technology_partnership(
+        classification,
+        latest_message,
+    )
 
 
 async def _execute_initial_route(
@@ -1047,7 +1069,10 @@ async def _run_agent_loop(
                 args = _coerce_keep_open_state_args(args, keep_open_state_step)
 
             result = await execute_tool_call(tool_name, args, db)
-            logger.info(f"Tool {tool_name} → {result}")
+            if tool_name == "dify_lookup_billing":
+                logger.info("Tool %s completed for conv %s", tool_name, conversation_id)
+            else:
+                logger.info("Tool %s → %s", tool_name, result)
             keep_open_state_step = _remember_keep_open_step(keep_open_state_step, tool_name, result)
 
             messages.append({

@@ -228,6 +228,19 @@ async def retry_pending_front_webhooks():
         logger.exception("retry_pending_front_webhooks failed")
 
 
+@_track_scheduler_job
+async def send_unanswered_email_reminders():
+    try:
+        from services.unanswered_reminders import scan_unanswered_conversations
+
+        async with AsyncSessionLocal() as db:
+            result = await scan_unanswered_conversations(db)
+        if result["due"] or result["errors"]:
+            logger.info("Scanned unanswered Front conversations: %s", result)
+    except Exception:
+        logger.exception("send_unanswered_email_reminders failed")
+
+
 async def stop_scheduler():
     if not scheduler.running:
         return
@@ -301,6 +314,16 @@ def start_scheduler():
         minutes=1,
         id="retry_pending_front_webhooks_every_minute",
         replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+    )
+    scheduler.add_job(
+        send_unanswered_email_reminders,
+        "interval",
+        minutes=15,
+        id="send_unanswered_email_reminders_every_15m",
+        replace_existing=True,
+        next_run_time=datetime.now() + timedelta(seconds=20),
         coalesce=True,
         max_instances=1,
     )

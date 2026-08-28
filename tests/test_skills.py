@@ -157,6 +157,22 @@ def test_education_reply_continuation_and_application_policy_is_explicit():
     assert "| education | how_to_apply |" in classify
 
 
+def test_education_review_requires_actual_school_email_sender():
+    education = _skill_text("education")
+    for expected in [
+        "actual `From` address",
+        "does not exactly match the claimed or registered school email",
+        "body, signature, CC, screenshot, or forwarded text does not verify ownership",
+        "awaiting_school_email_sender_verification",
+        "do not call `linear_create_ticket`",
+        "do not notify Sybil",
+        "Send from school email",
+        "Please send a new email to support@dify.ai from [claimed school email]",
+        "expired-school-email/graduation recovery flow uses its separate proof policy",
+    ]:
+        assert expected in education, f"education.md missing {expected!r}"
+
+
 def test_education_card_binding_without_supported_card_is_final_draft():
     text = _skill_text("education")
     for expected in [
@@ -167,6 +183,45 @@ def test_education_card_binding_without_supported_card_is_final_draft():
         'step="draft_created"',
     ]:
         assert expected in text, f"education.md missing {expected!r}"
+
+
+def test_education_cancellation_confirms_plan_before_no_auto_renew():
+    education = _skill_text("education")
+    for expected in [
+        "awaiting_plan_type_confirmation",
+        "Do not infer that the subscription is an Education Plan",
+        "Do not request identity proof",
+        "Confirm Education Plan",
+        "whether the trial or subscription associated with your university email was activated through Dify's Education Plan",
+        'plan_type="education"',
+        'plan_type="standard_paid"',
+    ]:
+        assert expected in education, f"education.md missing {expected!r}"
+
+    classify = _skill_text("classify")
+    assert "education_plan_unconfirmed" in classify
+
+
+def test_education_200_credit_allowance_uses_approved_template_without_date():
+    education = _skill_text("education")
+    section = education.split(
+        "### Education 200-message-credit allowance", 1
+    )[1].split("### No-auto-renew explanation", 1)[0]
+    for expected in [
+        "Previously: 5,000 message credits per month",
+        "Now: 200 message credits in total, with no monthly reset",
+        "all other Professional plan features and resource entitlements at no cost",
+        "significant increase in misuse of education benefits",
+        "configuring your own API key from a supported model provider",
+        "Dify for Education FAQ",
+        "displayed as Sandbox or Free",
+        "credit_allowance_200",
+    ]:
+        assert expected in education, f"education.md missing {expected!r}"
+
+    assert "August 10" not in section
+    assert "Best regards" not in section
+    assert "Dify Support Team" not in section
 
 
 def test_education_account_suspension_has_one_verbatim_draft_only():
@@ -318,6 +373,8 @@ def test_technical_support_has_paid_and_non_paid_paths():
     for expected in [
         "access to priority technical support",
         "question mark icon next to the personal avatar",
+        "https://discord.gg/FngNHpbcY7",
+        "Discord is for questions and community help",
         "GitHub issues",
         "https://docs.dify.ai",
         "https://github.com/langgenius/dify/issues",
@@ -563,6 +620,8 @@ def test_technical_support_uses_channel_guidance_not_direct_fixes():
     text = _skill_text("technical")
     for expected in [
         "Do not provide step-by-step technical fixes",
+        "Do not keep troubleshooting these questions by support email",
+        "reserve GitHub Issues for reproducible bugs",
         "https://docs.dify.ai",
         "https://github.com/langgenius/dify/issues",
         "business@dify.ai",
@@ -570,6 +629,23 @@ def test_technical_support_uses_channel_guidance_not_direct_fixes():
         "not to remove",
     ]:
         assert expected in text, f"technical.md missing {expected!r}"
+
+
+def test_targeted_technology_integration_is_partnership_not_spam():
+    classify = _skill_text("classify")
+    partnership = _skill_text("partnership")
+    spam = _skill_text("spam")
+
+    for phrase in [
+        "Targeted Technology Integration Partnership",
+        "partnership/technology_integration",
+        "Commercial motivation, a free trial, or a request for a call",
+        "generic service pitch with no Dify-specific product or integration fit",
+        "| partnership | technology_integration |",
+    ]:
+        assert phrase in classify
+    assert "technology-integration proposals for Dify" in partnership
+    assert "Do not archive those messages as spam" in spam
 
 def run_all():
     for name, fn in sorted(globals().items()):

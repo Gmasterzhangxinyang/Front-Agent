@@ -53,19 +53,21 @@ FastAPI app that receives Front webhook events, classifies emails with an OpenAI
 - `models.py` — conversation state, action log, webhook inbox/event, and queue models
 - `services/webhook_inbox.py` — durable webhook claims, leases, retries, and terminal cleanup
 - `services/ops_metadata.py` — bounded Front metadata enrichment for missing Ops sender/summary fields
+- `services/unanswered_reminders.py` — weekday 12-hour customer-reply watchdog and Bobby personal Feishu reminder
 - `database.py` — async SQLite session
 - `config.py` — settings from env vars
 
 **Idempotency rules:**
 - `webhook_inbox` durably stores each authenticated conversation event before processing, keyed by Front event ID or a deterministic body hash.
 - `webhook_events` deduplicates successful Front webhook deliveries by event ID.
-- `conversation_actions` deduplicates successful drafts and handoffs by conversation plus action-specific content. Linear tickets use trusted sender plus normalized original-message content across conversations for 24 hours, with an in-process concurrency lock.
+- `conversation_actions` deduplicates successful drafts and handoffs by conversation plus action-specific content. Linear tickets use exact trusted-sender/message matching first, then bounded same-sender candidate retrieval plus a conservative high-confidence LLM review for suspected near-duplicates within 24 hours. Same-sender creation shares an in-process lock.
 - Front internal comments are also deduplicated by normalized comment content within the conversation.
 - `webhook_events` is written only after successful processing or deterministic ignore; retryable failures are not recorded as processed.
 - Front Rule Webhooks do not retry failed deliveries. Internal APScheduler recovery runs every minute with 1/5/15/60/180-minute delays after the immediate attempt.
 - Claims start only after the conversation lock and global webhook capacity are acquired, then use a 15-minute lease. Failed attempt 6 becomes `dead_letter`; processed payloads are cleared while dead-letter payloads remain for manual recovery.
 - Recovery is at-least-once: a crash after an external provider accepts a write but before the local action/event commit can repeat that write. Do not claim exactly-once behavior without provider idempotency or reconciliation.
 - FastAPI shutdown pauses APScheduler and waits up to 60 seconds for jobs started by this process, reducing the planned-deploy crash window.
+- Every 15 minutes on China-time weekdays, the unanswered-email watchdog checks at most 10 open conversations from the union of the entire Support inbox and conversations assigned to Bobby. Only customer emails received on or after 2026-08-28 China time are eligible; older backlog is permanently ignored. A real external reply or a Bobby-authored Front comment after the latest customer message suppresses the 12-hour personal reminder; drafts and API-bot comments do not. Successful checks are keyed by the customer message in `conversation_actions`.
 
 ## Runtime security boundaries
 
@@ -87,6 +89,7 @@ Run all standalone checks before commit or deploy:
 
 ```bash
 .venv/bin/python tests/test_webhook_recovery.py
+.venv/bin/python tests/test_dify_db_tool.py
 .venv/bin/python tests/test_internal_forward_loop.py
 .venv/bin/python tests/test_linear_ticket_deduplication.py
 .venv/bin/python tests/test_runtime_boundaries.py
@@ -96,6 +99,7 @@ Run all standalone checks before commit or deploy:
 .venv/bin/python tests/test_routing.py
 .venv/bin/python tests/test_skills.py
 .venv/bin/python tests/test_draft_adoption.py
+.venv/bin/python tests/test_unanswered_reminders.py
 .venv/bin/python -m compileall -q agent services tasks tools webhooks routes tests config.py main.py models.py
 .venv/bin/python -m pip check
 git diff --check
@@ -103,4 +107,4 @@ git diff --check
 
 ## Environment variables (set in .env)
 
-`FRONT_API_TOKEN`, `FRONT_WEBHOOK_SECRET`, `ALLOW_UNSIGNED_FRONT_WEBHOOKS`, `FRONT_ATTACHMENT_ALLOWED_HOSTS`, `MAX_ATTACHMENT_COUNT`, `MAX_ATTACHMENT_BYTES`, `MAX_ATTACHMENT_TEXT_CHARS`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `MINIMAX_API_KEY`, `MINIMAX_BASE_URL`, `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, `FEISHU_SYBIL_OPEN_ID`, `FEISHU_EDUCATION_GROUP_CHAT_ID`, `FEISHU_WEBHOOK_BOBBY`, `LINEAR_API_KEY`, `LINEAR_TEAM_ID`, `LINEAR_CUS_PROJECT_ID`, `OPS_ADMIN_USERNAME`, `OPS_ADMIN_PASSWORD`, `OPS_SESSION_HOURS`, `OPS_COOKIE_SECURE`, `PORT`
+`FRONT_API_TOKEN`, `FRONT_WEBHOOK_SECRET`, `ALLOW_UNSIGNED_FRONT_WEBHOOKS`, `FRONT_ATTACHMENT_ALLOWED_HOSTS`, `MAX_ATTACHMENT_COUNT`, `MAX_ATTACHMENT_BYTES`, `MAX_ATTACHMENT_TEXT_CHARS`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `MINIMAX_API_KEY`, `MINIMAX_BASE_URL`, `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, `FEISHU_BOBBY_EMAIL`, `FEISHU_SYBIL_OPEN_ID`, `FEISHU_EDUCATION_GROUP_CHAT_ID`, `FEISHU_WEBHOOK_BOBBY`, `FRONT_TEAMMATE_BOBBY`, `DIFY_DB_MCP_URL`, `DIFY_DB_MCP_TOKEN`, `DIFY_DB_MCP_TIMEOUT_SECONDS`, `LINEAR_API_KEY`, `LINEAR_TEAM_ID`, `LINEAR_CUS_PROJECT_ID`, `OPS_ADMIN_USERNAME`, `OPS_ADMIN_PASSWORD`, `OPS_SESSION_HOURS`, `OPS_COOKIE_SECURE`, `PORT`

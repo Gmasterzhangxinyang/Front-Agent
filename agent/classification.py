@@ -1,6 +1,6 @@
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Mapping
 
 
@@ -25,7 +25,37 @@ ALLOWED_CATEGORIES = {
 
 ALLOWED_URGENCIES = {"normal", "high"}
 
-PARTNERSHIP_SUB_TYPES = {"marketplace", "plugin", "plugin_takedown"}
+PARTNERSHIP_SUB_TYPES = {
+    "marketplace",
+    "plugin",
+    "plugin_takedown",
+    "technology_integration",
+    "strategic_partnership",
+}
+
+_TECHNOLOGY_PARTNERSHIP_TARGET_PATTERN = re.compile(
+    r"\bdify\b|\byour\s+(?:stack|platform|product|cloud|ecosystem)\b",
+    re.IGNORECASE,
+)
+_TECHNOLOGY_PARTNERSHIP_PRODUCT_PATTERN = re.compile(
+    r"\b(?:openai[- ]compatible|api|endpoint|sdk|integration|integrate|"
+    r"model\s+inference|inference\s+(?:cloud|platform|infrastructure|service)|"
+    r"llm\s+infrastructure|compute|model\s+provider|agent(?:ic)?\s+platform|"
+    r"rag\s+pipeline|developer\s+platform|cloud\s+routing|technology\s+stack)\b",
+    re.IGNORECASE,
+)
+_TECHNOLOGY_PARTNERSHIP_COOPERATION_PATTERN = re.compile(
+    r"\b(?:partner|partnering|partnership|collaborate|collaboration|ecosystem|"
+    r"pilot|proof\s+of\s+concept|poc|free\s+access|technical\s+alliance|"
+    r"integrate|integration|quick\s+chat|discuss)\b",
+    re.IGNORECASE,
+)
+_GENERIC_VENDOR_SPAM_PATTERN = re.compile(
+    r"\b(?:seo|backlinks?|guest\s+posts?|lead\s+generation|staffing\s+services?|"
+    r"recruiting\s+services?|outsourcing\s+services?|web\s+design\s+services?|"
+    r"digital\s+marketing\s+services?)\b",
+    re.IGNORECASE,
+)
 
 _EXPLICIT_EDUCATION_TOPIC_PATTERNS = (
     re.compile(
@@ -45,7 +75,7 @@ _EXPLICIT_EDUCATION_TOPIC_PATTERNS = (
     ),
     re.compile(
         r"(?:教育|學生|学生)"
-        r"(?:版|方案|計畫|计划|優惠|优惠|折扣|認證|认证)"
+        r"(?:版|方案|計畫|计划|優惠|优惠|折扣|認證|认证|認証)"
     ),
 )
 
@@ -73,6 +103,32 @@ _ACCOUNT_SUSPENSION_PATTERNS = (
 _EDUCATION_CANCEL_PATTERNS = (
     re.compile(r"\b(?:cancel|stop|end|terminate|not renew|no longer renew)\b", re.IGNORECASE),
     re.compile(r"(?:取消|停止|終止|终止|不再續訂|不再续订|不要續訂|不要续订)"),
+)
+
+_SCHOOL_EMAIL_CONTEXT_PATTERNS = (
+    re.compile(
+        r"\b(?:school|student|university|college)(?:-issued)?\s+email\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bemail\b.{0,40}\b(?:school|university|college)\b|"
+        r"\b(?:school|university|college)\b.{0,40}\bemail\b",
+        re.IGNORECASE | re.DOTALL,
+    ),
+)
+
+_TRIAL_OR_SUBSCRIPTION_PATTERNS = (
+    re.compile(r"\b(?:trial|subscription)\b", re.IGNORECASE),
+    re.compile(r"(?:試用|试用|訂閱|订阅)"),
+)
+
+_AVOID_BILLING_PATTERNS = (
+    re.compile(
+        r"\b(?:cancel|not\s+be\s+(?:billed|charged)|avoid\s+(?:billing|charges?)|"
+        r"not\s+(?:renew|renewed)|stop\s+(?:billing|charges?))\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"(?:取消|避免扣款|不要扣款|不被扣款|停止扣款|不再續訂|不再续订)"),
 )
 
 _EDUCATION_EXPIRED_EMAIL_PATTERNS = (
@@ -107,6 +163,25 @@ _EDUCATION_NO_DISCOUNT_PATTERNS = (
         re.IGNORECASE | re.DOTALL,
     ),
     re.compile(r"(?:已通過|已通过|已認證|已认证|已驗證|已验证).{0,30}(?:優惠|优惠|折扣).{0,20}(?:沒有|没有|未顯示|未显示|看不到)"),
+)
+
+_EDUCATION_CREDIT_ALLOWANCE_PATTERNS = (
+    re.compile(
+        r"\b(?:200|5,?000)\b.{0,60}\b(?:message\s+)?credits?\b",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    re.compile(
+        r"\b(?:message\s+)?credits?\b.{0,60}\b(?:200|5,?000)\b",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    re.compile(r"(?:200|5,?000).{0,30}(?:積分|积分|點數|点数|訊息額度|消息额度)"),
+    re.compile(
+        r"(?:メッセージ|AI)クレジット.{0,60}"
+        r"(?:200|5,?000|毎月|月毎|月ごと|月次|リセット|付与)"
+    ),
+    re.compile(
+        r"(?:毎月|月毎|月ごと|月次).{0,60}(?:メッセージ|AI)クレジット"
+    ),
 )
 
 CLASSIFICATION_OPTIONS = [
@@ -216,7 +291,9 @@ def classify_explicit_education_topic(
     if suspended is not None:
         return suspended
 
-    if any(pattern.search(text) for pattern in _EDUCATION_CANCEL_PATTERNS):
+    if any(pattern.search(text) for pattern in _EDUCATION_CREDIT_ALLOWANCE_PATTERNS):
+        sub_type = "credit_allowance_200"
+    elif any(pattern.search(text) for pattern in _EDUCATION_CANCEL_PATTERNS):
         sub_type = "cancel_subscription"
     elif any(pattern.search(text) for pattern in _EDUCATION_EXPIRED_EMAIL_PATTERNS):
         sub_type = "email_expired_graduated"
@@ -235,6 +312,43 @@ def classify_explicit_education_topic(
         confidence=1.0,
         evidence=[text[:240]],
         raw={"source": "deterministic_latest_reply_topic_switch"},
+    )
+
+
+def classify_school_email_cancellation_needing_plan_confirmation(
+    message: str | None,
+    sender_email: str = "",
+) -> ClassificationResult | None:
+    """Route ambiguous school-email cancellations to a confirmation step.
+
+    A school email or graduation alone does not prove that a trial/subscription
+    is an Education Plan. Keep the case in the education flow so the agent asks
+    which plan it is before giving either no-auto-renew or paid-plan guidance.
+    """
+    text = (message or "").strip()
+    if not text:
+        return None
+    if any(pattern.search(text) for pattern in _EXPLICIT_EDUCATION_TOPIC_PATTERNS):
+        return None
+    if not any(pattern.search(text) for pattern in _SCHOOL_EMAIL_CONTEXT_PATTERNS):
+        return None
+    if not any(pattern.search(text) for pattern in _TRIAL_OR_SUBSCRIPTION_PATTERNS):
+        return None
+    if not any(pattern.search(text) for pattern in _AVOID_BILLING_PATTERNS):
+        return None
+
+    return ClassificationResult(
+        category="education",
+        sub_type="cancel_subscription",
+        sender_email=sender_email,
+        summary=(
+            "User wants to avoid billing for a trial or subscription tied to a "
+            "school email, but has not confirmed that it is an Education Plan"
+        ),
+        confidence=1.0,
+        flags=["education_plan_unconfirmed"],
+        evidence=[text[:240]],
+        raw={"source": "deterministic_school_email_cancellation_confirmation"},
     )
 
 
@@ -300,6 +414,62 @@ def normalize_classification(
     )
 
 
+def is_explicit_technology_partnership(text: str | None) -> bool:
+    """Recognize a targeted B2B product or infrastructure integration proposal.
+
+    These messages can be commercially motivated, but they are materially
+    different from generic vendor advertising because they propose a concrete
+    integration with Dify's product, platform, or technology stack.
+    """
+    searchable = (text or "").strip()
+    if not searchable or _GENERIC_VENDOR_SPAM_PATTERN.search(searchable):
+        return False
+    return all(
+        pattern.search(searchable) is not None
+        for pattern in (
+            _TECHNOLOGY_PARTNERSHIP_TARGET_PATTERN,
+            _TECHNOLOGY_PARTNERSHIP_PRODUCT_PATTERN,
+            _TECHNOLOGY_PARTNERSHIP_COOPERATION_PATTERN,
+        )
+    )
+
+
+def protect_explicit_technology_partnership(
+    classification: ClassificationResult,
+    latest_message: str | None,
+) -> ClassificationResult:
+    """Prevent a concrete technology partnership pitch from auto-closing as spam."""
+    if classification.category != "spam":
+        return classification
+
+    searchable = "\n".join(
+        part
+        for part in (
+            latest_message or "",
+            classification.summary,
+            " ".join(classification.evidence),
+        )
+        if part
+    )
+    if not is_explicit_technology_partnership(searchable):
+        return classification
+
+    raw = dict(classification.raw)
+    raw.update(
+        {
+            "original_category": classification.category,
+            "source": "deterministic_technology_partnership_guard",
+        }
+    )
+    return replace(
+        classification,
+        category="partnership",
+        sub_type="technology_integration",
+        confidence=max(classification.confidence, 0.99),
+        raw=raw,
+    )
+
+
 def should_auto_close_spam(classification: ClassificationResult) -> bool:
     """Allow destructive archive only for an unambiguous spam classification.
 
@@ -310,6 +480,11 @@ def should_auto_close_spam(classification: ClassificationResult) -> bool:
     if classification.category != "spam":
         return False
     if "legal_threat" in classification.flags:
+        return False
+    classification_context = " ".join(
+        [classification.summary or "", " ".join(classification.evidence)]
+    )
+    if is_explicit_technology_partnership(classification_context):
         return False
     return classification.sub_type not in PARTNERSHIP_SUB_TYPES
 

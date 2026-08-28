@@ -3,6 +3,15 @@
 ## Purpose
 Handle refund requests, duplicate charges, subscription changes, invoice issues, and other billing questions.
 
+## Billing Data Lookup
+- For Dify Cloud subscription, plan, quota, payment-status, refund, or duplicate-charge questions, call `dify_lookup_billing` once before deciding the response or handoff.
+- The lookup is read-only and always uses the trusted current Front sender email; never ask the model to construct SQL or select another account.
+- A matching account is evidence that the sender has a Dify Cloud/SaaS account. No match, an unavailable lookup, or an account under another email is inconclusive and must not be treated as proof of self-hosting or absence of billing activity.
+- Use the result only as internal support evidence. Never expose database/table names, internal account or tenant IDs, raw tool output, or payment-provider identifiers in a customer-facing draft.
+- The result does not authorize a refund, cancellation, subscription change, credit adjustment, or any other mutation. Follow the existing subtype policy for the actual action and wording.
+- If lookup evidence conflicts with the customer's report, state only the customer-safe observed status when useful and route for human review; do not claim the customer is mistaken.
+- A lookup failure must not block the normal draft or handoff flow.
+
 
 ## Draft Quality Bar
 - Start with a complete, authoritative English version; never create a local-language-only customer draft.

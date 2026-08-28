@@ -1,85 +1,77 @@
 # Front-Agent
 
-Front-Agent is the Dify support mailbox automation service. It receives Front webhooks, loads the full conversation and attachments, classifies the email with an OpenAI-compatible LLM, applies deterministic Python routing where possible, and otherwise runs a constrained skill flow that can create Front drafts, move inboxes, create Linear tickets, queue Sybil digests, and save state.
+Front-Agent is the production support-mailbox automation service for Dify. It accepts trusted Front events, builds a bounded conversation context, classifies each request, applies deterministic Python routing where possible, and runs a constrained category Skill for everything else.
 
-[查看当前系统架构地图（单图泳道版）](docs/current-system-architecture.md) — 一张横向地图覆盖入口、Webhook、编排路由、Skill、工具安全、数据、后台任务、Ops 和保证边界。
+> Safety default: customer-facing content is created as a Front draft. The LLM cannot send customer email directly or call arbitrary APIs.
 
-[查看架构 ①–⑧ 阶段拆解图](docs/current-system-architecture-details.md) — 8 张独立流程图展开每个阶段的输入、判断、动作、状态和异常路径。
+## Start Here
 
-Current production screen runs this branch from release directories under `/tmp/front-agent-release-*`.
+| Resource | Best for |
+|---|---|
+| [Interactive overview](docs/front-support-architecture.html) | Fast system orientation: trusted intake, decisions, tools, state, recovery |
+| [Interactive full architecture](docs/front-support-full-architecture.html) | Guided inspection of trust, memory, policy, integrations, scheduler, and Ops |
+| [Architecture hub](docs/current-system-architecture.md) | Reading order, guarantees, limitations, and source ownership |
+| [Stages ①–⑧](docs/current-system-architecture-details.md) | Detailed ingress-to-recovery walkthroughs with source diagrams |
+| [Runtime boundaries](docs/runtime-boundaries.md) | Security, retries, side-effect semantics, and deployment checks |
+| `/ops/system-flow` | Login-protected live email journey with runtime telemetry |
 
-## Current Runtime
+## Runtime Snapshot
 
-- Service entry: `main.py`
-- Stack: FastAPI, Front webhook, OpenAI-compatible LLM, SQLite, SQLAlchemy async, APScheduler
-- Local production port: `8080` in screen `front-agent-v2`
-- Start command: `bash start.sh`
-- Health check: `GET /health`
-- Webhook trust: signed Front webhooks are required by default
-- Webhook recovery: authenticated conversation events are committed to `webhook_inbox` before immediate processing
-- Attachments: authenticated downloads are restricted to exact HTTPS hosts and hard limits
-- Customer replies: draft-only by default; direct customer send tools are blocked
-- Spam: deterministic route may archive only clear spam/ads
-- Non-spam: keep conversations open for review
-- Sybil handoffs: queued for the daily Feishu digest, not emailed directly to Sybil
-- Ops dashboard: `GET /ops` prioritizes actionable conversations, webhook recovery health, the education account exception queue, draft adoption, and metadata coverage; `GET /ops/system-flow` provides a login-protected animated end-to-end flow with live local telemetry; authenticated operators can soft-dismiss pending Sybil records
-- Case memory: similar historical conversations are distilled into hindsight signals with retrieval evidence; they do not change deterministic routes or replace docs/GitHub grounding
+| Area | Current behavior |
+|---|---|
+| Entry | FastAPI `POST /webhook/front` with Front HMAC-SHA1 signature verification |
+| Decision space | 16 categories and 52 sub-types; confidence is observability only |
+| Policy | Deterministic Python routes first, then one category Skill |
+| Tools | 20 allowlisted tools with schema validation and trusted-context rebinding |
+| State | Async SQLAlchemy over SQLite: conversation state, actions, webhook recovery, queues, reports |
+| Background work | APScheduler retries, reports, metadata refresh, stale close, digest, and reply-SLA checks |
+| Production process | `screen` session `front-agent-v2`, port `8080`, release directories under `/tmp/front-agent-release-*` |
 
-## Processing Flow
+## Core Guarantees
 
-```mermaid
-flowchart TD
-    A[Front webhook] --> B[Verify signature and event_id]
-    B --> WI[Commit to webhook_inbox]
-    WI --> C[Immediate request-path processing]
-    C --> D0[Allowed Support inbox filter]
-    D0 --> D[Load full conversation, attachments, state]
-    D --> CM[Retrieve strong historical case matches]
-    CM --> E[Classify with skills/classify.md]
-    E --> F{Deterministic route?}
-    F -->|spam| G[Archive and state=closed_spam]
-    F -->|security| H[Move to Security inbox]
-    F -->|business| I[Move to Business inbox]
-    F -->|marketing| J[Move to Marketing inbox]
-    F -->|partnership| K[Forward to marketing@dify.ai]
-    F -->|legal| L[Forward to Geyan]
-    F -->|unclear| M[Forward to Bobby]
-    F -->|skill flow| N[Load skills/category.md]
-    N --> O[LLM calls allowlisted tools]
-    O --> P[Action log dedupe and original sender guard]
-    P --> Q[Front draft, Linear, Sybil digest, handoff, state_set]
-    G --> R[Conversation state saved]
-    H --> R
-    I --> R
-    J --> R
-    K --> R
-    L --> R
-    M --> R
-    Q --> R
-```
+- Signed conversation events are committed to `webhook_inbox` before processing.
+- Only real external inbound messages in the Support inbox enter the primary automation path.
+- Customer replies are draft-first; direct customer-send tools are blocked.
+- Conversation IDs, original senders, and draft recipients are rebound from trusted runtime context.
+- Attachments require exact Front-managed HTTPS hosts and hard count, byte, and text limits.
+- Clear spam may be archived deterministically; every other route stays open for review or follow-up.
+- Linear creation uses exact dedupe first, then a bounded same-sender 24-hour semantic review; uncertainty creates a new issue.
+- `dify_lookup_billing` is read-only, uses fixed queries, and is bound to the trusted Front sender.
+- Durable recovery is at-least-once, not exactly-once; provider acceptance before local commit can still repeat an external write.
 
-```mermaid
-flowchart LR
-    A[Incoming webhook message] --> B[Tokenize and score against conversation_states]
-    B --> C{Strong match?}
-    C -->|No| D[Skip case memory]
-    C -->|Yes| E[Build hindsight signals]
-    E --> F[Successful patterns]
-    E --> G[Cautionary patterns]
-    F --> H[Inject into classification prompt]
-    G --> H
-    H --> I[LLM classification]
-    I --> J[Deterministic routing in Python]
-    J --> K[Skill prompt with hindsight signals]
-    K --> L[Allowlisted tools and state save]
-```
+## Request Lifecycle
+
+`Front Rule Webhook → verify → durable inbox → trusted context → classify → route/Skill → safe tool → state/action log`
+
+| Stage | Responsibility | Primary code |
+|---|---|---|
+| 1. Trust | Verify signature, JSON, event identity, and conversation identity | `webhooks/front_webhook.py` |
+| 2. Persist | Commit the authenticated event and claim it with a lease | `services/webhook_inbox.py` |
+| 3. Context | Load thread, bounded attachments, state, same-sender history, and Case Memory | `agent/orchestrator.py` |
+| 4. Classify | Produce category, sub-type, evidence, flags, and secondary intents | `agent/classification.py`, `skills/classify.md` |
+| 5. Route | Prefer deterministic spam, inbox, legal, partnership, and manual-review rules | `agent/routing.py` |
+| 6. Policy | Load the selected category Skill and multi-turn state | `skills/*.md` |
+| 7. Execute | Validate tools, rebind trusted arguments, dedupe, and call providers | `agent/tool_registry.py` |
+| 8. Commit/recover | Save state and actions; complete, retry, or dead-letter the webhook | `tools/state.py`, `services/webhook_inbox.py` |
 
 Two layers decide behavior:
 
-- `agent/routing.py`: deterministic routing for spam, unclear, security, business, marketing, partnership, and legal.
-- `skills/*.md` via `agent/orchestrator.py`: LLM skill flow for education, account, technical, billing, purchase, roadmap, data export, and investment.
+- `agent/routing.py` owns deterministic routes for spam, unclear, security, business, marketing, partnership, and legal.
+- `skills/*.md` through `agent/orchestrator.py` owns variable workflows such as education, account, technical, billing, purchase, roadmap, data export, and investment.
 
-Technical support is intentionally skill-flow based because requests vary widely. The skill requires docs/GitHub grounding when relevant, and still creates drafts by default.
+## Operational Automation
+
+| Job | Schedule and boundary |
+|---|---|
+| Webhook recovery | Every minute; 1/5/15/60/180-minute delays, 15-minute lease, attempt 6 becomes `dead_letter` |
+| Reply SLA | Every 15 minutes on China-time weekdays; union of all open Support conversations and all open conversations assigned to Bobby |
+| SLA eligibility | Only customer emails received on or after 2026-08-28 00:00 China time; older backlog is permanently ignored |
+| SLA suppression | A later real customer-facing reply or Bobby-authored Front comment; drafts and API-bot comments do not count |
+| Ops metadata | Every 15 minutes, bounded blank-field enrichment without overwriting existing sender/summary data |
+| Ops reports | At startup and every 3 hours; daily, weekly, and monthly snapshots |
+| Sybil handoff | Queued digest instead of direct email to Sybil |
+
+Technical support remains Skill-driven because requests vary widely. It requires Docs/GitHub grounding when relevant and still produces drafts by default.
 
 ## Case Memory
 
@@ -105,7 +97,7 @@ Safety constraints:
 | `security` | `security_move_inbox` | move to Front inbox `Security` | `moved_inbox` |
 | `business` / enterprise / procurement | `business_move_inbox` | move to Front inbox `Business` | `moved_inbox` |
 | `marketing` | `marketing_move_inbox` | move to Front inbox `Marketing` | `moved_inbox` |
-| `partnership` / marketplace / community | `partnership_forwarded_keep_open` | forward to `marketing@dify.ai` | `forwarded_keep_open` |
+| `partnership` / marketplace / community / technology integration | `partnership_forwarded_keep_open` | forward to `marketing@dify.ai` | `forwarded_keep_open` |
 | `legal` or `legal_threat` flag | `legal_forwarded_keep_open` | forward to `geyan@dify.ai` | `forwarded_keep_open` |
 | everything else | `*_skill_flow` | load `skills/<category>.md` | skill decides |
 
@@ -120,6 +112,7 @@ Important constraints:
 - LLM tool names and arguments are validated against the registered schema.
 - Conversation IDs are rebound to the trusted webhook context before execution.
 - Draft recipients are forced to the original sender immediately before the Front side effect.
+- `dify_lookup_billing` is read-only, uses fixed SQL, and is rebound to the trusted Front sender; the model cannot query another email or access the generic DB Gateway SQL tool.
 - No generic `front_forward` tool is exposed.
 - `front_close_conversation` is not exposed to the LLM; only deterministic spam can close.
 - Deprecated direct reply tools are blocked.
@@ -165,17 +158,21 @@ idempotency or reconciliation is still needed for an exactly-once guarantee.
 |---|---|
 | `front_create_draft` | normalized draft body hash |
 | `front_add_comment` | normalized internal comment body hash |
-| `linear_create_ticket` | trusted sender + original-message hash across conversations for 24 hours |
+| `linear_create_ticket` | exact trusted sender + message hash, then conservative same-sender semantic review within 24 hours |
 | `feishu_notify_sybil_group` / `front_forward_to_sybil` | handoff type + Linear URL, or message hash |
 | `front_forward_to_bobby` / `front_forward_to_limin` / other internal forwards | summary/message hash |
 
 Linear ticket deduplication is the exception to conversation-only scope: two
-concurrent conversations from the same trusted sender with the same normalized
-original message share an in-process lock and reuse the first successful ticket
-for 24 hours. Model-supplied sender/message values cannot change this key. New
-content, another sender, or the same issue after the window can create a ticket.
-Other actions remain conversation-scoped, so new information can still produce
-a materially different draft or handoff.
+conversations from the same trusted sender share an in-process sender lock. An
+exact normalized-message match reuses the first successful ticket immediately.
+Otherwise, the runtime inspects up to five same-sender tickets from the previous
+24 hours, applies a lexical suspicion gate, and asks the configured LLM for a
+conservative duplicate decision. Only `duplicate=true` with high confidence
+reuses the existing ticket. A negative, uncertain, malformed, or failed review
+creates a new ticket. Model-supplied sender/message values cannot change the
+trusted key or select the ticket to reuse. Other actions remain
+conversation-scoped, so new information can still produce a materially
+different draft or handoff.
 
 `conversation_states.sender_email` stores the original customer sender once known and is not overwritten by later internal forwards. `front_create_draft` receives this sender from Python so internal Bobby handoff messages cannot make drafts target `bobby@dify.ai`.
 
@@ -245,10 +242,14 @@ railway.toml               optional Railway config
 agent/orchestrator.py      main processing loop and skill execution
 services/case_memory.py    conservative historical case-memory prompt context
 services/ops_metadata.py   conservative Front metadata backfill for Ops rows
+services/webhook_inbox.py   durable Front event claims, leases, retries, dead letters
+services/unanswered_reminders.py  weekday 12-hour reply-SLA scanner
 agent/classification.py    classification parsing/normalization
 agent/routing.py           deterministic routes
 agent/tool_registry.py     allowlisted tool schemas and dispatch
 tools/front.py             Front API wrapper
+tools/dify_billing.py      trusted-sender, fixed-query, read-only billing lookup
+tools/feishu.py            Feishu app messaging and personal reminders
 tools/handoff.py           internal handoff helpers
 tools/linear.py            Linear ticket creation
 tools/state.py             state/action log helpers
@@ -280,6 +281,11 @@ OPENAI_MODEL=gpt-5.5
 MINIMAX_API_KEY=
 MINIMAX_BASE_URL=https://api.minimax.chat/v1
 
+FEISHU_APP_ID=
+FEISHU_APP_SECRET=
+FEISHU_BOBBY_EMAIL=bobby@dify.ai
+FRONT_TEAMMATE_BOBBY=tea_hg6jf
+
 LINEAR_API_KEY=
 LINEAR_TEAM_ID=
 LINEAR_CUS_PROJECT_ID=
@@ -295,6 +301,9 @@ GEYAN_EMAIL=geyan@dify.ai
 CLAUDIA_EMAIL=
 
 DATABASE_URL=sqlite+aiosqlite:///./email_automation.db
+DIFY_DB_MCP_URL=https://zendesk.smlershou.top/db-gateway/mcp
+DIFY_DB_MCP_TOKEN=
+DIFY_DB_MCP_TIMEOUT_SECONDS=20
 ENABLE_SCHEDULER=true
 OPS_ADMIN_USERNAME=
 OPS_ADMIN_PASSWORD=
@@ -309,6 +318,10 @@ set `ALLOW_UNSIGNED_FRONT_WEBHOOKS=true`; never enable it in production.
 `FRONT_ATTACHMENT_ALLOWED_HOSTS` must contain only exact Front-managed HTTPS
 hosts used by the deployment. Attachment count, byte, and text limits bound
 memory use and model prompt growth.
+`DIFY_DB_MCP_TOKEN` enables the optional read-only billing lookup. Keep it only
+in the runtime secret environment. The agent maps the trusted Front sender to a
+Dify tenant through fixed queries and returns a minimized subscription/quota
+snapshot; it never exposes arbitrary SQL to the model.
 
 `OPS_ADMIN_USERNAME` and `OPS_ADMIN_PASSWORD` are required at startup and
 protect the entire Ops page and every `/ops/api/*` data endpoint. Successful
@@ -344,6 +357,7 @@ Production-like local screen currently uses port `8080` and release directories 
 Run before commit/deploy:
 
 ```bash
+.venv/bin/python tests/test_dify_db_tool.py
 .venv/bin/python tests/test_webhook_recovery.py
 .venv/bin/python tests/test_linear_ticket_deduplication.py
 .venv/bin/python tests/test_runtime_boundaries.py
@@ -353,6 +367,7 @@ Run before commit/deploy:
 .venv/bin/python tests/test_routing.py
 .venv/bin/python tests/test_skills.py
 .venv/bin/python tests/test_draft_adoption.py
+.venv/bin/python tests/test_unanswered_reminders.py
 .venv/bin/python -m compileall -q agent services tasks tools webhooks routes tests config.py main.py models.py
 .venv/bin/python -m pip check
 git diff --check

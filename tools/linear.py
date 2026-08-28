@@ -76,3 +76,32 @@ async def create_ticket(title: str, body: str) -> tuple[str, str] | tuple[None, 
     if issue:
         return issue.get("url"), issue.get("identifier")
     return None, None
+
+
+async def get_ticket(identifier: str) -> dict | None:
+    """Fetch the minimum trusted Linear issue context needed for dedupe."""
+    query = """
+    query GetIssue($id: String!) {
+        issue(id: $id) {
+            identifier
+            title
+            description
+            url
+        }
+    }
+    """
+    r = await _linear_request(
+        {"query": query, "variables": {"id": identifier}},
+        retries=3,
+    )
+    r.raise_for_status()
+    data = r.json()
+    if data.get("errors"):
+        logging.warning(
+            "Linear issue lookup failed for %s: %s",
+            identifier,
+            str(data["errors"])[:500],
+        )
+        return None
+    issue = data.get("data", {}).get("issue")
+    return issue if isinstance(issue, dict) else None

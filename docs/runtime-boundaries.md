@@ -9,6 +9,8 @@ processing, authenticated attachment downloads, and LLM-triggered tool calls.
 |---|---|
 | Webhook trust | Startup requires `FRONT_WEBHOOK_SECRET` unless unsigned webhooks are explicitly enabled for local fixtures. |
 | LLM tools | Model arguments are checked against the registered schema before execution. |
+| Read-only billing | Billing lookup is fixed-query, data-minimized, and bound to the trusted Front sender; the model cannot provide email or SQL. |
+| Reply SLA | Only post-launch customer mail in the Support-or-Bobby-assigned scope can trigger a weekday personal reminder. |
 | Trusted context | Conversation IDs and draft recipients come from the webhook/state context, not model output. |
 | Attachments | Only exact allowlisted HTTPS hosts receive the Front bearer token. Downloads, counts, and extracted text are bounded. |
 | Durable intake | Authenticated conversation webhooks are committed to `webhook_inbox` before immediate request-path processing. |
@@ -41,6 +43,11 @@ FRONT_ATTACHMENT_ALLOWED_HOSTS=api2.frontapp.com
 MAX_ATTACHMENT_COUNT=5
 MAX_ATTACHMENT_BYTES=10485760
 MAX_ATTACHMENT_TEXT_CHARS=50000
+
+# Optional read-only billing lookup
+DIFY_DB_MCP_URL=https://zendesk.smlershou.top/db-gateway/mcp
+DIFY_DB_MCP_TOKEN=
+DIFY_DB_MCP_TIMEOUT_SECONDS=20
 ```
 
 `FRONT_ATTACHMENT_ALLOWED_HOSTS` is a comma-separated list of exact hostnames.
@@ -72,6 +79,12 @@ state immediately before the Front side effect.
 
 Deterministic Python routes continue to call the internal dispatcher directly.
 They are not treated as untrusted model input.
+
+The `dify_lookup_billing` tool accepts no model-supplied email, SQL, or database.
+Immediately before execution, the orchestrator injects the trusted original Front
+sender. The gateway uses fixed read-only queries and returns only a minimized
+subscription and quota snapshot; it does not authorize refunds, cancellations,
+quota changes, or any production write.
 
 ## Durable Intake and Recovery Behavior
 
@@ -122,17 +135,34 @@ event can repeat the write. Exactly-once behavior requires a stable provider
 idempotency key or reconciliation of uncertain actions before retry.
 
 Within one running service process, Linear creation has an additional 24-hour
-cross-conversation guard keyed by the trusted sender and normalized original
-message. Concurrent duplicate emails share a lock and reuse the first committed
-ticket result even if the model generates different titles. This does not turn
-the external Linear call into exactly-once behavior across process crashes or
-multiple service replicas.
+cross-conversation guard keyed by the trusted sender. Exact normalized-message
+matches reuse the first committed ticket immediately. Other same-sender
+candidates are bounded, lexically gated, and reviewed by the configured LLM;
+only a high-confidence duplicate decision reuses an issue. An uncertain or
+failed review creates a new ticket. Concurrent same-sender requests share the
+same in-process lock so a newly committed issue is visible to the next review.
+This does not turn the external Linear call into exactly-once behavior across
+process crashes or multiple service replicas.
 
 The FastAPI lifespan pauses APScheduler and waits up to 60 seconds for this
 process's active jobs during a normal shutdown. This reduces the uncertain
 window during planned deployments, but it does not protect against a timeout,
 forced termination, host loss, or a provider response whose local commit never
 completes.
+
+## Reply SLA Reminder
+
+Every 15 minutes on China-time weekdays, the service searches the union of:
+
+- every open conversation in the Support inbox;
+- every open conversation assigned directly to Bobby in any accessible inbox.
+
+Only customer messages received on or after 2026-08-28 00:00 China time are
+eligible. Older backlog is permanently ignored. A message becomes due after 12
+natural hours only when no later real customer-facing reply and no later
+Bobby-authored Front comment exists. Drafts and API-bot comments do not suppress
+the reminder. Successful reminders are keyed by customer message and sent as a
+personal Feishu message containing the Front link.
 
 ## Ops Data Quality
 
@@ -167,16 +197,19 @@ five minutes temporarily block further attempts.
 3. Confirm every required attachment hostname is explicitly allowlisted.
 4. Review count, byte, and text limits for the deployment's expected traffic.
 5. Configure Ops admin credentials and use HTTPS with secure cookies remotely.
-6. Run the verification commands below before restarting the service.
-7. Stop the old process gracefully and allow up to 60 seconds for active scheduler jobs to finish.
-8. Send one signed test webhook and confirm `/health` and service logs after deployment.
-9. Monitor `dead_letter`, `failed_needs_review`, and provider-side duplicate writes; Front Rule Webhooks do not automatically retry failed deliveries.
+6. If billing lookup is enabled, configure `DIFY_DB_MCP_TOKEN` and verify the gateway remains read-only.
+7. Configure `FEISHU_BOBBY_EMAIL` and `FRONT_TEAMMATE_BOBBY` before enabling reply-SLA reminders.
+8. Run the verification commands below before restarting the service.
+9. Stop the old process gracefully and allow up to 60 seconds for active scheduler jobs to finish.
+10. Send one signed test webhook and confirm `/health` and service logs after deployment.
+11. Monitor `dead_letter`, `failed_needs_review`, and provider-side duplicate writes; Front Rule Webhooks do not automatically retry failed deliveries.
 
 ## Verification
 
 The repository tests are standalone Python scripts; `pytest` is not required.
 
 ```bash
+.venv/bin/python tests/test_dify_db_tool.py
 .venv/bin/python tests/test_webhook_recovery.py
 .venv/bin/python tests/test_linear_ticket_deduplication.py
 .venv/bin/python tests/test_runtime_boundaries.py
@@ -186,6 +219,7 @@ The repository tests are standalone Python scripts; `pytest` is not required.
 .venv/bin/python tests/test_routing.py
 .venv/bin/python tests/test_skills.py
 .venv/bin/python tests/test_draft_adoption.py
+.venv/bin/python tests/test_unanswered_reminders.py
 .venv/bin/python -m compileall -q agent services tasks tools webhooks routes tests config.py main.py models.py
 .venv/bin/python -m pip check
 git diff --check

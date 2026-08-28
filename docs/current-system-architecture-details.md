@@ -1,6 +1,7 @@
 # Front-Agent 当前系统架构：①–⑧ 阶段拆解
 
-> 本文是[单图泳道总览](current-system-architecture.md)的细节配套。原总览 SVG 保持不变；下面 8 张图分别展开总览 A 泳道中的 ①–⑧，每张图只处理一个阶段。
+> 本文是[系统架构入口](current-system-architecture.md)的阶段细节配套。下面 8 张图分别展开实时主链中的 ①–⑧，每张图只处理一个阶段。
+> 当前总体关系请优先查看[交互式完整架构](front-support-full-architecture.html)；这些 GraphViz 图保留高密度源码细节，新增的只读 Billing 与回复 SLA 以完整架构和运行代码为准。
 
 ## 阅读约定
 

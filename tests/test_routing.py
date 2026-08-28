@@ -7,8 +7,10 @@ from agent.classification import (
     classify_explicit_account_suspension,
     classify_explicit_education_account_suspension,
     classify_explicit_education_topic,
+    classify_school_email_cancellation_needing_plan_confirmation,
     normalize_classification,
     parse_classification_json,
+    protect_explicit_technology_partnership,
     should_auto_close_spam,
 )
 from agent.routing import EDUCATION_ACCOUNT_SUSPENSION_DRAFT, decide_initial_route
@@ -49,6 +51,8 @@ def test_explicit_education_reply_detects_followup_subtypes():
         "My Education Plan verification was rejected.": "rejected",
         "My Education Plan is verified, but the discount is not showing.": "no_discount",
         "I want to cancel my student plan.": "cancel_subscription",
+        "My Education Plan shows only 200 message credits instead of 5,000 per month.": "credit_allowance_200",
+        "教育認証は承認されProfessionalに切り替わりました。メッセージクレジットは月毎に付与されますか？": "credit_allowance_200",
         "I graduated and my student plan school email is no longer accessible.": "email_expired_graduated",
         "My Education Verified account was suspended and I want to appeal the ban.": "account_suspended",
         "My edu account is banned. Please review the suspension.": "account_suspended",
@@ -60,6 +64,26 @@ def test_explicit_education_reply_detects_followup_subtypes():
         assert result is not None, message
         assert result.category == "education"
         assert result.sub_type == expected_sub_type
+
+
+def test_school_email_trial_cancellation_requires_plan_type_confirmation():
+    result = classify_school_email_cancellation_needing_plan_confirmation(
+        "I had a Dify trial with my university email, which was deactivated. "
+        "I cannot cancel it. How can I avoid being billed?",
+        "graduate@example.com",
+    )
+
+    assert result is not None
+    assert result.category == "education"
+    assert result.sub_type == "cancel_subscription"
+    assert result.sender_email == "graduate@example.com"
+    assert result.flags == ["education_plan_unconfirmed"]
+
+
+def test_explicit_education_plan_cancellation_skips_ambiguous_confirmation_classifier():
+    assert classify_school_email_cancellation_needing_plan_confirmation(
+        "I want to cancel my Education Plan linked to my university email."
+    ) is None
 
 
 def test_education_suspension_classifier_does_not_capture_generic_account_or_school_email():
@@ -228,6 +252,70 @@ def test_marketplace_joint_promotion_does_not_auto_close():
     assert route.state_category == "partnership"
     assert route.state_sub_type == "marketplace"
     assert route.keep_open is True
+
+
+def test_openinfer_technology_pitch_is_protected_from_spam_auto_close():
+    message = """Hi,
+
+Dify's open-source-first approach to production agents and RAG pipelines
+lines up exactly with what we're building. We recently launched OpenInfer
+Cloud, which delivers open-source model inference. Our OpenAI-compatible
+endpoint could drop straight into your stack. We're partnering with startups
+building AI agents and can set Dify up with free access. Would you be open to
+a quick chat?"""
+    misclassified = normalize_classification({
+        "category": "spam",
+        "sub_type": None,
+        "confidence": 0.99,
+        "summary": (
+            "Unsolicited sales email promoting OpenInfer Cloud model inference "
+            "services and asking for a chat."
+        ),
+        "evidence": [
+            "OpenAI-compatible endpoint that could drop straight into your stack",
+            "partnering with startups building the next generation of AI agents",
+            "set Dify up with free access",
+        ],
+    })
+
+    protected = protect_explicit_technology_partnership(misclassified, message)
+
+    assert protected.category == "partnership"
+    assert protected.sub_type == "technology_integration"
+    assert protected.raw["original_category"] == "spam"
+    assert not should_auto_close_spam(protected)
+    route = decide_initial_route(
+        protected,
+        "cnv_1jc5jn4r",
+        "cbuffington@openinfer.io",
+    )
+    assert route.name == "partnership_forwarded_keep_open"
+    assert route.tool_name == "front_forward_to_community"
+    assert route.state_step == "forwarded_keep_open"
+    assert route.keep_open is True
+
+
+def test_generic_vendor_service_pitch_remains_spam():
+    message = (
+        "We provide SEO and backlink services for Dify. We would love to "
+        "partner and discuss our discounted package on a quick call."
+    )
+    classification = normalize_classification({
+        "category": "spam",
+        "confidence": 0.99,
+        "summary": "Vendor offers SEO and backlink services.",
+    })
+
+    protected = protect_explicit_technology_partnership(classification, message)
+
+    assert protected.category == "spam"
+    assert should_auto_close_spam(protected)
+    route = decide_initial_route(
+        protected,
+        "cnv_test",
+        "seller@example.com",
+    )
+    assert route.name == "spam_auto_close"
 
 
 def test_explicit_marketplace_application_overrides_conflicting_spam_category():

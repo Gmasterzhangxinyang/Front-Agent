@@ -110,6 +110,11 @@ async def send_text(receive_id: str, receive_id_type: str, text: str) -> bool:
     return True
 
 
+async def send_bobby_personal_text(text: str) -> bool:
+    """Send an operational alert directly to Bobby's Feishu account."""
+    return await send_text(settings.feishu_bobby_email, "email", text)
+
+
 def _sybil_mention() -> str:
     if not settings.feishu_sybil_open_id:
         return "@Sybil"

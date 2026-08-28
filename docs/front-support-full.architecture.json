@@ -1,0 +1,445 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Front-Agent 完整运行架构",
+    "locale": "zh-CN",
+    "output": "front-support-full-architecture.html",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1380,
+      960
+    ],
+    "views": [
+      {
+        "id": "trusted-intake",
+        "label": "可信入口",
+        "focus": [
+          "front_hub",
+          "trust_ingress",
+          "durable_queue"
+        ],
+        "note": "从 Front Rule Webhook 到可信持久化，先验证再处理。"
+      },
+      {
+        "id": "context-memory",
+        "label": "上下文与记忆",
+        "focus": [
+          "durable_queue",
+          "context_builder",
+          "case_memory",
+          "sqlite_ledger"
+        ],
+        "note": "合并当前线程、附件、同发件人历史和保守检索到的案例信号。"
+      },
+      {
+        "id": "decision-policy",
+        "label": "分类与策略",
+        "focus": [
+          "context_builder",
+          "llm_classifier",
+          "deterministic_router",
+          "skill_policy"
+        ],
+        "note": "16 类、52 个子类型先分类，再分流至 Python 规则或类别 Skill。"
+      },
+      {
+        "id": "safe-actions",
+        "label": "安全副作用",
+        "focus": [
+          "deterministic_router",
+          "skill_policy",
+          "tool_gate",
+          "external_outputs",
+          "sqlite_ledger"
+        ],
+        "note": "20 个工具经过白名单校验与可信上下文绑定；Billing 查询保持只读。"
+      },
+      {
+        "id": "recovery-ops",
+        "label": "恢复与运营",
+        "focus": [
+          "durable_queue",
+          "sqlite_ledger",
+          "ops_scheduler",
+          "external_outputs"
+        ],
+        "note": "调度器恢复失败事件，Ops 汇总实时状态、数据质量和处理结果。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "front_hub",
+      "type": "cloud",
+      "label": "Front Support",
+      "sublabel": "客户邮件 · Rule Webhook",
+      "tag": "Support inbox only",
+      "pos": [
+        20,
+        330
+      ],
+      "size": [
+        135,
+        76
+      ]
+    },
+    {
+      "id": "trust_ingress",
+      "type": "security",
+      "label": "可信入口",
+      "sublabel": "FastAPI · HMAC-SHA1",
+      "tag": "外部入站 · 并发 2",
+      "pos": [
+        185,
+        330
+      ],
+      "size": [
+        145,
+        76
+      ]
+    },
+    {
+      "id": "durable_queue",
+      "type": "messagebus",
+      "label": "持久事件队列",
+      "sublabel": "webhook_inbox",
+      "tag": "pending → processing → retry",
+      "pos": [
+        360,
+        330
+      ],
+      "size": [
+        145,
+        76
+      ]
+    },
+    {
+      "id": "context_builder",
+      "type": "backend",
+      "label": "上下文组装",
+      "sublabel": "线程 · 附件 · 同发件人",
+      "tag": "最多 5 个关联会话",
+      "pos": [
+        535,
+        330
+      ],
+      "size": [
+        155,
+        76
+      ]
+    },
+    {
+      "id": "llm_classifier",
+      "type": "cloud",
+      "label": "LLM 分类器",
+      "sublabel": "证据 · 分类 · Flags",
+      "tag": "16 类 · 52 个子类型",
+      "pos": [
+        720,
+        330
+      ],
+      "size": [
+        145,
+        76
+      ]
+    },
+    {
+      "id": "deterministic_router",
+      "type": "backend",
+      "label": "确定性路由",
+      "sublabel": "Python 业务规则",
+      "tag": "spam · security · business",
+      "pos": [
+        910,
+        180
+      ],
+      "size": [
+        155,
+        80
+      ]
+    },
+    {
+      "id": "skill_policy",
+      "type": "backend",
+      "label": "Skill + Policy",
+      "sublabel": "类别 Skill · SOP · 会话状态",
+      "tag": "account · technical · billing …",
+      "pos": [
+        910,
+        470
+      ],
+      "size": [
+        155,
+        80
+      ]
+    },
+    {
+      "id": "tool_gate",
+      "type": "security",
+      "label": "工具安全门",
+      "sublabel": "Schema · 上下文 · 幂等",
+      "tag": "20 个白名单工具",
+      "pos": [
+        1095,
+        470
+      ],
+      "size": [
+        155,
+        80
+      ]
+    },
+    {
+      "id": "external_outputs",
+      "type": "external",
+      "label": "外部集成",
+      "sublabel": "Front · Linear · Feishu",
+      "tag": "Dify DB 只读",
+      "pos": [
+        1210,
+        295
+      ],
+      "size": [
+        150,
+        88
+      ]
+    },
+    {
+      "id": "case_memory",
+      "type": "database",
+      "label": "Case Memory",
+      "sublabel": "最近 300 → Top 4",
+      "tag": "脱敏 · 仅作参考",
+      "pos": [
+        535,
+        570
+      ],
+      "size": [
+        155,
+        80
+      ]
+    },
+    {
+      "id": "sqlite_ledger",
+      "type": "database",
+      "label": "SQLite 状态账本",
+      "sublabel": "状态 · 事件 · 动作 · 报表",
+      "tag": "7 张持久化表",
+      "pos": [
+        720,
+        700
+      ],
+      "size": [
+        150,
+        84
+      ]
+    },
+    {
+      "id": "ops_scheduler",
+      "type": "backend",
+      "label": "恢复调度 + Ops",
+      "sublabel": "APScheduler · 登录保护仪表盘",
+      "tag": "重试 · 报表 · 12h SLA",
+      "pos": [
+        1085,
+        700
+      ],
+      "size": [
+        175,
+        84
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "front_to_trust",
+      "from": "front_hub",
+      "to": "trust_ingress",
+      "label": "签名 Rule Webhook",
+      "labelDy": -32,
+      "variant": "emphasis"
+    },
+    {
+      "id": "trust_to_queue",
+      "from": "trust_ingress",
+      "to": "durable_queue",
+      "label": "event_id 先落盘",
+      "labelDy": 62,
+      "variant": "emphasis"
+    },
+    {
+      "id": "queue_to_context",
+      "from": "durable_queue",
+      "to": "context_builder",
+      "label": "15 分钟租约领取",
+      "labelAt": [
+        520,
+        326
+      ],
+      "variant": "emphasis"
+    },
+    {
+      "id": "context_to_classifier",
+      "from": "context_builder",
+      "to": "llm_classifier",
+      "label": "完整处理上下文",
+      "labelDy": 69,
+      "variant": "emphasis"
+    },
+    {
+      "id": "context_to_memory",
+      "from": "context_builder",
+      "to": "case_memory",
+      "label": "保守相似度检索",
+      "labelAt": [
+        613,
+        420
+      ]
+    },
+    {
+      "id": "memory_to_classifier",
+      "from": "case_memory",
+      "to": "llm_classifier",
+      "label": "Top 4 hindsight signals",
+      "fromSide": "right",
+      "toSide": "bottom",
+      "variant": "dashed"
+    },
+    {
+      "id": "classifier_to_router",
+      "from": "llm_classifier",
+      "to": "deterministic_router",
+      "label": "确定性类别"
+    },
+    {
+      "id": "classifier_to_skill",
+      "from": "llm_classifier",
+      "to": "skill_policy",
+      "label": "其余类别"
+    },
+    {
+      "id": "router_to_outputs",
+      "from": "deterministic_router",
+      "to": "external_outputs",
+      "label": "归档 / 移动 / 内部转交"
+    },
+    {
+      "id": "skill_to_gate",
+      "from": "skill_policy",
+      "to": "tool_gate",
+      "label": "受 Policy 约束的调用",
+      "labelDy": -27
+    },
+    {
+      "id": "gate_to_outputs",
+      "from": "tool_gate",
+      "to": "external_outputs",
+      "label": "草稿 / 工单 / 通知 / 查询",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "context_to_ledger",
+      "from": "context_builder",
+      "to": "sqlite_ledger",
+      "label": "读取状态与关联历史",
+      "fromSide": "left",
+      "toSide": "left",
+      "via": [
+        [
+          510,
+          368
+        ],
+        [
+          510,
+          742
+        ]
+      ]
+    },
+    {
+      "id": "gate_to_ledger",
+      "from": "tool_gate",
+      "to": "sqlite_ledger",
+      "label": "action log + 内容哈希"
+    },
+    {
+      "id": "ops_to_queue",
+      "from": "ops_scheduler",
+      "to": "durable_queue",
+      "label": "1 / 5 / 15 / 60 / 180 分钟重试",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "via": [
+        [
+          1172.5,
+          840
+        ],
+        [
+          432.5,
+          840
+        ]
+      ],
+      "variant": "dashed"
+    },
+    {
+      "id": "ledger_to_ops",
+      "from": "sqlite_ledger",
+      "to": "ops_scheduler",
+      "label": "实时遥测 / 报表 / 覆盖率",
+      "labelDy": 45
+    },
+    {
+      "id": "ops_to_outputs",
+      "from": "ops_scheduler",
+      "to": "external_outputs",
+      "label": "10 天关闭 / digest / SLA 提醒",
+      "fromSide": "right",
+      "toSide": "right",
+      "via": [
+        [
+          1368,
+          742
+        ],
+        [
+          1368,
+          339
+        ]
+      ],
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "入口与上下文",
+      "items": [
+        "仅接收 Support inbox 的真实外部入站；签名、event_id 和会话锁建立可信边界",
+        "附件最多 5 个、单个最多 10 MB；关联同发件人最多 5 个近期会话"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "决策体系",
+      "items": [
+        "LLM 输出 16 个一级分类、52 个子类型及证据；confidence 仅用于观测",
+        "Python 确定性路由优先，其余请求进入类别 Skill、SOP 和多轮状态机"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "副作用安全",
+      "items": [
+        "20 个工具全部按 Schema 校验，conversation_id 重绑可信 Webhook 上下文",
+        "原始邮箱锁定草稿和 Billing 查询；重复写操作由 action key 与内容哈希抑制"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "恢复与运营",
+      "items": [
+        "Webhook 处理采用 at-least-once、15 分钟租约、最多 6 次尝试和 dead letter",
+        "Ops 展示运行健康；SLA 仅追踪 2026-08-28 起的 Support 与 Bobby-assigned 邮件"
+      ]
+    }
+  ]
+}

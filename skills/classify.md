@@ -177,6 +177,26 @@ Every example below includes all required fields. Follow this shape exactly. Use
 }
 ```
 
+### Example 5A: Targeted Technology Integration Partnership
+**Email:** "Dify's agent and RAG platform fits our model-inference infrastructure. We offer an OpenAI-compatible endpoint that could integrate with Dify Cloud, and we would like to provide free access and discuss a partnership."
+
+**Classification:**
+```json
+{
+  "category": "partnership",
+  "sub_type": "technology_integration",
+  "is_paid_user": false,
+  "is_premium": false,
+  "urgency": "normal",
+  "sender_email": "partner@example.com",
+  "summary": "Infrastructure provider proposes a concrete model-inference integration and partnership with Dify",
+  "confidence": 0.99,
+  "flags": [],
+  "secondary_intents": [],
+  "evidence": ["OpenAI-compatible endpoint", "integrate with Dify Cloud", "discuss a partnership"]
+}
+```
+
 ### Example 6: Job Application / Internship
 **Email:** "Hello Dify team, I am applying for a remote ML/GenAI internship. I attached my resume and would love to be considered for future roles."
 
@@ -241,7 +261,9 @@ Every example below includes all required fields. Follow this shape exactly. Use
 
 - Pick the category that determines the immediate operational route.
 - If the email has mixed intents, set the primary `category` to the highest-risk or most actionable intent and put the rest in `secondary_intents`.
-- If the sender is offering ads, SEO, backlinks, guest posts, generic promotion packages, lead generation, recruiting/staffing services, or other unsolicited vendor services, classify as `spam` even if the text mentions marketing, partnership, or hiring.
+- If the sender is offering ads, SEO, backlinks, guest posts, generic promotion packages, lead generation, recruiting/staffing services, or other generic non-strategic vendor services, classify as `spam` even if the text casually mentions marketing, partnership, or hiring.
+- Classify a targeted B2B product, API, model-provider, infrastructure, or technology-integration proposal as `partnership/technology_integration` when it explains a concrete fit with Dify's platform, product, ecosystem, or technology stack and proposes integration, a pilot, free access, or further partnership discussion. Commercial motivation, a free trial, or a request for a call does not make such a concrete cooperation proposal spam.
+- Distinguish concrete technology cooperation from mass sales: a generic service pitch with no Dify-specific product or integration fit remains `spam`.
 - Classify candidate job applications, internship requests, resume submissions, and employment inquiries as `recruiting`, not `unclear`.
 - Classify YouTube/video/podcast/newsletter/content creator or media channel collaboration pitches as `marketing` with sub_type `collaboration`, unless the email is clearly an unrelated mass ad service pitch. These should be moved to the Marketing inbox, not auto-closed as spam.
 - Classify Marketplace/plugin/template ecosystem cooperation as `partnership`; that route is forwarded to `marketing@dify.ai` by the system.
@@ -283,6 +305,7 @@ Every example below includes all required fields. Follow this shape exactly. Use
 | education | no_discount | Edu verified but discount not showing |
 | education | email_expired_graduated | Graduated or school-issued email is no longer accessible |
 | education | cancel_subscription | Education plan user wants to cancel/not renew |
+| education | credit_allowance_200 | Activated/subscribed Education Plan shows 200 message credits or user asks why the former 5,000 monthly allowance changed |
 | education | account_suspended | Education Plan/Education Verified account was suspended, banned, disabled, or the user wants to appeal that enforcement action |
 | billing | refund | Wants a refund |
 | billing | duplicate_charge | Charged twice |
@@ -292,12 +315,14 @@ Every example below includes all required fields. Follow this shape exactly. Use
 | partnership | plugin | Plugin cooperation or bug |
 | partnership | marketplace | Marketplace cooperation |
 | partnership | plugin_takedown | Wants to take down their own plugin |
+| partnership | technology_integration | Targeted B2B product, API, model-provider, infrastructure, or technical integration proposal for Dify |
+| partnership | strategic_partnership | Other concrete strategic or ecosystem cooperation with Dify |
 | marketing | campaign | Marketing campaigns, promotional events |
 | marketing | collaboration | Marketing collaboration inquiries |
 | marketing | event | Marketing events or sponsorship |
 | security | general | Security concern |
 | security | urgent | Active breach, data leak, critical vulnerability |
-| spam | null | Promotional, advertising, unsolicited sales |
+| spam | null | Generic promotional, advertising, or unsolicited sales with no concrete Dify product/integration cooperation |
 | legal | null | Lawyer letter, legal threat, lawsuit |
 | roadmap | null | Asking about roadmap or feature release dates |
 | investment | fundraising | Investment inquiries, funding, VC, investor relations |
@@ -306,6 +331,16 @@ Every example below includes all required fields. Follow this shape exactly. Use
 | recruiting | job_application | Candidate applying for a job, internship, or submitting a resume/portfolio |
 | recruiting | careers_question | Asking about open roles, hiring status, or how to apply |
 | unclear | null | Cannot determine category with confidence |
+
+### Education 200-message-credit allowance
+- When an activated or subscribed Education Plan user asks why the workspace has only 200 message credits, why credits no longer reset monthly, or what happened to the former 5,000-per-month allowance, classify as `education` / `credit_allowance_200`.
+- Do not classify the normal 200-credit allowance as `account/account_anomaly`, `billing/other`, or `education/no_discount`.
+- If the workspace itself is displayed as Sandbox or Free instead of Professional with the 200-message-credit allowance, still preserve that fact as a separate issue requiring investigation.
+
+### Ambiguous school-email cancellation
+- A school/university email or graduation context does not by itself prove that a trial or subscription is an Education Plan.
+- When a user asks to cancel a generic trial/subscription or avoid billing after losing access to a school/university email, but never says Education Plan, student plan, education discount, or Education Verified, classify as `education` / `cancel_subscription` and add the flag `education_plan_unconfirmed`.
+- This routes the case to a plan-type confirmation question before either Education Plan no-auto-renew guidance or standard paid-subscription cancellation steps.
 
 ## Paid User Detection
 - Check email body/footer for: `Current Plan: professional` or `Current Plan: team`

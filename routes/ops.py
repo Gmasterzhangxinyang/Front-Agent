@@ -25,6 +25,11 @@ from services import ops_auth
 logger = logging.getLogger(__name__)
 router = APIRouter()
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+FRONT_SUPPORT_ARCHITECTURE_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "docs"
+    / "front-support-full-architecture.html"
+)
 ATTENTION_STEPS = ("manual_review", "failed_needs_review")
 FAILED_MARKERS = ("failed", "move_failed", "unknown_tool", "error")
 REPORT_PERIODS = {"daily": 1, "weekly": 7, "monthly": 30}
@@ -568,6 +573,16 @@ async def ops_system_flow_page(request: Request):
     if not ops_auth.session_valid(_session_token(request)):
         return RedirectResponse("/ops/login", status_code=303)
     return FileResponse(STATIC_DIR / "system_flow.html")
+
+
+@router.get("/ops/front-support-architecture")
+async def ops_front_support_architecture_page(request: Request):
+    if not ops_auth.session_valid(_session_token(request)):
+        return RedirectResponse("/ops/login", status_code=303)
+    return FileResponse(
+        FRONT_SUPPORT_ARCHITECTURE_PATH,
+        media_type="text/html",
+    )
 
 
 @protected_router.get("/ops/api/summary")

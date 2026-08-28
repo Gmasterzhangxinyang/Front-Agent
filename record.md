@@ -208,3 +208,34 @@
 - [deploy] 将 Agent Deep View 发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-2810807-agent-deep-view-KNGVKr`；页面常量解析精确确认 16 类/49 子类型/19 工具，无头 Canvas/DOM 运行检查实际连续走通入口、持久化、Memory 和分类点亮，完整 188 项回归、发布哈希、应用导入、进程切换、启动日志和 `/health` 均正常；使用现有 Ops 凭据确认线上深度视图全部标志与 48 条实时活动成功加载
 - [refactor] 将 Agent Deep View 重构为客户演示级邮件处理故事板：采用克制的暖白/黑/绿色视觉体系、8 步信封进度轨、4 条真实业务分支和逐步控制；以独立图形场景展开可信入口、持久队列、三层 Memory、16 类/49 子类型、GPT‑5.5 Agent 与 Skill/Policy/Context、19 个白名单工具、安全输出、状态回流及失败恢复，并接入实时遥测。使用真实 Chromium 对桌面端 4×8 共 32 个画面与 390px 移动端逐屏复核，修复分类矩阵截断，确认无横向溢出、无控制台错误；JavaScript 语法与完整 188 项回归通过（routes/static/system_flow.html, tests/test_ops_auth.py）
 - [deploy] 将客户演示级邮件处理故事板发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-3d390cb-customer-demo-aNAHzV`；发布资源哈希、应用导入、进程切换、本机与公网 `/health` 均正常。使用真实 Ops 登录在生产环境验证页面 200、4 个场景、逐步交互、Agent 画面、48 条实时活动与 11 个安全动作，浏览器控制台零错误且无横向溢出；旧发布目录保留用于回滚
+
+## 2026-08-13
+- [fix] 将面向 Dify 的具体 B2B 产品、API、模型供应商、推理基础设施和技术集成提案归为 partnership，并在 spam 自动归档前加入确定性保护，避免商业合作邮件因免费试用或会议邀请被误关（agent/classification.py, agent/orchestrator.py, agent/routing.py, skills/classify.md, skills/partnership.md, skills/spam.md, tests/test_routing.py, tests/test_skills.py, README.md）
+- [deploy] 将技术集成 partnership 防误归档修复发布至本地生产 screen `front-agent-v2`，运行目录 `/tmp/front-agent-release-b592afa-partnership-9nlu88`；发布目录导入、路由与 Skill 测试、进程切换、启动日志和 `/health` 均验证正常，现有 Front 会话未自动重开或发送邮件
+
+## 2026-08-18
+- [fix] 对学校邮箱失效后的模糊 trial/订阅取消请求先确认是否为教育版；仅在确认教育版后说明到期不自动续订，避免误走身份验证流程（agent/classification.py, agent/orchestrator.py, skills/classify.md, skills/education.md, tests/test_routing.py, tests/test_skills.py）
+
+## 2026-08-18
+- [fix] 新增教育版订阅后仅显示 200 message credits 的标准回复：说明额度从每月 5,000 调整为总计 200 且不按月重置、其余 Professional 权益不变、可配置自有模型 API Key，并明确不得提及 8 月 10 日（agent/classification.py, skills/classify.md, skills/education.md, tests/test_routing.py, tests/test_skills.py）
+
+## 2026-08-26
+- [feat] 将只读 Dify DB Gateway 收敛为 Front-Agent 的账单辅助查询工具：查询对象强制绑定当前 Front 发件人，使用固定 SQL 从 prod 映射账号/Tenant 后仅读取 billing 的订阅、额度和删除记录；模型不能传入邮箱、SQL 或数据库，结果仅作内部证据且不授权退款、取消或额度变更。新增 MCP/SSE、PostgreSQL CSV 页脚和信任边界测试，并通过真实不存在邮箱的只读冒烟验证（tools/dify_billing.py, agent/tool_registry.py, agent/orchestrator.py, config.py, skills/account.md, skills/billing.md, tests/test_dify_db_tool.py, README.md）
+- [deploy] 将只读 Billing 查询工具发布至 `front-agent-v2`，运行目录 `/tmp/front-agent-release-billing-YkUoZW`；仅叠加 Billing 集成相关文件，11 组回归、编译、依赖、发布目录导入、本机与公网健康检查均通过，线上工具和 Token 加载成功，并通过工具注册层完成不存在邮箱的真实只读查询；未发送 Front 回复或写入 Dify 数据库。
+- [ops] 对 `cnv_1jfq9a6z` 只读核验 Professional 订阅和当前周期用量：确认 paid bucket 为 5,000/5,000、页面 200/200 来自旧 Sandbox trial bucket，并按模型汇总 5,000 credits；将已有错误“已转交”草稿原位更新为核查结果和用量明细，会话仍仅 1 份 shared draft，未发送客户邮件。
+
+## 2026-08-28
+- [fix] 为 Linear 客服工单增加保守的近似重复检测：同一发件人 24 小时内的疑似候选交由 LLM 判断，仅高置信同一请求才复用已有工单；增加同发件人并发锁、跨会话内部备注与重开逻辑，并补齐回归测试（agent/tool_registry.py, tools/state.py, tools/linear.py, tests/test_linear_ticket_deduplication.py, README.md, docs/runtime-boundaries.md, docs/current-system-architecture.md）
+- [ops] 将 `msg_2yuu2zrv` 所在会话 `cnv_1jgip0bf` 的已有 shared draft 原位更新为请求客户提供脱敏后的 Chatflow DSL（YAML）和完整复现步骤；保留原收件人与主题，未发送客户邮件，且未创建第二份草稿。
+- [fix] 补齐日文 `教育認証` 主题入口及“メッセージクレジット是否按月付与”的确定性识别，使其优先命中 `education/credit_allowance_200`，并增加客户原文回归用例（agent/classification.py, tests/test_routing.py）。
+- [deploy] 将此前遗漏上线的教育版 200-credit 政策及日文识别修复发布至 `front-agent-v2`，运行目录 `/tmp/front-agent-release-education-lohOSA`；仅叠加教育分类、编排与 Skill 文件，路由、Skill、webhook、内部转发、草稿、编译、依赖、发布目录原文断言、文件哈希、应用导入、进程、调度器和本机 `/health` 均验证正常，旧 Billing release 保留用于回滚。
+- [ops] 将 `cnv_1jcufihn` 的唯一 shared draft `msg_2yu2wz4r` 原位改为教育版额度政策的英日双语说明：每月 5,000 已调整为总计 200 且不按月重置，其他 Professional 权益不变、用完可配置自有模型 API Key；状态从 `education/no_discount + forwarded_keep_open` 修正为 `education/credit_allowance_200 + draft_created`，草稿仍未发送。
+- [ops] 将 `cnv_1jg4tb8b` 的唯一 shared draft `msg_2ytwl84b` 原位更新为英中双语说明：MCP 服务更新和删除异常已修复，请客户重新尝试，若仍报错则提供最新错误信息或截图；收件人保持 `leon@jiemasoft.com`，草稿未发送。
+- [feat] 新增工作日 12 小时未回复兜底提醒：每 15 分钟限量核对客户最新邮件，真实外发回复或其后的 Bobby 本人 Front 评论视为已接手，草稿与 API 机器人评论不计；逾期后通过飞书应用私聊 Bobby 并附 Front 直达链接，按客户消息幂等且发送失败可重试（services/unanswered_reminders.py, tasks/scheduler.py, tools/feishu.py, config.py, tests/test_unanswered_reminders.py, README.md, CLAUDE.md, .env.example）。
+- [deploy] 将工作日 12 小时未回复个人提醒发布至 `front-agent-v2`，运行目录 `/tmp/front-agent-release-sla-sWvYBA`；仅叠加 SLA 扫描、调度器、飞书与配置文件，261 个两天前的旧状态写入一次性上线基线以防历史洪泛。专项 13 项及完整回归、编译、依赖、发布哈希、应用导入、调度器、本机和公网健康检查均通过；首轮 10 个候选正确识别 5 个关闭、2 个 Bobby 已评论和 3 个逾期未回复，3 条带 Front 链接的飞书个人提醒均发送成功并完成幂等记录，未向客户发送邮件。
+- [fix] 将 12 小时提醒的候选范围修正为“Support inbox 内全部 open 会话”与“任意 inbox 中 assigned to Bobby 的 open 会话”的去重并集，不再扫描其他 inbox 中未指派给 Bobby 的会话；首次错误扫描发送的 3 条提醒均来自 Marketing/Security 且未指派，已明确告知忽略（services/unanswered_reminders.py, tests/test_unanswered_reminders.py, README.md, CLAUDE.md）。
+- [deploy] 将修正后的提醒范围发布至 `front-agent-v2`，运行目录 `/tmp/front-agent-release-sla-scope-bjkPKq`；首轮 Front 搜索确认 Support 9、assigned to Bobby 0、并集 9，实际检查 7 个新活动会话，5 个逾期提醒通过飞书私聊成功发送、2 个已有客户回复，错误数为 0；服务进程、发布哈希与本机健康检查正常，未向客户发送邮件。
+- [fix] 将 12 小时提醒增加固定启用边界：仅 2026-08-28 00:00（中国时间）及之后收到的客户邮件参与计时，之前的历史积压永久忽略；修正测试时间戳为显式 UTC 并增加上线前消息不发送、写入终态的边界回归。此前误发的 5 条历史 Support 提醒已明确告知忽略（services/unanswered_reminders.py, tests/test_unanswered_reminders.py, README.md, CLAUDE.md）。
+- [deploy] 将“仅从今天开始计时”的版本发布至 `front-agent-v2`，运行目录 `/tmp/front-agent-release-sla-today-JZO7n7`；16 项专项测试、编译、依赖、发布哈希和导入通过，首轮线上任务只执行 Support 与 Bobby-assigned 两条搜索且没有飞书发送请求，本机健康检查正常。
+- [docs] 重构 README 和系统架构入口：以交互式概览、完整架构、①–⑧ 阶段图、运行边界和 Ops 动态故事板形成分层导航；同步当前 16 类/52 子类型/20 工具、只读 Dify Billing、Linear 语义去重与工作日 12 小时提醒。两份 Archify JSON/HTML 均通过 showcase 9/9、0 error、0 warning 原子交付，规格/产物 SHA-256 分别为 `26cb65a…/8f4beee…` 与 `ab92fe6…/c76cd89…`（README.md, docs/current-system-architecture.md, docs/current-system-architecture-details.md, docs/runtime-boundaries.md, docs/front-support*.architecture.json, docs/front-support*-architecture.html, routes/static/system_flow.html, routes/static/ops.html, tests/test_ops_auth.py）。
+- [verify] 全部 12 个离线测试脚本、Python 编译、依赖检查、Ops 内联 JavaScript 语法、本地 Markdown 链接、敏感信息模式和 `git diff --check` 通过；Archify 多尺寸截图流程因宿主 Chromium 缺少 `libatk-1.0.so.0` 未完成，未提交失败回执，也未虚报视觉通过。

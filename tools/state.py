@@ -128,6 +128,34 @@ async def get_recent_action_by_type_key(
     )
     return result.scalar_one_or_none()
 
+async def get_recent_actions_by_type_key_prefix(
+    db: AsyncSession,
+    action_type: str,
+    action_key_prefix: str,
+    *,
+    hours: int,
+    exclude_action_key: str = "",
+    limit: int = 5,
+) -> list[ConversationAction]:
+    """Return bounded recent actions sharing a trusted key prefix."""
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    statement = (
+        select(ConversationAction)
+        .where(
+            ConversationAction.action_type == action_type,
+            ConversationAction.action_key.startswith(action_key_prefix),
+            ConversationAction.created_at >= cutoff,
+        )
+        .order_by(ConversationAction.created_at.desc())
+        .limit(max(1, min(limit, 10)))
+    )
+    if exclude_action_key:
+        statement = statement.where(
+            ConversationAction.action_key != exclude_action_key
+        )
+    result = await db.execute(statement)
+    return list(result.scalars().all())
+
 
 async def record_action(
     db: AsyncSession,

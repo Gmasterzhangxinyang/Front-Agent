@@ -44,6 +44,13 @@ def test_ops_page_and_api_require_login_then_logout_revokes_session():
         assert flow_page.status_code == 303
         assert flow_page.headers["location"] == "/ops/login"
 
+        architecture_page = client.get(
+            "/ops/front-support-architecture",
+            follow_redirects=False,
+        )
+        assert architecture_page.status_code == 303
+        assert architecture_page.headers["location"] == "/ops/login"
+
         assert client.get("/ops/api/summary").status_code == 401
         assert client.get("/ops/api/system-flow").status_code == 401
         assert client.delete("/ops/api/sybil/1").status_code == 401
@@ -68,6 +75,10 @@ def test_ops_page_and_api_require_login_then_logout_revokes_session():
         assert client.get("/ops").status_code == 200
         assert client.get("/ops/account-ban-analysis").status_code == 200
         assert client.get("/ops/system-flow").status_code == 200
+        architecture_page = client.get("/ops/front-support-architecture")
+        assert architecture_page.status_code == 200
+        assert architecture_page.headers["content-type"].startswith("text/html")
+        assert "Front-Agent 完整运行架构" in architecture_page.text
         assert client.delete("/ops/api/sybil/1").status_code == 403
 
         logged_out = client.post(
@@ -175,8 +186,9 @@ def test_system_flow_page_animates_one_email_journey_with_live_telemetry():
         "CATEGORY_DEF",
         "TOOL_NAMES",
         "TOOL_LABELS",
-        "16 categories · 49 sub-types",
-        "19 approved tools",
+        "dify_lookup_billing",
+        "16 categories · 52 sub-types",
+        "20 approved tools",
         "300 → 4",
         "≤ 5",
         "30 天",
@@ -199,6 +211,13 @@ def test_system_flow_page_animates_one_email_journey_with_live_telemetry():
     assert source.count("['technical','技术问题',8]") == 1
     assert source.count("front_create_draft") >= 2
     assert 'href="/ops/system-flow"' in Path("routes/static/ops.html").read_text()
+
+
+def test_ops_ui_links_to_front_support_architecture():
+    source = Path("routes/static/ops.html").read_text()
+    assert 'href="/ops/front-support-architecture"' in source
+    assert "Front-Agent 完整架构" in source
+    assert Path("docs/front-support-full-architecture.html").is_file()
 
 
 def run_all():

@@ -1,0 +1,335 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Front-Agent 客服自动化架构",
+    "locale": "zh-CN",
+    "output": "front-support-architecture.html",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1380,
+      940
+    ]
+  },
+  "components": [
+    {
+      "id": "front_support",
+      "type": "cloud",
+      "label": "Front Support",
+      "sublabel": "客户邮件 · Rule Webhook",
+      "pos": [
+        20,
+        330
+      ],
+      "size": [
+        135,
+        72
+      ]
+    },
+    {
+      "id": "webhook_ingress",
+      "type": "security",
+      "label": "Webhook 入口",
+      "sublabel": "FastAPI · 签名校验",
+      "tag": "event_id 去重",
+      "pos": [
+        185,
+        330
+      ],
+      "size": [
+        145,
+        72
+      ]
+    },
+    {
+      "id": "durable_inbox",
+      "type": "messagebus",
+      "label": "持久事件队列",
+      "sublabel": "webhook_inbox",
+      "tag": "at-least-once",
+      "pos": [
+        360,
+        330
+      ],
+      "size": [
+        145,
+        72
+      ]
+    },
+    {
+      "id": "orchestrator",
+      "type": "backend",
+      "label": "处理协调器",
+      "sublabel": "会话 · 附件 · Case Memory",
+      "pos": [
+        535,
+        330
+      ],
+      "size": [
+        155,
+        72
+      ]
+    },
+    {
+      "id": "classifier",
+      "type": "cloud",
+      "label": "LLM 分类器",
+      "sublabel": "类别 · 子类型 · 证据",
+      "pos": [
+        720,
+        330
+      ],
+      "size": [
+        145,
+        72
+      ],
+      "tag": "16 类 · 52 子类型"
+    },
+    {
+      "id": "deterministic_router",
+      "type": "backend",
+      "label": "确定性路由",
+      "sublabel": "Python 规则",
+      "tag": "spam / security / business",
+      "pos": [
+        920,
+        190
+      ],
+      "size": [
+        165,
+        76
+      ]
+    },
+    {
+      "id": "skill_engine",
+      "type": "backend",
+      "label": "Skill 工作流",
+      "sublabel": "account · technical · billing",
+      "pos": [
+        920,
+        460
+      ],
+      "size": [
+        165,
+        76
+      ]
+    },
+    {
+      "id": "tool_gate",
+      "type": "security",
+      "label": "工具安全门",
+      "sublabel": "Schema 校验 · 上下文绑定",
+      "tag": "20 个白名单工具",
+      "pos": [
+        1115,
+        460
+      ],
+      "size": [
+        155,
+        76
+      ]
+    },
+    {
+      "id": "front_actions",
+      "type": "cloud",
+      "label": "Front 动作",
+      "sublabel": "草稿 · 评论 · 移动 · 归档",
+      "pos": [
+        1205,
+        250
+      ],
+      "size": [
+        145,
+        76
+      ]
+    },
+    {
+      "id": "handoffs",
+      "type": "external",
+      "label": "外部集成",
+      "sublabel": "Linear · Feishu · Dify DB",
+      "pos": [
+        1205,
+        570
+      ],
+      "size": [
+        145,
+        76
+      ],
+      "tag": "工单 · 提醒 · Billing 只读"
+    },
+    {
+      "id": "state_store",
+      "type": "database",
+      "label": "SQLite 账本",
+      "sublabel": "state · action · event",
+      "tag": "幂等与追踪",
+      "pos": [
+        720,
+        690
+      ],
+      "size": [
+        145,
+        76
+      ]
+    },
+    {
+      "id": "scheduler",
+      "type": "backend",
+      "label": "恢复、SLA 与 Ops",
+      "sublabel": "APScheduler · 运营面",
+      "tag": "重试 · 报表 · 12h 提醒",
+      "pos": [
+        360,
+        690
+      ],
+      "size": [
+        155,
+        76
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Front-Agent 受控运行时",
+      "wraps": [
+        "webhook_ingress",
+        "durable_inbox",
+        "orchestrator",
+        "deterministic_router",
+        "skill_engine",
+        "tool_gate",
+        "state_store",
+        "scheduler"
+      ],
+      "pad": 20
+    }
+  ],
+  "connections": [
+    {
+      "id": "front_to_ingress",
+      "from": "front_support",
+      "to": "webhook_ingress",
+      "label": "签名 Rule Webhook",
+      "variant": "emphasis",
+      "labelDy": -30
+    },
+    {
+      "id": "ingress_to_inbox",
+      "from": "webhook_ingress",
+      "to": "durable_inbox",
+      "label": "先持久化事件",
+      "variant": "emphasis",
+      "labelDy": 60
+    },
+    {
+      "id": "inbox_to_orchestrator",
+      "from": "durable_inbox",
+      "to": "orchestrator",
+      "label": "立即处理 / 租约领取",
+      "variant": "emphasis",
+      "labelDy": -30
+    },
+    {
+      "id": "orchestrator_to_classifier",
+      "from": "orchestrator",
+      "to": "classifier",
+      "label": "全量上下文",
+      "variant": "emphasis",
+      "labelDy": -23
+    },
+    {
+      "id": "classifier_to_router",
+      "from": "classifier",
+      "to": "deterministic_router",
+      "label": "可确定路由"
+    },
+    {
+      "id": "classifier_to_skills",
+      "from": "classifier",
+      "to": "skill_engine",
+      "label": "类别 Skill"
+    },
+    {
+      "id": "router_to_front",
+      "from": "deterministic_router",
+      "to": "front_actions",
+      "label": "归档 / 移动 / 转交"
+    },
+    {
+      "id": "skills_to_gate",
+      "from": "skill_engine",
+      "to": "tool_gate",
+      "label": "白名单工具调用",
+      "labelDy": -25
+    },
+    {
+      "id": "gate_to_front",
+      "from": "tool_gate",
+      "to": "front_actions",
+      "label": "草稿 / 评论 / 分配",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "gate_to_handoffs",
+      "from": "tool_gate",
+      "to": "handoffs",
+      "label": "工单 / 通知 / 只读查询",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        1238,
+        660
+      ]
+    },
+    {
+      "id": "orchestrator_to_state",
+      "from": "orchestrator",
+      "to": "state_store",
+      "label": "会话状态 / Case Memory"
+    },
+    {
+      "id": "gate_to_state",
+      "from": "tool_gate",
+      "to": "state_store",
+      "label": "action log + 去重"
+    },
+    {
+      "id": "scheduler_to_inbox",
+      "from": "scheduler",
+      "to": "durable_inbox",
+      "label": "指数退避重试",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "主路径",
+      "items": [
+        "Front 事件先落入持久队列，再进入分类与路由",
+        "确定性 Python 路由优先，其他类别进入 Skill 工作流"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "可恢复性",
+      "items": [
+        "Webhook event_id、工具动作哈希和会话锁共同抑制重复",
+        "调度器恢复失败事件，并对新邮件执行工作日 12 小时 SLA 提醒"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "安全边界",
+      "items": [
+        "工具调用中的 conversation_id 重绑到可信 Webhook 上下文",
+        "客户回复默认仅创建草稿；Billing 查询只读且绑定可信发件人"
+      ]
+    }
+  ]
+}

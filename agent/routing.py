@@ -4,6 +4,7 @@ from typing import Any
 from agent.classification import (
     PARTNERSHIP_SUB_TYPES,
     ClassificationResult,
+    is_explicit_technology_partnership,
     should_auto_close_spam,
 )
 
@@ -53,13 +54,25 @@ def decide_initial_route(
     sub_type = classification.sub_type
     summary = classification.summary or "No summary provided by classifier."
 
-    # A spam category paired with a partnership subtype is contradictory.
-    # Explicit Marketplace/plugin lifecycle intent takes the partnership route;
-    # weaker conflicts stay open for manual review.
-    if category == "spam" and sub_type in PARTNERSHIP_SUB_TYPES:
+    classification_context = " ".join(
+        [classification.summary or "", " ".join(classification.evidence)]
+    )
+    explicit_technology_partnership = is_explicit_technology_partnership(
+        classification_context
+    )
+
+    # A spam category paired with partnership intent is contradictory. Explicit
+    # Marketplace/plugin lifecycle or targeted technology-integration intent
+    # takes the partnership route; weaker conflicts stay open for review.
+    if category == "spam" and (
+        sub_type in PARTNERSHIP_SUB_TYPES or explicit_technology_partnership
+    ):
         category = (
             "partnership"
-            if _is_explicit_marketplace_application(classification)
+            if (
+                _is_explicit_marketplace_application(classification)
+                or explicit_technology_partnership
+            )
             else "unclear"
         )
 
@@ -238,7 +251,7 @@ def decide_initial_route(
             keep_open=True,
             customer_action="none",
             internal_target="marketing@dify.ai",
-            reason="Marketplace, community, plugin ecosystem, and external cooperation route to marketing@dify.ai.",
+            reason="Marketplace, community, plugin ecosystem, technology integration, and external cooperation route to marketing@dify.ai.",
         )
 
     return _skill_route(category, sub_type)
